@@ -2,11 +2,13 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -258,4 +260,20 @@ type statusWriter struct {
 func (s *statusWriter) WriteHeader(c int) {
 	s.code = c
 	s.ResponseWriter.WriteHeader(c)
+}
+
+// Hijack lets the WebSocket reverse proxy (/live/) take over the connection.
+func (s *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := s.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("underlying ResponseWriter is not a Hijacker")
+	}
+	return h.Hijack()
+}
+
+// Flush supports streaming responses.
+func (s *statusWriter) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
