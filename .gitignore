@@ -6,3 +6,4 @@
 /config/devices.yaml
 /config/profiles/
 *.log
+/dist/
