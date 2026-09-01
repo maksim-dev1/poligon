@@ -79,6 +79,13 @@ func (a *Auth) Middleware(devUser string) func(http.Handler) http.Handler {
 				return
 			}
 			tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if tok == "" {
+				// browser navigations (iframe, WebSocket) to /live/ can't set a
+				// header — fall back to the cookie the dashboard sets on login.
+				if c, err := r.Cookie("poligon_token"); err == nil {
+					tok = c.Value
+				}
+			}
 			u, err := a.UserByToken(tok)
 			if err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)

@@ -20,6 +20,7 @@ import (
 	"github.com/pancir/poligon/internal/devices"
 	"github.com/pancir/poligon/internal/install"
 	"github.com/pancir/poligon/internal/ios"
+	"github.com/pancir/poligon/internal/live"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
 	"github.com/pancir/poligon/internal/webui"
@@ -78,8 +79,9 @@ func serve(log *slog.Logger, cfgPath string) error {
 		WorkDir:         os.TempDir(),
 	})
 	a := auth.New(st.DB())
+	lp := live.New(cfg.LiveSidecar, st, res, log)
 
-	srv := api.New(cfg, st, res, inst, http.FS(webui.FS()), log)
+	srv := api.New(cfg, st, res, inst, lp, http.FS(webui.FS()), log)
 	handler := srv.Handler(a, os.Getenv("POLIGON_DEV_USER"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

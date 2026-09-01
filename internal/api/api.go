@@ -15,6 +15,7 @@ import (
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/config"
 	"github.com/pancir/poligon/internal/install"
+	"github.com/pancir/poligon/internal/live"
 	"github.com/pancir/poligon/internal/model"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
@@ -26,13 +27,14 @@ type Server struct {
 	st   *store.Store
 	res  *reserve.Manager
 	inst *install.Installer
+	live *live.Proxy
 	log  *slog.Logger
 	web  http.FileSystem
 }
 
 // New builds the API server.
-func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, web: web, log: log}
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, web: web, log: log}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -46,8 +48,11 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("POST /devices/{id}/release", s.release)
 	api.HandleFunc("POST /devices/{id}/heartbeat", s.heartbeat)
 	api.HandleFunc("POST /devices/{id}/install", s.install)
+	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
+	api.HandleFunc("POST /session", s.session)
 
 	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
+	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(devUser)(s.live.Handler())))
 	mux.Handle("/", http.FileServer(s.web))
 	return logging(s.log, mux)
 }
@@ -127,6 +132,34 @@ func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// session sets a cookie from the caller's bearer token so that browser
+// navigations to /live/ (iframe, WebSocket) authenticate without a header.
+func (s *Server) session(w http.ResponseWriter, r *http.Request) {
+	tok := r.Header.Get("Authorization")
+	tok = tok[len("Bearer "):]
+	http.SetCookie(w, &http.Cookie{
+		Name: "poligon_token", Value: tok, Path: "/",
+		SameSite: http.SameSiteLaxMode, MaxAge: 12 * 3600,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// screenLink returns the live-screen URL for a device the caller may control.
+func (s *Server) screenLink(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	id := r.PathValue("id")
+	d, err := s.st.Device(id)
+	if err != nil {
+		fail(w, http.StatusNotFound, err)
+		return
+	}
+	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": live.StreamPath(d)})
 }
 
 // --- install ---

@@ -79,6 +79,8 @@ async function login() {
   const r = await fetch("/api/devices", { headers: { Authorization: "Bearer " + t } });
   if (!r.ok) { document.getElementById("gate-err").textContent = "invalid token"; return; }
   TOKEN = t; localStorage.setItem("poligon_token", t);
+  // set the cookie /live/ needs for iframe + WebSocket auth
+  await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + t } });
   document.getElementById("gate").hidden = true;
   document.getElementById("pool").hidden = false;
   document.getElementById("logout").hidden = false;
@@ -112,6 +114,7 @@ function card(d) {
       <button ${canReserve ? "" : "disabled"} onclick="reserve('${d.id}')">Reserve</button>
       <button ${canRelease ? "" : "disabled"} onclick="release('${d.id}')">Release</button>
       <button ${canRelease ? "" : "disabled"} onclick="pickFile('${d.id}')">Upload app</button>
+      <button ${canRelease && d.platform === "android" ? "" : "disabled"} onclick="screen('${d.id}')">Screen</button>
     </div>
     <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
            onchange="upload('${d.id}', this.files[0])">
@@ -136,6 +139,12 @@ async function refresh() {
 async function reserve(id) { try { await api(`/devices/${id}/reserve`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
 async function release(id) { try { await api(`/devices/${id}/release`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
 function pickFile(id) { document.getElementById("f-" + id).click(); }
+async function screen(id) {
+  try {
+    const { url } = await api(`/devices/${id}/screen`);
+    window.open(url, "poligon-screen-" + id, "width=420,height=860");
+  } catch (e) { alert(e.message); }
+}
 
 async function upload(id, file) {
   if (!file) return;

@@ -23,6 +23,7 @@ type Config struct {
 	MaxLease      time.Duration `yaml:"max_lease"`      // hard cap on a reservation
 	ADBPath       string        `yaml:"adb_path"`
 	AutoDiscover  bool          `yaml:"auto_discover"` // register unknown devices on connect
+	LiveSidecar   string        `yaml:"live_sidecar"`  // ws-scrcpy base URL, "" disables live screen
 	Devices       []DeviceSpec  `yaml:"devices"`
 }
 
@@ -47,6 +48,7 @@ func Default() Config {
 		MaxLease:      4 * time.Hour,
 		ADBPath:       "adb",
 		AutoDiscover:  true,
+		LiveSidecar:   "http://127.0.0.1:8000",
 	}
 }
 
