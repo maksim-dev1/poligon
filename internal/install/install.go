@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/shogo82148/androidbinary/apk"
+
 	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/ios"
 	"github.com/pancir/poligon/internal/model"
@@ -49,21 +51,30 @@ type Result struct {
 	Output  string
 }
 
-// Run installs artifactPath (as uploaded, keeping its extension) onto dev.
+// Run installs artifactPath (as uploaded, keeping its extension) onto dev,
+// then launches the app.
 func (in *Installer) Run(ctx context.Context, dev model.Device, artifactPath string) (Result, error) {
 	ext := strings.ToLower(filepath.Ext(artifactPath))
 	switch {
 	case dev.Platform == model.Android && ext == ".apk":
+		pkg, ver := apkInfo(artifactPath)
 		out, err := in.adb.Install(ctx, dev.Serial, artifactPath, true, true)
-		return Result{Output: out}, err
+		if err == nil && pkg != "" {
+			_ = in.adb.Launch(ctx, dev.Serial, pkg)
+		}
+		return Result{Output: out, Package: pkg, Version: ver}, err
 
 	case dev.Platform == model.Android && (ext == ".aab" || ext == ".apks"):
 		apks, err := in.expandAAB(ctx, artifactPath)
 		if err != nil {
 			return Result{}, err
 		}
+		pkg, ver := apkInfo(apks[0])
 		out, err := in.adb.InstallMultiple(ctx, dev.Serial, apks, true)
-		return Result{Output: out}, err
+		if err == nil && pkg != "" {
+			_ = in.adb.Launch(ctx, dev.Serial, pkg)
+		}
+		return Result{Output: out, Package: pkg, Version: ver}, err
 
 	case dev.Platform == model.IOS && ext == ".ipa":
 		appBundle, err := in.resignIPA(ctx, artifactPath)
@@ -286,4 +297,18 @@ func tail(s string, n int) string {
 		return s
 	}
 	return s[len(s)-n:]
+}
+
+// apkInfo reads the package name and version name from an APK's manifest.
+// Returns empty strings if the APK cannot be parsed.
+func apkInfo(path string) (pkg, version string) {
+	pkgApk, err := apk.OpenFile(path)
+	if err != nil {
+		return "", ""
+	}
+	defer pkgApk.Close()
+	m := pkgApk.Manifest()
+	pkg, _ = m.Package.String()
+	version, _ = m.VersionName.String()
+	return pkg, version
 }

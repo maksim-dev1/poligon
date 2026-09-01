@@ -39,8 +39,19 @@ func run(ctx context.Context, bin string, args ...string) (string, error) {
 	return out.String(), nil
 }
 
-// OnlineUDIDs returns the UDIDs of USB-connected devices.
+// Available reports whether the libimobiledevice tools are installed.
+func (t Tools) Available() bool {
+	_, err := exec.LookPath(t.IDeviceID)
+	return err == nil
+}
+
+// OnlineUDIDs returns the UDIDs of USB-connected devices. If the iOS tools are
+// not installed it returns an empty set and no error (the farm may be
+// Android-only).
 func (t Tools) OnlineUDIDs(ctx context.Context) (map[string]bool, error) {
+	if !t.Available() {
+		return map[string]bool{}, nil
+	}
 	out, err := run(ctx, t.IDeviceID, "-l")
 	if err != nil {
 		return nil, err

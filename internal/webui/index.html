@@ -39,20 +39,52 @@
 <header>
   <h1>poligon</h1>
   <span class="muted" id="summary">loading…</span>
+  <span style="margin-left:auto"></span>
+  <button id="logout" hidden onclick="logout()">sign out</button>
 </header>
 <div id="err"></div>
+
+<div id="gate" hidden style="max-width:360px;margin:15vh auto;text-align:center">
+  <h2 style="font-weight:600">Sign in</h2>
+  <p class="muted" style="font-size:13px">Paste your poligon token
+    (<code>poligon user add &lt;name&gt;</code> on the host).</p>
+  <input id="token-in" type="password" placeholder="token" autocomplete="off"
+    style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
+  <button style="margin-top:10px;width:100%" onclick="login()">Continue</button>
+  <div id="gate-err" style="color:#f85149;font-size:13px;margin-top:8px"></div>
+</div>
+
 <main id="pool"></main>
 
 <script>
-const TOKEN = localStorage.getItem("poligon_token") || "";
-const H = TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
+let TOKEN = localStorage.getItem("poligon_token") || "";
+const h = () => TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
 
 async function api(path, opts = {}) {
-  const r = await fetch("/api" + path, { ...opts, headers: { ...H, ...(opts.headers||{}) } });
+  const r = await fetch("/api" + path, { ...opts, headers: { ...h(), ...(opts.headers||{}) } });
+  if (r.status === 401) { showGate(); throw new Error("unauthorized"); }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || r.statusText);
   return body;
 }
+
+function showGate() {
+  document.getElementById("gate").hidden = false;
+  document.getElementById("pool").hidden = true;
+  document.getElementById("logout").hidden = true;
+}
+async function login() {
+  const t = document.getElementById("token-in").value.trim();
+  if (!t) return;
+  const r = await fetch("/api/devices", { headers: { Authorization: "Bearer " + t } });
+  if (!r.ok) { document.getElementById("gate-err").textContent = "invalid token"; return; }
+  TOKEN = t; localStorage.setItem("poligon_token", t);
+  document.getElementById("gate").hidden = true;
+  document.getElementById("pool").hidden = false;
+  document.getElementById("logout").hidden = false;
+  refresh();
+}
+function logout() { localStorage.removeItem("poligon_token"); TOKEN = ""; showGate(); }
 
 function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
 
@@ -94,8 +126,10 @@ async function refresh() {
     const free = pool.filter(d => d.status === "free").length;
     document.getElementById("summary").textContent =
       `${pool.length} devices · ${free} free`;
+    document.getElementById("logout").hidden = false;
   } catch (e) {
-    document.getElementById("err").textContent = e.message;
+    if (e.message !== "unauthorized")
+      document.getElementById("err").textContent = e.message;
   }
 }
 
@@ -115,8 +149,9 @@ async function upload(id, file) {
   refresh();
 }
 
-refresh();
-setInterval(refresh, 5000);
+document.getElementById("token-in")?.addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+if (TOKEN) { refresh(); } else { showGate(); }
+setInterval(() => { if (TOKEN) refresh(); }, 5000);
 </script>
 </body>
 </html>
