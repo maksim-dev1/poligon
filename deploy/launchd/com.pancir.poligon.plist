@@ -2,14 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Install: sudo cp com.pancir.poligon.plist /Library/LaunchDaemons/
-           sudo launchctl load /Library/LaunchDaemons/com.pancir.poligon.plist
-  Edit WorkingDirectory / paths / user to match the host.
+  LaunchAgent (runs in the logged-in user's session — best USB/adb access).
+
+  Install:
+    mkdir -p ~/Library/LaunchAgents
+    cp deploy/launchd/com.pancir.poligon.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pancir.poligon.plist
+  Restart:
+    launchctl kickstart -k gui/$(id -u)/com.pancir.poligon
+  Stop:
+    launchctl bootout gui/$(id -u)/com.pancir.poligon
+
+  Paths assume the repo is cloned at ~/poligon. Edit if not.
 -->
 <plist version="1.0">
 <dict>
   <key>Label</key>            <string>com.pancir.poligon</string>
-  <key>UserName</key>         <string>dev-mac</string>
   <key>WorkingDirectory</key> <string>/Users/dev-mac/poligon</string>
   <key>ProgramArguments</key>
   <array>
@@ -18,14 +26,16 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key>                     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>POLIGON_CONFIG</key>           <string>/Users/dev-mac/poligon/config/devices.yaml</string>
-    <key>POLIGON_PROFILE_DIR</key>      <string>/Users/dev-mac/poligon/config/profiles</string>
-    <key>POLIGON_BUNDLETOOL</key>       <string>/usr/local/bin/bundletool</string>
+    <key>PATH</key>                <string>/usr/local/go/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>POLIGON_CONFIG</key>      <string>/Users/dev-mac/poligon/config/devices.yaml</string>
+    <key>POLIGON_PROFILE_DIR</key> <string>/Users/dev-mac/poligon/config/profiles</string>
+    <key>POLIGON_BUNDLETOOL</key>  <string>/usr/local/bin/bundletool</string>
+    <!-- set once iOS re-signing is configured:
     <key>POLIGON_SIGNING_IDENTITY</key> <string>Apple Distribution: YOUR COMPANY (TEAMID)</string>
+    -->
   </dict>
-  <key>KeepAlive</key>     <true/>
-  <key>RunAtLoad</key>     <true/>
+  <key>KeepAlive</key>         <true/>
+  <key>RunAtLoad</key>         <true/>
   <key>StandardOutPath</key>   <string>/Users/dev-mac/poligon/poligon.out.log</string>
   <key>StandardErrorPath</key> <string>/Users/dev-mac/poligon/poligon.err.log</string>
 </dict>
