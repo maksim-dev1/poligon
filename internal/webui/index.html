@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poligon — phone farm</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --muted:#8b93a1;
+          --free:#3fb950; --busy:#d29922; --off:#6e7681; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; }
+  header h1 { margin:0; font-size:18px; }
+  header .muted { color:var(--muted); }
+  main { padding:24px; display:grid; gap:16px;
+         grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .card h2 { margin:0 0 4px; font-size:15px; display:flex; justify-content:space-between; align-items:center; }
+  .badge { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:20px; }
+  .b-free{background:rgba(63,185,80,.15);color:var(--free)}
+  .b-busy,.b-reserved,.b-running{background:rgba(210,153,34,.15);color:var(--busy)}
+  .b-offline{background:rgba(110,118,129,.15);color:var(--off)}
+  .b-degraded,.b-maintenance,.b-unauthorized{background:rgba(248,81,73,.15);color:var(--bad)}
+  .src{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+  .hint{color:var(--busy);font-size:12px;margin-top:8px}
+  .specs { color:var(--muted); font-size:13px; margin:8px 0 0; }
+  .specs div { display:flex; justify-content:space-between; }
+  .row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  button { background:#22262e; color:var(--fg); border:1px solid var(--line);
+           border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  button:hover { background:#2b303a; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .hold { color:var(--muted); font-size:12px; margin-top:8px; }
+  #err { color:var(--bad); padding:0 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>poligon</h1>
+  <span class="muted" id="summary">loading…</span>
+</header>
+<div id="err"></div>
+<main id="pool"></main>
+
+<script>
+const TOKEN = localStorage.getItem("poligon_token") || "";
+const H = TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { ...H, ...(opts.headers||{}) } });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || r.statusText);
+  return body;
+}
+
+function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
+
+function card(d) {
+  const s = d.specs || {};
+  const held = d.reservation ? `held by ${d.reservation.user}` : "";
+  const canReserve = d.status === "free";
+  const canRelease = !!d.reservation;
+  const unauth = d.status === "unauthorized";
+  return `<div class="card">
+    <h2>${d.id} ${badge(d.status)}</h2>
+    <div class="muted">${d.platform} · ${s.model || "?"} · ${s.os_version || "?"}
+      <span class="src">${d.source || "config"}</span></div>
+    ${unauth ? `<div class="hint">On the device: unlock screen, replug USB, tap
+      "Allow USB debugging" (Always allow).</div>` : ""}
+    <div class="specs">
+      <div><span>SoC</span><span>${s.soc || "—"}</span></div>
+      <div><span>RAM</span><span>${s.ram || "—"}</span></div>
+      <div><span>Storage</span><span>${s.storage || "—"}</span></div>
+      <div><span>Screen</span><span>${s.screen_size || "—"} ${s.screen_density ? "@"+s.screen_density : ""}</span></div>
+      <div><span>Battery</span><span>${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
+    </div>
+    ${held ? `<div class="hold">${held}</div>` : ""}
+    <div class="row">
+      <button ${canReserve ? "" : "disabled"} onclick="reserve('${d.id}')">Reserve</button>
+      <button ${canRelease ? "" : "disabled"} onclick="release('${d.id}')">Release</button>
+      <button ${canRelease ? "" : "disabled"} onclick="pickFile('${d.id}')">Upload app</button>
+    </div>
+    <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
+           onchange="upload('${d.id}', this.files[0])">
+  </div>`;
+}
+
+async function refresh() {
+  try {
+    const pool = await api("/devices");
+    document.getElementById("err").textContent = "";
+    document.getElementById("pool").innerHTML = pool.map(card).join("");
+    const free = pool.filter(d => d.status === "free").length;
+    document.getElementById("summary").textContent =
+      `${pool.length} devices · ${free} free`;
+  } catch (e) {
+    document.getElementById("err").textContent = e.message;
+  }
+}
+
+async function reserve(id) { try { await api(`/devices/${id}/reserve`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
+async function release(id) { try { await api(`/devices/${id}/release`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
+function pickFile(id) { document.getElementById("f-" + id).click(); }
+
+async function upload(id, file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("artifact", file);
+  document.getElementById("summary").textContent = `installing ${file.name} on ${id}…`;
+  try {
+    const res = await api(`/devices/${id}/install`, { method:"POST", body: fd });
+    alert(res.status === "ok" ? "installed" : "failed:\n" + res.detail);
+  } catch (e) { alert(e.message); }
+  refresh();
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+// Package ios wraps the libimobiledevice tools and ios-deploy for the iOS side
+// of the farm: listing devices, reading info, installing (re-signed) apps.
+//
+// Install of an .ipa requires the app to be signed with a provisioning profile
+// that covers the target device. poligon re-signs incoming builds with the
+// farm's ad-hoc profiles before calling Install (see internal/install).
+package ios
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os/exec"
+	"strings"
+	"time"
+
+	"github.com/pancir/poligon/internal/model"
+)
+
+// Tools bundles the external binaries used on the iOS side.
+type Tools struct {
+	IDeviceID   string // "idevice_id"
+	IDeviceInfo string // "ideviceinfo"
+	IOSDeploy   string // "ios-deploy"
+}
+
+// Default returns Tools pointing at the standard binary names on PATH.
+func Default() Tools {
+	return Tools{IDeviceID: "idevice_id", IDeviceInfo: "ideviceinfo", IOSDeploy: "ios-deploy"}
+}
+
+func run(ctx context.Context, bin string, args ...string) (string, error) {
+	var out, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		return out.String(), fmt.Errorf("%s %s: %w: %s", bin, strings.Join(args, " "), err, strings.TrimSpace(errb.String()))
+	}
+	return out.String(), nil
+}
+
+// OnlineUDIDs returns the UDIDs of USB-connected devices.
+func (t Tools) OnlineUDIDs(ctx context.Context) (map[string]bool, error) {
+	out, err := run(ctx, t.IDeviceID, "-l")
+	if err != nil {
+		return nil, err
+	}
+	set := map[string]bool{}
+	for _, l := range strings.Fields(out) {
+		if l != "" {
+			set[l] = true
+		}
+	}
+	return set, nil
+}
+
+// Specs reads device characteristics via ideviceinfo. RAM/SoC are not exposed
+// by iOS, so they are filled from a static table keyed on ProductType.
+func (t Tools) Specs(ctx context.Context, udid string) (model.Specs, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	sp := model.Specs{Battery: -1, Manufacturer: "Apple"}
+	get := func(domain, key string) string {
+		args := []string{"-u", udid}
+		if domain != "" {
+			args = append(args, "-q", domain)
+		}
+		args = append(args, "-k", key)
+		v, _ := run(ctx, t.IDeviceInfo, args...)
+		return strings.TrimSpace(v)
+	}
+	product := get("", "ProductType") // e.g. "iPhone13,2"
+	sp.OSVersion = get("", "ProductVersion")
+	sp.Build = get("", "BuildVersion")
+	sp.ScreenSize = "" // available via lockdown but noisy; skip for now
+
+	if hw, ok := hardware[product]; ok {
+		sp.Model, sp.SoC, sp.RAM = hw.name, hw.soc, hw.ram
+	} else {
+		sp.Model = product
+	}
+	if lvl := get("com.apple.mobile.battery", "BatteryCurrentCapacity"); lvl != "" {
+		fmt.Sscan(lvl, &sp.Battery)
+	}
+	if total := get("com.apple.disk_usage", "TotalDiskCapacity"); total != "" {
+		var b float64
+		fmt.Sscan(total, &b)
+		sp.Storage = fmt.Sprintf("%.0f GB", b/1e9)
+	}
+	return sp, nil
+}
+
+// Install deploys a (re-signed) .app bundle to the device and launches it.
+func (t Tools) Install(ctx context.Context, udid, appBundlePath string) (string, error) {
+	return run(ctx, t.IOSDeploy, "--id", udid, "--bundle", appBundlePath, "--justlaunch", "--no-wifi")
+}
+
+type hw struct{ name, soc, ram string }
+
+// hardware maps ProductType -> marketing name / SoC / RAM. Extend as devices
+// join the farm.
+var hardware = map[string]hw{
+	"iPhone12,1": {"iPhone 11", "A13 Bionic", "4 GB"},
+	"iPhone12,8": {"iPhone SE (2nd gen)", "A13 Bionic", "3 GB"},
+	"iPhone13,1": {"iPhone 12 mini", "A14 Bionic", "4 GB"},
+	"iPhone13,2": {"iPhone 12", "A14 Bionic", "4 GB"},
+	"iPhone13,3": {"iPhone 12 Pro", "A14 Bionic", "6 GB"},
+	"iPhone13,4": {"iPhone 12 Pro Max", "A14 Bionic", "6 GB"},
+	"iPhone14,4": {"iPhone 13 mini", "A15 Bionic", "4 GB"},
+	"iPhone14,5": {"iPhone 13", "A15 Bionic", "4 GB"},
+	"iPhone14,2": {"iPhone 13 Pro", "A15 Bionic", "6 GB"},
+	"iPhone14,3": {"iPhone 13 Pro Max", "A15 Bionic", "6 GB"},
+	"iPhone14,7": {"iPhone 14", "A15 Bionic", "6 GB"},
+	"iPhone15,2": {"iPhone 14 Pro", "A16 Bionic", "6 GB"},
+	"iPhone15,4": {"iPhone 15", "A16 Bionic", "6 GB"},
+	"iPhone16,1": {"iPhone 15 Pro", "A17 Pro", "8 GB"},
+}

@@ -1,0 +1,8 @@
+/poligon
+*.db
+*.db-shm
+*.db-wal
+/storage/
+/config/devices.yaml
+/config/profiles/
+*.log

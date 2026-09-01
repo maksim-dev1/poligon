@@ -1,0 +1,21 @@
+# poligon runtime config. Copy to config/devices.yaml and edit.
+
+listen: ":8080"
+db_path: "poligon.db"
+storage_dir: "storage"
+poll_interval: 10s
+specs_interval: 1h
+idle_timeout: 15m
+max_lease: 4h
+adb_path: "adb"
+
+devices:
+  - id: pixel6-01
+    platform: android
+    serial: 1A2B3C4D5E
+    tags: [phone, arm64, prod-like]
+
+  - id: iphone12-01
+    platform: ios
+    udid: 00008101-000A4D0E1234ABCD
+    tags: [phone]

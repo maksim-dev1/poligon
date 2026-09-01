@@ -1,0 +1,228 @@
+// Package api is poligon's HTTP surface: the JSON API and the embedded dashboard.
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/pancir/poligon/internal/auth"
+	"github.com/pancir/poligon/internal/config"
+	"github.com/pancir/poligon/internal/install"
+	"github.com/pancir/poligon/internal/model"
+	"github.com/pancir/poligon/internal/reserve"
+	"github.com/pancir/poligon/internal/store"
+)
+
+// Server holds the API dependencies.
+type Server struct {
+	cfg  config.Config
+	st   *store.Store
+	res  *reserve.Manager
+	inst *install.Installer
+	log  *slog.Logger
+	web  http.FileSystem
+}
+
+// New builds the API server.
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, web: web, log: log}
+}
+
+// Handler returns the root http.Handler with auth applied to /api.
+func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
+	mux := http.NewServeMux()
+
+	api := http.NewServeMux()
+	api.HandleFunc("GET /devices", s.listDevices)
+	api.HandleFunc("GET /devices/{id}", s.getDevice)
+	api.HandleFunc("POST /devices/{id}/reserve", s.reserve)
+	api.HandleFunc("POST /devices/{id}/release", s.release)
+	api.HandleFunc("POST /devices/{id}/heartbeat", s.heartbeat)
+	api.HandleFunc("POST /devices/{id}/install", s.install)
+
+	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
+	mux.Handle("/", http.FileServer(s.web))
+	return logging(s.log, mux)
+}
+
+// --- device views ---
+
+type deviceView struct {
+	model.Device
+	Reservation *model.Reservation `json:"reservation,omitempty"`
+}
+
+func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
+	pool, err := s.st.Devices()
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	out := make([]deviceView, 0, len(pool))
+	for _, d := range pool {
+		dv := deviceView{Device: d}
+		if res, ok, _ := s.res.Holder(d.ID); ok {
+			dv.Reservation = &res
+		}
+		out = append(out, dv)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) getDevice(w http.ResponseWriter, r *http.Request) {
+	d, err := s.st.Device(r.PathValue("id"))
+	if err != nil {
+		fail(w, http.StatusNotFound, err)
+		return
+	}
+	dv := deviceView{Device: d}
+	if res, ok, _ := s.res.Holder(d.ID); ok {
+		dv.Reservation = &res
+	}
+	writeJSON(w, http.StatusOK, dv)
+}
+
+// --- reservations ---
+
+func (s *Server) reserve(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	res, err := s.res.Reserve(r.PathValue("id"), u.Name)
+	switch {
+	case errors.Is(err, reserve.ErrTaken):
+		fail(w, http.StatusConflict, err)
+	case errors.Is(err, reserve.ErrUnavailable):
+		fail(w, http.StatusConflict, err)
+	case err != nil:
+		fail(w, http.StatusInternalServerError, err)
+	default:
+		writeJSON(w, http.StatusOK, res)
+	}
+}
+
+func (s *Server) release(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	err := s.res.Release(r.PathValue("id"), u.Name, u.IsAdmin)
+	if errors.Is(err, reserve.ErrNotHolder) {
+		fail(w, http.StatusForbidden, err)
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "released"})
+}
+
+func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	if err := s.res.Heartbeat(r.PathValue("id"), u.Name); err != nil {
+		fail(w, http.StatusForbidden, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- install ---
+
+func (s *Server) install(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	id := r.PathValue("id")
+
+	dev, err := s.st.Device(id)
+	if err != nil {
+		fail(w, http.StatusNotFound, err)
+		return
+	}
+	// only the holder may install
+	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
+		return
+	}
+
+	if err := r.ParseMultipartForm(512 << 20); err != nil { // 512 MiB
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+	file, hdr, err := r.FormFile("artifact")
+	if err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+	defer file.Close()
+
+	dir := filepath.Join(s.cfg.StorageDir, "uploads", time.Now().Format("20060102-150405")+"-"+id)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	artifactPath := filepath.Join(dir, filepath.Base(hdr.Filename))
+	dst, err := os.Create(artifactPath)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	if _, err := io.Copy(dst, file); err != nil {
+		dst.Close()
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	dst.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+
+	_ = s.st.SetDeviceStatus(id, model.StatusBusy, time.Now())
+	result, ierr := s.inst.Run(ctx, dev, artifactPath)
+
+	status, detail := "ok", result.Output
+	code := http.StatusOK
+	if ierr != nil {
+		status, detail = "failed", ierr.Error()
+		code = http.StatusBadGateway
+	}
+	s.log.Info("install", "device", id, "user", u.Name, "artifact", hdr.Filename, "status", status)
+
+	writeJSON(w, code, map[string]any{
+		"status":  status,
+		"detail":  detail,
+		"package": result.Package,
+	})
+}
+
+// --- helpers ---
+
+func writeJSON(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func fail(w http.ResponseWriter, code int, err error) {
+	writeJSON(w, code, map[string]string{"error": err.Error()})
+}
+
+func logging(log *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, code: 200}
+		next.ServeHTTP(sw, r)
+		log.Info("http", "method", r.Method, "path", r.URL.Path, "code", sw.code, "dur", time.Since(start).String())
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (s *statusWriter) WriteHeader(c int) {
+	s.code = c
+	s.ResponseWriter.WriteHeader(c)
+}
