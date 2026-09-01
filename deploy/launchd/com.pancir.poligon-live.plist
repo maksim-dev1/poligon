@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ws-scrcpy sidecar for poligon's live screen. Serves 127.0.0.1:8000;
+  poligon reverse-proxies it under /live/ with auth.
+
+  Install (paths assume ~/poligon-sidecar/ws-scrcpy):
+    sudo cp deploy/launchd/com.pancir.poligon-live.plist /Library/LaunchDaemons/
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.pancir.poligon-live.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.pancir.poligon-live</string>
+  <key>UserName</key>         <string>dev-mac</string>
+  <key>WorkingDirectory</key> <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>dist/index.js</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>                 <string>/usr/local/bin:/usr/bin:/bin</string>
+    <key>WS_SCRCPY_PORT</key>       <string>8000</string>
+    <key>WS_SCRCPY_HOSTNAME</key>   <string>127.0.0.1</string>
+  </dict>
+  <key>KeepAlive</key>         <true/>
+  <key>RunAtLoad</key>         <true/>
+  <key>StandardOutPath</key>   <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy.out.log</string>
+  <key>StandardErrorPath</key> <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy.err.log</string>
+</dict>
+</plist>
