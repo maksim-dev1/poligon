@@ -159,7 +159,14 @@ async function upload(id, file) {
 }
 
 document.getElementById("token-in")?.addEventListener("keydown", e => { if (e.key === "Enter") login(); });
-if (TOKEN) { refresh(); } else { showGate(); }
+
+async function boot() {
+  if (!TOKEN) { showGate(); return; }
+  // (re)seed the cookie that /live/ WebSocket + iframe auth needs
+  await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + TOKEN } }).catch(() => {});
+  refresh();
+}
+boot();
 setInterval(() => { if (TOKEN) refresh(); }, 5000);
 </script>
 </body>

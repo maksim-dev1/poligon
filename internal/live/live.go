@@ -117,11 +117,15 @@ func SidecarTargets(devs []model.Device) []string {
 }
 
 // StreamPath builds the dashboard link that opens a device's screen.
+//
+// ws-scrcpy 0.9's stream deep link needs a fully-formed ws= URL; instead we open
+// its device list (which auto-connects the tracker WebSocket through the proxy)
+// and let the user pick the reserved device. The udid is passed so ws-scrcpy can
+// pre-select it where supported.
 func StreamPath(d model.Device) string {
 	id := d.Serial
 	if id == "" {
 		id = d.UDID
 	}
-	// ws-scrcpy single-device deep link
-	return "/live/#!action=stream&udid=" + url.QueryEscape(id) + "&player=mse"
+	return "/live/#!action=devices&udid=" + url.QueryEscape(id)
 }
