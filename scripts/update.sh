@@ -13,10 +13,12 @@ echo "==> build"
 go build -o poligon ./cmd/poligon
 
 LABEL=com.pancir.poligon
-DOMAIN="gui/$(id -u)"
-if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
+if [ -f "/Library/LaunchDaemons/$LABEL.plist" ]; then
   echo "==> restart $LABEL"
-  launchctl kickstart -k "$DOMAIN/$LABEL"
+  sudo launchctl kickstart -k "system/$LABEL"
+elif [ -f "$HOME/Library/LaunchAgents/$LABEL.plist" ]; then
+  echo "==> restart $LABEL (agent)"
+  launchctl kickstart -k "gui/$(id -u)/$LABEL"
 else
   echo "service not loaded — run scripts/install-service.sh once"
 fi
