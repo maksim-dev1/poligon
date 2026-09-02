@@ -112,89 +112,197 @@ func (in *Installer) expandAAB(ctx context.Context, aab string) ([]string, error
 	return []string{universal}, nil
 }
 
-// resignIPA re-signs the ipa with the farm identity + profiles and returns the
-// path to the extracted, re-signed .app bundle ready for ios-deploy.
+// resignIPA re-signs an ipa with the farm identity + provisioning profiles and
+// returns the path to the extracted, re-signed .app bundle for ios-deploy.
 //
-// This shells out to `fastlane run resign`, which handles the app bundle and
-// every embedded extension. ProfileDir must contain one <bundleid>.mobileprovision
-// per binary.
+// Uses codesign directly (no fastlane/ruby). ProfileDir must contain, for every
+// signable bundle (the app and each .appex/.framework with its own id), either
+// <bundle-id>.mobileprovision or a wildcard profile (app-id ending ".*") whose
+// team matches. Frameworks are signed before the app, extensions before the app.
 func (in *Installer) resignIPA(ctx context.Context, ipa string) (string, error) {
 	if in.opts.SigningIdentity == "" || in.opts.ProfileDir == "" {
-		return "", fmt.Errorf("iOS re-signing not configured (signing_identity / profile_dir)")
+		return "", fmt.Errorf("iOS re-signing not configured (POLIGON_SIGNING_IDENTITY / POLIGON_PROFILE_DIR)")
 	}
 	work, err := os.MkdirTemp(in.opts.WorkDir, "resign-*")
 	if err != nil {
 		return "", err
 	}
-	staged := filepath.Join(work, "app.ipa")
-	if err := copyFile(ipa, staged); err != nil {
+	if err := unzipDir(ipa, "Payload/", work); err != nil {
 		return "", err
 	}
+	appDir := ""
+	if entries, _ := os.ReadDir(filepath.Join(work, "Payload")); true {
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".app") {
+				appDir = filepath.Join(work, "Payload", e.Name())
+			}
+		}
+	}
+	if appDir == "" {
+		return "", fmt.Errorf("no .app in ipa")
+	}
 
-	bundleIDs, err := ipaBundleIDs(staged)
+	profiles, err := loadProfiles(in.opts.ProfileDir)
 	if err != nil {
 		return "", err
 	}
-	args := []string{"run", "resign", "ipa:" + staged, "signing_identity:" + in.opts.SigningIdentity}
-	for _, id := range bundleIDs {
-		prof := filepath.Join(in.opts.ProfileDir, id+".mobileprovision")
-		if _, err := os.Stat(prof); err != nil {
-			return "", fmt.Errorf("no farm profile for bundle id %q (%s)", id, prof)
-		}
-		args = append(args, fmt.Sprintf("provisioning_profile:%s:%s", id, prof))
-	}
-	cmd := exec.CommandContext(ctx, "fastlane", args...)
-	cmd.Dir = work
-	if b, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("resign: %v: %s", err, tail(string(b), 2000))
-	}
 
-	appDir := filepath.Join(work, "Payload")
-	if err := unzipDir(staged, "Payload/", work); err != nil {
-		return "", err
-	}
-	entries, _ := os.ReadDir(appDir)
-	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".app") {
-			return filepath.Join(appDir, e.Name()), nil
+	// sign deepest-first: frameworks, plugins, then the app
+	var targets []string
+	for _, sub := range []string{"Frameworks", "PlugIns"} {
+		d := filepath.Join(appDir, sub)
+		entries, _ := os.ReadDir(d)
+		for _, e := range entries {
+			if e.IsDir() && (strings.HasSuffix(e.Name(), ".framework") ||
+				strings.HasSuffix(e.Name(), ".appex") || strings.HasSuffix(e.Name(), ".dylib")) {
+				targets = append(targets, filepath.Join(d, e.Name()))
+			}
 		}
 	}
-	return "", fmt.Errorf("no .app in re-signed ipa")
+	targets = append(targets, appDir)
+
+	for _, t := range targets {
+		if err := in.codesignBundle(ctx, t, profiles, work); err != nil {
+			return "", err
+		}
+	}
+	return appDir, nil
 }
 
-// ipaBundleIDs returns the CFBundleIdentifier of the app and every .appex.
-func ipaBundleIDs(ipa string) ([]string, error) {
-	zr, err := zip.OpenReader(ipa)
+// codesignBundle embeds the right profile (for bundles that need one) and
+// re-signs with the farm identity + that profile's entitlements.
+func (in *Installer) codesignBundle(ctx context.Context, bundle string, profiles []profile, work string) error {
+	id := bundleID(filepath.Join(bundle, "Info.plist"))
+
+	args := []string{"-f", "-s", in.opts.SigningIdentity}
+	isFramework := strings.HasSuffix(bundle, ".framework") || strings.HasSuffix(bundle, ".dylib")
+	if !isFramework {
+		p, ok := matchProfile(profiles, id)
+		if !ok {
+			return fmt.Errorf("no farm profile for bundle id %q", id)
+		}
+		if err := copyFile(p.path, filepath.Join(bundle, "embedded.mobileprovision")); err != nil {
+			return err
+		}
+		ents := filepath.Join(work, strings.ReplaceAll(id, "/", "_")+".plist")
+		if err := os.WriteFile(ents, p.entitlements, 0o644); err != nil {
+			return err
+		}
+		args = append(args, "--entitlements", ents)
+	}
+	args = append(args, bundle)
+
+	if b, err := exec.CommandContext(ctx, "codesign", args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("codesign %s: %v: %s", filepath.Base(bundle), err, strings.TrimSpace(string(b)))
+	}
+	return nil
+}
+
+type profile struct {
+	path         string
+	appID        string // e.g. TEAMID.com.acme.app or TEAMID.*
+	team         string
+	entitlements []byte
+}
+
+func loadProfiles(dir string) ([]profile, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("profile dir: %w", err)
 	}
-	defer zr.Close()
-	var ids []string
-	for _, f := range zr.File {
-		// Payload/App.app/Info.plist and Payload/App.app/PlugIns/*.appex/Info.plist
-		if !strings.HasSuffix(f.Name, "/Info.plist") {
+	var out []profile
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".mobileprovision") {
 			continue
 		}
-		rel := strings.TrimPrefix(f.Name, "Payload/")
-		depth := strings.Count(rel, "/")
-		if depth != 1 && !strings.Contains(rel, ".appex/") {
-			continue
-		}
-		rc, err := f.Open()
+		path := filepath.Join(dir, e.Name())
+		xml, err := exec.Command("security", "cms", "-D", "-i", path).Output()
 		if err != nil {
-			return nil, err
+			continue
 		}
-		data := make([]byte, f.UncompressedSize64)
-		_, _ = rc.Read(data)
-		rc.Close()
-		if id := plistString(data, "CFBundleIdentifier"); id != "" {
-			ids = append(ids, id)
+		p := profile{path: path}
+		p.appID = plistString(xml, "application-identifier")
+		p.team = plistString(xml, "TeamIdentifier")
+		p.entitlements = extractEntitlements(xml)
+		out = append(out, p)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no .mobileprovision files in %s", dir)
+	}
+	return out, nil
+}
+
+// matchProfile prefers an exact app-id match, else a team wildcard.
+func matchProfile(profiles []profile, bundleID string) (profile, bool) {
+	var wildcard *profile
+	for i := range profiles {
+		p := &profiles[i]
+		id := p.appID
+		if i := strings.IndexByte(id, '.'); i >= 0 {
+			id = id[i+1:] // strip TEAMID.
+		}
+		if id == bundleID {
+			return *p, true
+		}
+		if id == "*" {
+			wildcard = p
 		}
 	}
-	if len(ids) == 0 {
-		return nil, fmt.Errorf("no bundle ids found in ipa")
+	if wildcard != nil {
+		return *wildcard, true
 	}
-	return ids, nil
+	return profile{}, false
+}
+
+// extractEntitlements pulls the <key>Entitlements</key><dict>…</dict> block from
+// a decoded mobileprovision into a standalone plist.
+func extractEntitlements(xml []byte) []byte {
+	s := string(xml)
+	i := strings.Index(s, "<key>Entitlements</key>")
+	if i < 0 {
+		return []byte(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict/></plist>`)
+	}
+	rest := s[i:]
+	open := strings.Index(rest, "<dict>")
+	if open < 0 {
+		return nil
+	}
+	depth, end := 0, -1
+	for j := open; j < len(rest); {
+		if strings.HasPrefix(rest[j:], "<dict>") {
+			depth++
+			j += 6
+		} else if strings.HasPrefix(rest[j:], "</dict>") {
+			depth--
+			j += 7
+			if depth == 0 {
+				end = j
+				break
+			}
+		} else {
+			j++
+		}
+	}
+	if end < 0 {
+		return nil
+	}
+	return []byte(`<?xml version="1.0" encoding="UTF-8"?>` +
+		`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` +
+		`<plist version="1.0">` + rest[open:end] + `</plist>`)
+}
+
+// bundleID reads CFBundleIdentifier from an Info.plist (binary or xml).
+func bundleID(infoPlist string) string {
+	b, err := os.ReadFile(infoPlist)
+	if err != nil {
+		return ""
+	}
+	if id := plistString(b, "CFBundleIdentifier"); id != "" {
+		return id
+	}
+	// binary plist: fall back to PlistBuddy
+	out, _ := exec.Command("/usr/libexec/PlistBuddy", "-c", "Print :CFBundleIdentifier", infoPlist).Output()
+	return strings.TrimSpace(string(out))
 }
 
 // plistString does a crude extraction of <key>NAME</key><string>VALUE</string>
@@ -290,13 +398,6 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, b, 0o644)
-}
-
-func tail(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[len(s)-n:]
 }
 
 // apkInfo reads the package name and version name from an APK's manifest.
