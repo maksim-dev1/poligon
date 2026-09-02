@@ -96,8 +96,9 @@ func (c *Controller) Do(deviceID string, in Input) error {
 	switch in.Type {
 	case "home":
 		return c.post(base+"/wda/homescreen", nil)
-	case "lock":
-		return c.post(base+"/wda/lock", nil)
+	case "wake":
+		// wakes the screen; fully unlocks only if the device has no passcode
+		return c.post(base+"/wda/unlock", nil)
 	case "text":
 		sid, err := c.session(deviceID, base)
 		if err != nil {
