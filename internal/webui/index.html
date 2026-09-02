@@ -114,7 +114,7 @@ function card(d) {
       <button ${canReserve ? "" : "disabled"} onclick="reserve('${d.id}')">Reserve</button>
       <button ${canRelease ? "" : "disabled"} onclick="release('${d.id}')">Release</button>
       <button ${canRelease ? "" : "disabled"} onclick="pickFile('${d.id}')">Upload app</button>
-      <button ${canRelease && d.platform === "android" ? "" : "disabled"} onclick="screen('${d.id}')">Screen</button>
+      <button ${canRelease ? "" : "disabled"} onclick="screen('${d.id}')">Screen</button>
     </div>
     <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
            onchange="upload('${d.id}', this.files[0])">

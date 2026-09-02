@@ -17,10 +17,12 @@ import (
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/config"
 	"github.com/pancir/poligon/internal/install"
+	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/live"
 	"github.com/pancir/poligon/internal/model"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
+	"github.com/pancir/poligon/internal/webui"
 )
 
 // Server holds the API dependencies.
@@ -30,13 +32,14 @@ type Server struct {
 	res  *reserve.Manager
 	inst *install.Installer
 	live *live.Proxy
+	ios  *iosscreen.Controller
 	log  *slog.Logger
 	web  http.FileSystem
 }
 
 // New builds the API server.
-func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, web: web, log: log}
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, web: web, log: log}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -53,7 +56,15 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
 	api.HandleFunc("POST /session", s.session)
 
+	// iOS live screen (WebDriverAgent-backed): player page + MJPEG + input.
+	ios := http.NewServeMux()
+	ios.HandleFunc("GET /ios/{id}", s.iosScreenPage)
+	ios.HandleFunc("GET /ios/{id}/size", s.iosSize)
+	ios.HandleFunc("GET /ios/{id}/mjpeg", s.iosMJPEG)
+	ios.HandleFunc("POST /ios/{id}/input", s.iosInput)
+
 	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
+	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(devUser)(ios)))
 	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(devUser)(s.live.Handler())))
 	mux.Handle("/", http.FileServer(s.web))
 	return logging(s.log, mux)
@@ -148,6 +159,84 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// --- iOS live screen ---
+
+// iosHolder checks the caller holds the device's reservation and iOS screen is
+// configured; it writes the error response and returns false on failure.
+func (s *Server) iosHolder(w http.ResponseWriter, r *http.Request) (string, bool) {
+	u, _ := auth.UserFrom(r.Context())
+	id := r.PathValue("id")
+	if !s.ios.Configured(id) {
+		fail(w, http.StatusNotImplemented, errors.New("iOS screen not configured for this device"))
+		return "", false
+	}
+	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
+		return "", false
+	}
+	return id, true
+}
+
+func (s *Server) iosScreenPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.iosHolder(w, r); !ok {
+		return
+	}
+	page, err := webui.File("ios-screen.html")
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(page)
+}
+
+func (s *Server) iosSize(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	wpx, hpx, err := s.ios.Size(id)
+	if err != nil {
+		fail(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"w": wpx, "h": hpx})
+}
+
+func (s *Server) iosMJPEG(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	h, err := s.ios.MJPEGHandler(id)
+	if err != nil {
+		fail(w, http.StatusBadGateway, err)
+		return
+	}
+	// strip our path so the upstream sees "/"
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = "/"
+	r2.URL.RawPath = "/"
+	h.ServeHTTP(w, r2)
+}
+
+func (s *Server) iosInput(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	var in iosscreen.Input
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.ios.Do(id, in); err != nil {
+		fail(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // screenLink returns the live-screen URL for a device the caller may control.
 func (s *Server) screenLink(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
@@ -159,6 +248,14 @@ func (s *Server) screenLink(w http.ResponseWriter, r *http.Request) {
 	}
 	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
 		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
+		return
+	}
+	if d.Platform == model.IOS {
+		if !s.ios.Configured(id) {
+			fail(w, http.StatusNotImplemented, errors.New("iOS screen not configured for this device"))
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"url": "/live/ios/" + id})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"url": live.StreamPath(d)})

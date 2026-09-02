@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poligon — iOS screen</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0f1115; color:#e6e8ec;
+         font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+         display:flex; flex-direction:column; align-items:center; height:100vh; }
+  #bar { display:flex; gap:8px; padding:8px; width:100%; box-sizing:border-box;
+         border-bottom:1px solid #2a2f3a; align-items:center; }
+  #bar b { font-weight:600; }
+  #bar .sp { margin-left:auto; }
+  button { background:#22262e; color:#e6e8ec; border:1px solid #2a2f3a;
+           border-radius:6px; padding:5px 10px; cursor:pointer; }
+  button:hover { background:#2b303a; }
+  #stage { flex:1; display:flex; align-items:center; justify-content:center;
+           padding:12px; width:100%; overflow:hidden; }
+  #screen { max-height:100%; max-width:100%; border-radius:14px;
+            border:1px solid #2a2f3a; touch-action:none; cursor:crosshair;
+            background:#000; }
+  #err { color:#f85149; padding:0 12px; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <b id="title">iOS screen</b>
+  <span id="status" style="color:#8b93a1"></span>
+  <span class="sp"></span>
+  <button onclick="send({type:'home'})">Home</button>
+  <button onclick="send({type:'lock'})">Lock</button>
+  <button onclick="location.reload()">Reload</button>
+</div>
+<div id="err"></div>
+<div id="stage"><img id="screen" alt="device screen"></div>
+
+<script>
+const id = new URLSearchParams(location.search).get("id") || location.pathname.split("/").pop();
+const base = `/live/ios/${encodeURIComponent(id)}`;
+const img = document.getElementById("screen");
+const statusEl = document.getElementById("status");
+document.getElementById("title").textContent = id;
+
+let dev = { w: 390, h: 844 };
+
+async function init() {
+  try {
+    const r = await fetch(base + "/size");
+    if (r.ok) { const s = await r.json(); dev = s; }
+  } catch (e) {}
+  img.src = base + "/mjpeg?t=" + Date.now();
+  img.onload = () => statusEl.textContent = "streaming";
+  img.onerror = () => { statusEl.textContent = "stream error"; setTimeout(() => img.src = base + "/mjpeg?t=" + Date.now(), 2000); };
+}
+
+// map a browser event on the <img> to device coordinates
+function toDevice(ev) {
+  const r = img.getBoundingClientRect();
+  const x = (ev.clientX - r.left) / r.width * dev.w;
+  const y = (ev.clientY - r.top) / r.height * dev.h;
+  return { x: Math.max(0, Math.min(dev.w, x)), y: Math.max(0, Math.min(dev.h, y)) };
+}
+
+async function send(action) {
+  try {
+    const r = await fetch(base + "/input", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action),
+    });
+    if (!r.ok) document.getElementById("err").textContent = (await r.json()).error || r.statusText;
+    else document.getElementById("err").textContent = "";
+  } catch (e) { document.getElementById("err").textContent = e.message; }
+}
+
+let down = null;
+img.addEventListener("pointerdown", e => { down = { ...toDevice(e), t: Date.now() }; img.setPointerCapture(e.pointerId); });
+img.addEventListener("pointerup", e => {
+  if (!down) return;
+  const up = toDevice(e);
+  const dist = Math.hypot(up.x - down.x, up.y - down.y);
+  const dt = (Date.now() - down.t) / 1000;
+  if (dist < 10) send({ type: "tap", x: up.x, y: up.y });
+  else send({ type: "swipe", x: down.x, y: down.y, x2: up.x, y2: up.y, duration: Math.min(dt, 1) });
+  down = null;
+});
+
+// physical keyboard -> device text
+addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key.length === 1) send({ type: "text", text: e.key });
+  else if (e.key === "Backspace") send({ type: "text", text: "\b" });
+  else if (e.key === "Enter") send({ type: "text", text: "\n" });
+});
+
+init();
+</script>
+</body>
+</html>
