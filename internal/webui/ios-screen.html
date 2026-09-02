@@ -20,8 +20,13 @@
            padding:12px; width:100%; overflow:hidden; }
   #screen { max-height:100%; max-width:100%; border-radius:14px;
             border:1px solid #2a2f3a; touch-action:none; cursor:crosshair;
-            background:#000; }
+            background:#000; -webkit-user-drag:none; user-select:none;
+            -webkit-user-select:none; }
+  #dot { position:fixed; width:24px; height:24px; margin:-12px 0 0 -12px;
+         border:2px solid #3fb950; border-radius:50%; pointer-events:none;
+         opacity:0; transition:opacity .1s; }
   #err { color:#f85149; padding:0 12px; }
+  #hint { color:#8b93a1; font-size:11px; padding:2px 12px; }
 </style>
 </head>
 <body>
@@ -34,7 +39,9 @@
   <button onclick="location.reload()">Reload</button>
 </div>
 <div id="err"></div>
-<div id="stage"><img id="screen" alt="device screen"></div>
+<div id="hint">click = tap · drag = swipe/scroll · type to enter text</div>
+<div id="stage"><img id="screen" alt="device screen" draggable="false"></div>
+<div id="dot"></div>
 
 <script>
 const id = new URLSearchParams(location.search).get("id") || location.pathname.split("/").pop();
@@ -74,17 +81,55 @@ async function send(action) {
   } catch (e) { document.getElementById("err").textContent = e.message; }
 }
 
-let down = null;
-img.addEventListener("pointerdown", e => { down = { ...toDevice(e), t: Date.now() }; img.setPointerCapture(e.pointerId); });
+const dot = document.getElementById("dot");
+let down = null, last = null;
+
+img.addEventListener("dragstart", e => e.preventDefault());
+img.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  down = { ...toDevice(e), t: Date.now(), cx: e.clientX, cy: e.clientY, moved: false };
+  last = { x: e.clientX, y: e.clientY, t: Date.now() };
+  dot.style.left = e.clientX + "px"; dot.style.top = e.clientY + "px"; dot.style.opacity = 1;
+  img.setPointerCapture(e.pointerId);
+});
+img.addEventListener("pointermove", e => {
+  if (!down) return;
+  e.preventDefault();
+  dot.style.left = e.clientX + "px"; dot.style.top = e.clientY + "px";
+  if (Math.hypot(e.clientX - down.cx, e.clientY - down.cy) > 6) down.moved = true;
+  last = { x: e.clientX, y: e.clientY, t: Date.now() };
+});
 img.addEventListener("pointerup", e => {
   if (!down) return;
+  e.preventDefault();
+  dot.style.opacity = 0;
   const up = toDevice(e);
-  const dist = Math.hypot(up.x - down.x, up.y - down.y);
-  const dt = (Date.now() - down.t) / 1000;
-  if (dist < 10) send({ type: "tap", x: up.x, y: up.y });
-  else send({ type: "swipe", x: down.x, y: down.y, x2: up.x, y2: up.y, duration: Math.min(dt, 1) });
+  if (!down.moved) { send({ type: "tap", x: up.x, y: up.y }); down = null; return; }
+
+  // flick: short fixed duration so iOS scrolls with momentum, regardless of
+  // how long the user actually held the drag
+  const held = (Date.now() - down.t) / 1000;
+  const duration = held > 0.6 ? 0.4 : 0.08;   // long hold = deliberate drag, else flick
+  send({ type: "swipe", x: down.x, y: down.y, x2: up.x, y2: up.y, duration });
   down = null;
 });
+img.addEventListener("pointercancel", () => { down = null; dot.style.opacity = 0; });
+
+// mouse wheel / trackpad -> scroll flick (accumulate, fire on idle)
+let wheelAcc = 0, wheelTimer = null, wheelPt = null;
+img.addEventListener("wheel", e => {
+  e.preventDefault();
+  wheelPt = toDevice(e);
+  wheelAcc += e.deltaY;
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => {
+    const amount = Math.max(-260, Math.min(260, wheelAcc));   // clamp travel
+    const cx = wheelPt.x, cy = dev.h / 2;
+    // wheel down (positive) -> content moves up -> swipe from lower to upper
+    send({ type: "swipe", x: cx, y: cy + amount / 2, x2: cx, y2: cy - amount / 2, duration: 0.1 });
+    wheelAcc = 0;
+  }, 60);
+}, { passive: false });
 
 // physical keyboard -> device text
 addEventListener("keydown", e => {
