@@ -42,6 +42,7 @@ func Open(path string) (*Store, error) {
 func migrate(db *sql.DB) {
 	for _, stmt := range []string{
 		`ALTER TABLE devices ADD COLUMN source TEXT NOT NULL DEFAULT 'config'`,
+		`ALTER TABLE reservations ADD COLUMN batch TEXT NOT NULL DEFAULT ''`,
 	} {
 		_, _ = db.Exec(stmt)
 	}

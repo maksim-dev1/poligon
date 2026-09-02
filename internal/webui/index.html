@@ -33,6 +33,10 @@
   button:disabled { opacity:.4; cursor:not-allowed; }
   .hold { color:var(--muted); font-size:12px; margin-top:8px; }
   #err { color:var(--bad); padding:0 24px; }
+  .card.in-batch { outline:2px solid var(--free); }
+  .card h2 label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  #batchbar { position:sticky; bottom:0; background:#191c22; border-top:1px solid var(--line);
+              padding:12px 24px; display:flex; gap:10px; align-items:center; }
 </style>
 </head>
 <body>
@@ -55,6 +59,7 @@
 </div>
 
 <main id="pool"></main>
+<div id="batchbar" hidden></div>
 
 <script>
 let TOKEN = localStorage.getItem("poligon_token") || "";
@@ -90,14 +95,23 @@ function logout() { localStorage.removeItem("poligon_token"); TOKEN = ""; showGa
 
 function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
 
+const sel = new Set();               // device ids ticked for a new batch
+let batch = localStorage.getItem("poligon_batch") || "";   // active batch id
+let batchIds = [];                   // device ids in the active batch
+
 function card(d) {
   const s = d.specs || {};
   const held = d.reservation ? `held by ${d.reservation.user}` : "";
   const canReserve = d.status === "free";
   const canRelease = !!d.reservation;
   const unauth = d.status === "unauthorized";
-  return `<div class="card">
-    <h2>${d.id} ${badge(d.status)}</h2>
+  const inBatch = batchIds.includes(d.id);
+  return `<div class="card${inBatch ? " in-batch" : ""}">
+    <h2>
+      <label><input type="checkbox" ${canReserve ? "" : "disabled"} ${sel.has(d.id) ? "checked" : ""}
+        onchange="toggleSel('${d.id}', this.checked)"> ${d.id}</label>
+      ${badge(d.status)}
+    </h2>
     <div class="muted">${d.platform} · ${s.model || "?"} · ${s.os_version || "?"}
       <span class="src">${d.source || "config"}</span></div>
     ${unauth ? `<div class="hint">On the device: unlock screen, replug USB, tap
@@ -121,15 +135,72 @@ function card(d) {
   </div>`;
 }
 
+function toggleSel(id, on) { on ? sel.add(id) : sel.delete(id); renderBar(); }
+
+function renderBar() {
+  const bar = document.getElementById("batchbar");
+  if (batch) {
+    bar.hidden = false;
+    bar.innerHTML =
+      `<b>Batch:</b> ${batchIds.length} device(s) &nbsp;` +
+      `<button onclick="pickBatchFile()">Install to all</button>` +
+      `<button onclick="openGrid()">Open all screens</button>` +
+      `<button onclick="releaseBatch()">Release all</button>` +
+      `<input type="file" id="bf" hidden accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files[0])">`;
+    return;
+  }
+  if (sel.size) {
+    bar.hidden = false;
+    bar.innerHTML = `<b>${sel.size} selected</b> &nbsp;` +
+      `<button onclick="reserveBatch()">Reserve selected</button>` +
+      `<button onclick="sel.clear();refresh()">Clear</button>`;
+    return;
+  }
+  bar.hidden = true;
+}
+
+async function reserveBatch() {
+  try {
+    const res = await api("/batches", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ devices: [...sel] }) });
+    batch = res.batch; localStorage.setItem("poligon_batch", batch);
+    sel.clear();
+    refresh();
+  } catch (e) { alert(e.message); }
+}
+async function releaseBatch() {
+  try { await api(`/batches/${batch}/release`, { method: "POST" }); } catch (e) {}
+  batch = ""; batchIds = []; localStorage.removeItem("poligon_batch");
+  refresh();
+}
+function pickBatchFile() { document.getElementById("bf").click(); }
+async function batchUpload(file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append("artifact", file);
+  document.getElementById("summary").textContent = `installing ${file.name} on ${batchIds.length} devices…`;
+  try {
+    const res = await api(`/batches/${batch}/install`, { method: "POST", body: fd });
+    alert(`installed on ${res.ok}/${res.total}\n` +
+      res.results.filter(r => r.status !== "ok").map(r => `${r.device}: ${r.detail}`).join("\n"));
+  } catch (e) { alert(e.message); }
+  refresh();
+}
+function openGrid() { window.open(`/live/grid?b=${encodeURIComponent(batch)}`, "poligon-grid"); }
+
 async function refresh() {
   try {
     const pool = await api("/devices");
     document.getElementById("err").textContent = "";
+    if (batch) {
+      try { const b = await api(`/batches/${batch}`); batchIds = b.devices.map(d => d.id); }
+      catch { batch = ""; batchIds = []; localStorage.removeItem("poligon_batch"); }
+    }
     document.getElementById("pool").innerHTML = pool.map(card).join("");
     const free = pool.filter(d => d.status === "free").length;
-    document.getElementById("summary").textContent =
-      `${pool.length} devices · ${free} free`;
+    document.getElementById("summary").textContent = `${pool.length} devices · ${free} free`;
     document.getElementById("logout").hidden = false;
+    renderBar();
   } catch (e) {
     if (e.message !== "unauthorized")
       document.getElementById("err").textContent = e.message;

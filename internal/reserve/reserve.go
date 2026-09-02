@@ -3,7 +3,9 @@
 package reserve
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -72,6 +74,121 @@ func (m *Manager) Reserve(deviceID, user string) (model.Reservation, error) {
 		return res, err
 	}
 	return res, tx.Commit()
+}
+
+// ReserveMany books every device atomically: if any is unavailable, nothing is
+// reserved. Returns the shared batch id.
+func (m *Manager) ReserveMany(deviceIDs []string, user string) (string, []model.Reservation, error) {
+	if len(deviceIDs) == 0 {
+		return "", nil, errors.New("no devices given")
+	}
+	batch := newBatchID()
+	now := time.Now()
+	exp := now.Add(m.maxLease)
+
+	// check availability before opening the write transaction — store shares a
+	// single sqlite connection, so a read inside the tx would deadlock
+	for _, id := range deviceIDs {
+		d, err := m.st.Device(id)
+		if err != nil {
+			return "", nil, err
+		}
+		if d.Status != model.StatusFree {
+			return "", nil, fmt.Errorf("%w: %s is %s", ErrTaken, id, d.Status)
+		}
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return "", nil, err
+	}
+	defer tx.Rollback()
+
+	var out []model.Reservation
+	for _, id := range deviceIDs {
+		r, err := tx.Exec(
+			`INSERT INTO reservations (device_id, user, batch, created_at, expires_at, renewed_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			id, user, batch, now, exp, now)
+		if err != nil {
+			return "", nil, fmt.Errorf("%w: %s", ErrTaken, id)
+		}
+		if _, err := tx.Exec(`UPDATE devices SET status = ? WHERE id = ?`, model.StatusReserved, id); err != nil {
+			return "", nil, err
+		}
+		rid, _ := r.LastInsertId()
+		out = append(out, model.Reservation{
+			ID: rid, DeviceID: id, User: user, CreatedAt: now, RenewedAt: now, ExpiresAt: exp,
+		})
+	}
+	if err := tx.Commit(); err != nil {
+		return "", nil, err
+	}
+	return batch, out, nil
+}
+
+// BatchDevices returns the device ids held by an active batch owned by user.
+func (m *Manager) BatchDevices(batch, user string) ([]string, error) {
+	rows, err := m.db.Query(
+		`SELECT device_id FROM reservations WHERE batch = ? AND user = ? AND released = 0 ORDER BY device_id`,
+		batch, user)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil, ErrNotHolder
+	}
+	return ids, nil
+}
+
+// HeartbeatBatch renews every reservation in a batch.
+func (m *Manager) HeartbeatBatch(batch, user string) error {
+	r, err := m.db.Exec(
+		`UPDATE reservations SET renewed_at = ? WHERE batch = ? AND user = ? AND released = 0`,
+		time.Now(), batch, user)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotHolder
+	}
+	return nil
+}
+
+// ReleaseBatch releases every device in a batch.
+func (m *Manager) ReleaseBatch(batch, user string, admin bool) error {
+	ids, err := m.BatchDevices(batch, user)
+	if err != nil && !admin {
+		return err
+	}
+	if admin && len(ids) == 0 {
+		rows, _ := m.db.Query(`SELECT device_id FROM reservations WHERE batch = ? AND released = 0`, batch)
+		for rows.Next() {
+			var id string
+			_ = rows.Scan(&id)
+			ids = append(ids, id)
+		}
+		rows.Close()
+	}
+	for _, id := range ids {
+		_ = m.Release(id, user, admin)
+	}
+	return nil
+}
+
+func newBatchID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Heartbeat renews a lease. Fails if the caller is not the holder.

@@ -56,14 +56,23 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
 	api.HandleFunc("POST /session", s.session)
 
+	// multi-device batches: reserve a set, install once to all, one grid of screens
+	api.HandleFunc("POST /batches", s.batchCreate)
+	api.HandleFunc("GET /batches/{batch}", s.batchGet)
+	api.HandleFunc("POST /batches/{batch}/install", s.batchInstall)
+	api.HandleFunc("POST /batches/{batch}/heartbeat", s.batchHeartbeat)
+	api.HandleFunc("POST /batches/{batch}/release", s.batchRelease)
+
 	// iOS live screen (WebDriverAgent-backed): player page + MJPEG + input.
 	ios := http.NewServeMux()
 	ios.HandleFunc("GET /ios/{id}", s.iosScreenPage)
 	ios.HandleFunc("GET /ios/{id}/size", s.iosSize)
 	ios.HandleFunc("GET /ios/{id}/mjpeg", s.iosMJPEG)
 	ios.HandleFunc("POST /ios/{id}/input", s.iosInput)
+	ios.HandleFunc("GET /grid", s.screenGrid)
 
 	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
+	mux.Handle("/live/grid", http.StripPrefix("/live", a.Middleware(devUser)(ios)))
 	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(devUser)(ios)))
 	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(devUser)(s.live.Handler())))
 	mux.Handle("/", http.FileServer(s.web))
@@ -175,6 +184,16 @@ func (s *Server) iosHolder(w http.ResponseWriter, r *http.Request) (string, bool
 		return "", false
 	}
 	return id, true
+}
+
+func (s *Server) screenGrid(w http.ResponseWriter, r *http.Request) {
+	page, err := webui.File("grid.html")
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(page)
 }
 
 func (s *Server) iosScreenPage(w http.ResponseWriter, r *http.Request) {

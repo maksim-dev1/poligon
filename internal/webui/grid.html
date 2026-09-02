@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poligon — screen grid</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0f1115; color:#e6e8ec;
+         font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  header { padding:8px 14px; border-bottom:1px solid #2a2f3a; display:flex; gap:10px; align-items:center; }
+  #grid { display:grid; gap:10px; padding:12px;
+          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
+  .cell { border:1px solid #2a2f3a; border-radius:10px; overflow:hidden; background:#000;
+          display:flex; flex-direction:column; height:70vh; }
+  .cell .t { padding:4px 8px; background:#191c22; font-size:12px; }
+  .cell iframe { flex:1; border:0; width:100%; }
+  #err { color:#f85149; padding:8px 14px; }
+</style>
+</head>
+<body>
+<header><b>screen grid</b> <span id="sub" style="color:#8b93a1"></span></header>
+<div id="err"></div>
+<div id="grid"></div>
+<script>
+const batch = new URLSearchParams(location.search).get("b");
+const tok = localStorage.getItem("poligon_token") || "";
+const H = { Authorization: "Bearer " + tok };
+
+async function main() {
+  if (!batch) { document.getElementById("err").textContent = "no batch"; return; }
+  const b = await (await fetch(`/api/batches/${batch}`, { headers: H })).json();
+  if (!b.devices) { document.getElementById("err").textContent = b.error || "batch not found"; return; }
+  document.getElementById("sub").textContent = `${b.devices.length} devices`;
+  const grid = document.getElementById("grid");
+  for (const d of b.devices) {
+    let url;
+    try {
+      const r = await fetch(`/api/devices/${d.id}/screen`, { headers: H });
+      url = (await r.json()).url;
+    } catch { url = null; }
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = `<div class="t">${d.id} · ${d.platform}</div>` +
+      (url ? `<iframe src="${url}" allow="autoplay"></iframe>`
+           : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`);
+    grid.appendChild(cell);
+  }
+}
+main().catch(e => document.getElementById("err").textContent = e.message);
+</script>
+</body>
+</html>

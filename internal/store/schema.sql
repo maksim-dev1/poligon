@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id   TEXT NOT NULL REFERENCES devices(id),
     user        TEXT NOT NULL REFERENCES users(name),
+    batch       TEXT NOT NULL DEFAULT '',   -- groups reservations taken together
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at  TIMESTAMP NOT NULL,
     renewed_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
