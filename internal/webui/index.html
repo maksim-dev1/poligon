@@ -143,14 +143,6 @@ function card(d) {
       <div><span>Battery</span><span>${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
     </div>
     ${held ? `<div class="hold">${held}</div>` : ""}
-    <div class="row" onclick="event.stopPropagation()">
-      <button ${canReserve ? "" : "disabled"} onclick="reserve('${d.id}')">Reserve</button>
-      <button ${canRelease ? "" : "disabled"} onclick="release('${d.id}')">Release</button>
-      <button ${canRelease ? "" : "disabled"} onclick="pickFile('${d.id}')">Upload app</button>
-      <button ${canRelease ? "" : "disabled"} onclick="screen('${d.id}')">Screen</button>
-    </div>
-    <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
-           onchange="upload('${d.id}', this.files[0])">
   </div>`;
 }
 
