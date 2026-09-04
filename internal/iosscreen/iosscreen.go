@@ -11,6 +11,7 @@
 package iosscreen
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -93,6 +94,50 @@ func (c *Controller) MJPEGHandler(deviceID string) (http.Handler, error) {
 	}
 	c.mu.Unlock()
 	return rp, nil
+}
+
+// Frame reads a single JPEG from the device's mjpeg stream. Used by clients
+// (Safari) that cannot render a multipart/x-mixed-replace <img>; the page polls
+// this instead.
+func (c *Controller) Frame(deviceID string) ([]byte, error) {
+	ep, ok := c.endpoint(deviceID)
+	if !ok || ep.MJPEG == "" {
+		return nil, fmt.Errorf("no ios screen endpoint for %q", deviceID)
+	}
+	resp, err := c.client.Get("http://" + ep.MJPEG)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// the mjpeg body is: (headers)\r\n\r\n <JPEG> \r\n--boundary ... repeated.
+	// scan for SOI (FFD8) then read through EOI (FFD9).
+	br := bufio.NewReaderSize(resp.Body, 64*1024)
+	var buf []byte
+	started := false
+	limit := 4 << 20
+	for len(buf) < limit {
+		b, err := br.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		if !started {
+			if b != 0xFF {
+				continue
+			}
+			n, _ := br.Peek(1)
+			if len(n) == 1 && n[0] == 0xD8 {
+				started = true
+				buf = append(buf, 0xFF)
+			}
+			continue
+		}
+		buf = append(buf, b)
+		if b == 0xD9 && len(buf) >= 2 && buf[len(buf)-2] == 0xFF {
+			return buf, nil
+		}
+	}
+	return nil, fmt.Errorf("no complete jpeg frame")
 }
 
 // Input is one control action from the dashboard.

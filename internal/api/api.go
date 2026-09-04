@@ -75,6 +75,7 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	ios.HandleFunc("GET /ios/{id}", s.iosScreenPage)
 	ios.HandleFunc("GET /ios/{id}/size", s.iosSize)
 	ios.HandleFunc("GET /ios/{id}/mjpeg", s.iosMJPEG)
+	ios.HandleFunc("GET /ios/{id}/frame", s.iosFrame)
 	ios.HandleFunc("POST /ios/{id}/input", s.iosInput)
 	ios.HandleFunc("POST /ios/{id}/restart", s.iosRestart)
 	ios.HandleFunc("GET /ios/{id}/job", s.iosJob)
@@ -272,6 +273,23 @@ func (s *Server) iosMJPEG(w http.ResponseWriter, r *http.Request) {
 	r2.URL.Path = "/"
 	r2.URL.RawPath = "/"
 	h.ServeHTTP(w, r2)
+}
+
+// iosFrame returns one JPEG from the device — the polling fallback for browsers
+// that will not render a multipart <img> (Safari).
+func (s *Server) iosFrame(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	jpg, err := s.ios.Frame(id)
+	if err != nil {
+		fail(w, http.StatusBadGateway, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(jpg)
 }
 
 func (s *Server) iosInput(w http.ResponseWriter, r *http.Request) {

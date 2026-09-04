@@ -63,21 +63,36 @@ document.getElementById("title").textContent = id;
 
 let dev = { w: 390, h: 844 };
 let errStreak = 0;
+let streaming = false;
 const downEl = document.getElementById("down");
+
+// Poll single JPEG frames instead of a multipart <img> — Safari does not render
+// multipart/x-mixed-replace. ~10 fps, double-buffered to avoid flicker.
+function pump() {
+  if (!streaming) return;
+  const next = new Image();
+  next.onload = () => {
+    img.src = next.src;
+    statusEl.textContent = "streaming";
+    if (errStreak) { errStreak = 0; downEl.classList.remove("show"); }
+    if (streaming) setTimeout(pump, 90);
+  };
+  next.onerror = () => {
+    statusEl.textContent = "stream error";
+    if (++errStreak >= 6) { streaming = false; showDown("WebDriverAgent stopped responding.\nRestart it to bring the screen back."); }
+    else if (streaming) setTimeout(pump, 1000);
+  };
+  next.src = base + "/frame?t=" + Date.now();
+}
 
 async function init() {
   downEl.classList.remove("show");
+  errStreak = 0;
   try {
     const r = await fetch(base + "/size");
     if (r.ok) { const s = await r.json(); dev = s; }
   } catch (e) {}
-  img.src = base + "/mjpeg?t=" + Date.now();
-  img.onload = () => { statusEl.textContent = "streaming"; errStreak = 0; downEl.classList.remove("show"); };
-  img.onerror = () => {
-    statusEl.textContent = "stream error";
-    if (++errStreak >= 3) showDown("WebDriverAgent stopped responding.\nRestart it to bring the screen back.");
-    else setTimeout(() => img.src = base + "/mjpeg?t=" + Date.now(), 2000);
-  };
+  if (!streaming) { streaming = true; pump(); }
 }
 
 function showDown(msg) {
