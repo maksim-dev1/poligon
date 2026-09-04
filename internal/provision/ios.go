@@ -55,8 +55,7 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 	}
 
 	// 2. build-for-testing (shared by every device; skip if already built)
-	xctestrun := findXCTestRun(dd)
-	if xctestrun == "" {
+	if iosRunnerApp(dd) == "" {
 		m.step(j, "building WebDriverAgent (a few minutes)")
 		bctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		err := m.streamCmd(j, exec.CommandContext(bctx, "xcodebuild",
@@ -74,14 +73,14 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 		if err != nil {
 			return fmt.Errorf("xcodebuild build-for-testing: %w", err)
 		}
-		if xctestrun = findXCTestRun(dd); xctestrun == "" {
-			return fmt.Errorf("build produced no .xctestrun under %s", dd)
+		if iosRunnerApp(dd) == "" {
+			return fmt.Errorf("build produced no WebDriverAgentRunner-Runner.app under %s", dd)
 		}
 	}
-	m.logf(j, "xctestrun: %s", xctestrun)
 
-	// 3. run WDA + forward ports
-	ep, wp, err := m.startWDA(j, d.UDID, xctestrun)
+	// 3. run WDA (go-ios, not xcodebuild — Xcode 16's test session drops iOS 15
+	//    devices) + forward ports
+	ep, wp, err := m.startWDA(j, d.UDID, dd)
 	if err != nil {
 		return err
 	}
@@ -109,42 +108,63 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 	return nil
 }
 
-// startWDA launches the WDA test runner + two iproxy tunnels for a udid and
-// returns the resulting endpoint. Processes are detached (survive a restart).
-func (m *Manager) startWDA(j *Job, udid, xctestrun string) (iosscreen.Endpoint, *wdaProc, error) {
+// startWDA installs WebDriverAgent (if needed), launches it via go-ios, and
+// forwards its ports. go-ios talks to the device's own services instead of an
+// xcodebuild test session, which Xcode 16 cannot keep alive against iOS 15/16.
+// All processes are detached so the screen survives a poligon restart.
+func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaProc, error) {
+	app := iosRunnerApp(dd)
+	if app == "" {
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent is not built (%s)", dd)
+	}
+	runnerID := bundleIDOf(app)
+	if runnerID == "" {
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("cannot read bundle id of %s", app)
+	}
+	xctestName := xctestConfigName(app)
+
 	used := m.usedPorts()
 	wdaPort := freePort(m.cfg.IOSWDA.WDAPortBase, used)
 	used[wdaPort] = true
 	mjpegPort := freePort(m.cfg.IOSWDA.MJPEGPortBase, used)
 
-	m.step(j, "starting WebDriverAgent on the device")
-	runCmd := exec.Command("xcodebuild", "test-without-building",
-		"-xctestrun", xctestrun,
-		"-destination", "platform=iOS,id="+udid)
-	detach(runCmd)
-	if err := m.spawnAndWaitForLine(j, runCmd, wdaServerLine, 180*time.Second); err != nil {
-		_ = kill(runCmd)
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent did not start: %w", err)
+	m.step(j, "installing WebDriverAgent")
+	if out, err := run(context.Background(), "ios", "install", "--path="+app, "--udid="+udid); err != nil {
+		m.logf(j, "%s", oneLine(out))
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("ios install: %w", err)
 	}
+
+	m.step(j, "starting WebDriverAgent on the device")
+	m.stopWDA("", udid) // clear any stale runner/forwards for this udid
+	runCmd := exec.Command("ios", "runwda",
+		"--bundleid="+runnerID,
+		"--testrunnerbundleid="+runnerID,
+		"--xctestconfig="+xctestName,
+		"--udid="+udid,
+		"--log-output=-")
+	detach(runCmd)
+	m.spawnLogging(j, runCmd) // starts it, forwards notable lines to the job log
 	reap(runCmd)
 
 	m.step(j, fmt.Sprintf("forwarding ports (wda:%d mjpeg:%d)", wdaPort, mjpegPort))
-	_ = killMatching("iproxy .*" + udid)
-	wdaTun := exec.Command("iproxy", fmt.Sprintf("%d:8100", wdaPort), "-u", udid)
-	mjpegTun := exec.Command("iproxy", fmt.Sprintf("%d:9100", mjpegPort), "-u", udid)
+	wdaTun := exec.Command("ios", "forward", fmt.Sprint(wdaPort), "8100", "--udid="+udid)
+	mjpegTun := exec.Command("ios", "forward", fmt.Sprint(mjpegPort), "9100", "--udid="+udid)
 	detach(wdaTun)
 	detach(mjpegTun)
 	if err := wdaTun.Start(); err != nil {
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("iproxy wda: %w", err)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("ios forward wda: %w", err)
 	}
 	if err := mjpegTun.Start(); err != nil {
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("iproxy mjpeg: %w", err)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("ios forward mjpeg: %w", err)
 	}
 	reap(wdaTun)
 	reap(mjpegTun)
 
-	if err := waitFor(func() bool { return probeWDA(wdaPort) == nil }, 30*time.Second); err != nil {
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("WDA /status not reachable on :%d", wdaPort)
+	// readiness = WDA answers /status through the tunnel (more reliable than
+	// grepping the runner's log for a specific line)
+	if err := waitFor(func() bool { return probeWDA(wdaPort) == nil }, 120*time.Second); err != nil {
+		_ = kill(runCmd)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent did not become ready on :%d within 120s", wdaPort)
 	}
 
 	wp := &wdaProc{run: runCmd, wda: wdaTun, mjpeg: mjpegTun, wdaPort: wdaPort, mjpegPort: mjpegPort}
@@ -167,7 +187,7 @@ func (m *Manager) Resume(ctx context.Context) {
 		m.log.Warn("provision resume: read ios_screen", "err", err)
 		return
 	}
-	xctestrun := findXCTestRun(expandHome(m.cfg.IOSWDA.DerivedData))
+	dd := expandHome(m.cfg.IOSWDA.DerivedData)
 	for _, r := range rows {
 		ep := iosscreen.Endpoint{WDA: r.WDA, MJPEG: r.MJPEG}
 		m.iosCtl.Set(r.DeviceID, ep) // make the screen usable immediately if procs are alive
@@ -177,7 +197,7 @@ func (m *Manager) Resume(ctx context.Context) {
 			continue
 		}
 		d, err := m.st.Device(r.DeviceID)
-		if err != nil || d.UDID == "" || xctestrun == "" {
+		if err != nil || d.UDID == "" || iosRunnerApp(dd) == "" {
 			m.log.Warn("provision resume: cannot respawn WDA", "device", r.DeviceID)
 			continue
 		}
@@ -186,7 +206,7 @@ func (m *Manager) Resume(ctx context.Context) {
 		m.jobs[r.DeviceID] = j
 		m.mu.Unlock()
 		go func(d model.Device, j *Job) {
-			newEp, wp, err := m.startWDA(j, d.UDID, xctestrun)
+			newEp, wp, err := m.startWDA(j, d.UDID, dd)
 			m.mu.Lock()
 			if err != nil {
 				j.State, j.Err = stateFailed, err.Error()
@@ -249,15 +269,15 @@ func (m *Manager) restartIOS(d model.Device, j *Job) error {
 	if d.UDID == "" {
 		return fmt.Errorf("device has no udid")
 	}
-	xctestrun := findXCTestRun(expandHome(m.cfg.IOSWDA.DerivedData))
-	if xctestrun == "" {
+	dd := expandHome(m.cfg.IOSWDA.DerivedData)
+	if iosRunnerApp(dd) == "" {
 		return fmt.Errorf("WebDriverAgent is not built yet — use \"connect to farm\" first")
 	}
 	m.step(j, "stopping WebDriverAgent")
 	m.stopWDA(d.ID, d.UDID)
 	time.Sleep(2 * time.Second)
 
-	ep, wp, err := m.startWDA(j, d.UDID, xctestrun)
+	ep, wp, err := m.startWDA(j, d.UDID, dd)
 	if err != nil {
 		return err
 	}
@@ -299,8 +319,9 @@ func (m *Manager) stopWDA(deviceID, udid string) {
 		_ = kill(wp.wda)
 		_ = kill(wp.mjpeg)
 	}
-	_ = killMatching("test-without-building.*" + udid)
-	_ = killMatching("iproxy .*" + udid)
+	_ = killMatching("ios runwda.*" + udid)
+	_ = killMatching("ios forward.*" + udid)
+	_ = killMatching("iproxy .*" + udid) // legacy, in case an old tunnel lingers
 }
 
 func (m *Manager) wdaTeam() string {
@@ -354,10 +375,9 @@ func killMatching(pattern string) error {
 	return exec.Command("pkill", "-f", pattern).Run()
 }
 
-// spawnAndWaitForLine starts cmd and blocks until substr appears on its combined
-// output or the timeout elapses. On timeout the process keeps running (WDA may
-// just be slow) but an error is returned.
-func (m *Manager) spawnAndWaitForLine(j *Job, cmd *exec.Cmd, substr string, timeout time.Duration) error {
+// spawnLogging starts cmd and forwards notable output lines to the job log in
+// the background. It does not wait for readiness — the caller probes for that.
+func (m *Manager) spawnLogging(j *Job, cmd *exec.Cmd) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -366,29 +386,22 @@ func (m *Manager) spawnAndWaitForLine(j *Job, cmd *exec.Cmd, substr string, time
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	found := make(chan struct{}, 1)
 	go func() {
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 		for sc.Scan() {
-			line := sc.Text()
-			if strings.Contains(line, "error:") || strings.Contains(line, "ERROR") {
-				m.logf(j, "%s", strings.TrimSpace(line))
+			line := strings.TrimSpace(sc.Text())
+			if line == "" {
+				continue
 			}
-			if strings.Contains(line, substr) {
-				select {
-				case found <- struct{}{}:
-				default:
-				}
+			if strings.Contains(line, wdaServerLine) ||
+				strings.Contains(strings.ToLower(line), "error") ||
+				strings.Contains(line, "level=fatal") {
+				m.logf(j, "%s", line)
 			}
 		}
 	}()
-	select {
-	case <-found:
-		return nil
-	case <-time.After(timeout):
-		return fmt.Errorf("timed out after %s waiting for %q", timeout, substr)
-	}
+	return nil
 }
 
 // streamCmd runs cmd to completion, forwarding notable lines to the job log.
@@ -440,12 +453,36 @@ func expandHome(p string) string {
 	return p
 }
 
-func findXCTestRun(derivedData string) string {
-	matches, _ := filepath.Glob(filepath.Join(derivedData, "Build", "Products", "WebDriverAgentRunner_*.xctestrun"))
-	if len(matches) > 0 {
-		return matches[0]
+// iosRunnerApp finds the built WebDriverAgentRunner-Runner.app.
+func iosRunnerApp(derivedData string) string {
+	for _, pat := range []string{
+		filepath.Join(derivedData, "Build", "Products", "Debug-iphoneos", "*-Runner.app"),
+		filepath.Join(derivedData, "Build", "Products", "*-iphoneos", "*-Runner.app"),
+	} {
+		if m, _ := filepath.Glob(pat); len(m) > 0 {
+			return m[0]
+		}
 	}
 	return ""
+}
+
+// bundleIDOf reads CFBundleIdentifier from an .app's Info.plist.
+func bundleIDOf(appPath string) string {
+	out, err := exec.Command("plutil", "-extract", "CFBundleIdentifier", "raw", "-o", "-",
+		filepath.Join(appPath, "Info.plist")).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// xctestConfigName is the .xctest bundle name inside the runner app's PlugIns.
+func xctestConfigName(appPath string) string {
+	m, _ := filepath.Glob(filepath.Join(appPath, "PlugIns", "*.xctest"))
+	if len(m) > 0 {
+		return filepath.Base(m[0])
+	}
+	return "WebDriverAgentRunner.xctest"
 }
 
 func freePort(from int, used map[int]bool) int {
