@@ -133,6 +133,9 @@ function card(d) {
     </h2>
     <div class="muted">${d.platform} · ${esc(s.model || "?")} · ${esc(s.os_version || "?")}
       <span class="src">${d.source || "config"}</span></div>
+    ${s.input_injection === "blocked" ? `<div class="hint">⚠ Screen shows but taps/swipes are blocked by the OS.
+      On MIUI: Developer options → enable <b>USB debugging (Security settings)</b>
+      (needs a SIM + Mi account signed in on the phone).</div>` : ""}
     <div class="specs">
       <div><span>SoC</span><span>${esc(s.soc || "—")}</span></div>
       <div><span>RAM</span><span>${esc(s.ram || "—")}</span></div>

@@ -59,9 +59,11 @@ function cell(d, url) {
   const body = url
     ? `<iframe id="if-${d.id}" src="${url}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
     : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`;
+  const noInput = d.specs && d.specs.input_injection === "blocked";
   c.innerHTML = `
     <div class="t">
       <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
+      ${noInput ? `<span title="taps blocked by the OS — enable MIUI USB debugging (Security settings)" style="color:#f85149">⚠ no input</span>` : ""}
       <span class="sp"></span>
       <button onclick="pick('${d.id}')">Upload</button>
       <button onclick="restartScreen('${d.id}', '${url || ""}')">Restart</button>

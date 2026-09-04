@@ -64,6 +64,10 @@ type Specs struct {
 	ScreenDensity string `json:"screen_density"`
 	Battery       int    `json:"battery"` // percent, -1 unknown
 	BatteryTempC  string `json:"battery_temp_c,omitempty"`
+	// InputInjection is "ok" or "blocked" (android): "blocked" means the OS
+	// refuses simulated taps/swipes — on MIUI the "USB debugging (Security
+	// settings)" toggle is off, so the live screen shows but is not tappable.
+	InputInjection string `json:"input_injection,omitempty"`
 }
 
 // Reservation is a user's hold on a device.

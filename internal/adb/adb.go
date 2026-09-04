@@ -132,6 +132,20 @@ func (a *ADB) Specs(ctx context.Context, serial string) (model.Specs, error) {
 			}
 		}
 	}
+
+	// probe simulated-input support: KEYCODE_UNKNOWN does nothing on screen but
+	// still goes through injectInputEvent, so a SecurityException here means the
+	// OS blocks synthetic taps (MIUI "USB debugging (Security settings)" off).
+	out, ierr := a.shell(ctx, serial, "input", "keyevent", "0")
+	probe := out
+	if ierr != nil {
+		probe += " " + ierr.Error()
+	}
+	if strings.Contains(probe, "SecurityException") || strings.Contains(probe, "INJECT_EVENTS") {
+		sp.InputInjection = "blocked"
+	} else if ierr == nil {
+		sp.InputInjection = "ok"
+	}
 	return sp, nil
 }
 
