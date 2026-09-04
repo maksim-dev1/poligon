@@ -26,17 +26,27 @@ type Manager struct {
 	ios ios.Tools
 	log *slog.Logger
 
-	mu    sync.Mutex
-	flaps map[string]*flap // device id -> recent transitions
+	isHeld func(string) bool // active-reservation check (from reserve.Manager)
+
+	mu        sync.Mutex
+	flaps     map[string]*flap     // device id -> recent transitions
+	heldSince map[string]time.Time // device id -> first offline moment while held
 }
+
+// heldOfflineGrace is how long a reserved/busy device may vanish from adb /
+// libimobiledevice before it is demoted to offline. iOS in particular drops off
+// idevice_id briefly whenever WebDriverAgent (re)launches.
+const heldOfflineGrace = 90 * time.Second
 
 type flap struct {
 	changes []time.Time
 	online  bool
 }
 
-// New wires a Manager. Inventory from cfg is written into the store.
-func New(cfg config.Config, st *store.Store, log *slog.Logger) (*Manager, error) {
+// New wires a Manager. Inventory from cfg is written into the store. isHeld
+// reports whether a device currently has an active reservation, so a device
+// that briefly dropped off USB mid-session returns to "reserved", not "free".
+func New(cfg config.Config, st *store.Store, isHeld func(string) bool, log *slog.Logger) (*Manager, error) {
 	for _, d := range cfg.Devices {
 		if err := st.UpsertDeviceInventory(model.Device{
 			ID: d.ID, Platform: d.Platform, Serial: d.Serial, UDID: d.UDID, Tags: d.Tags,
@@ -44,13 +54,18 @@ func New(cfg config.Config, st *store.Store, log *slog.Logger) (*Manager, error)
 			return nil, err
 		}
 	}
+	if isHeld == nil {
+		isHeld = func(string) bool { return false }
+	}
 	return &Manager{
-		cfg:   cfg,
-		st:    st,
-		adb:   adb.New(cfg.ADBPath),
-		ios:   ios.Default(),
-		log:   log,
-		flaps: map[string]*flap{},
+		cfg:       cfg,
+		st:        st,
+		adb:       adb.New(cfg.ADBPath),
+		ios:       ios.Default(),
+		isHeld:    isHeld,
+		log:       log,
+		flaps:     map[string]*flap{},
+		heldSince: map[string]time.Time{},
 	}, nil
 }
 
@@ -247,8 +262,15 @@ func (m *Manager) reconcile(d model.Device, online, authorized bool, now time.Ti
 	case model.StatusMaintenance:
 		return model.StatusMaintenance // only cleared manually
 	case model.StatusReserved, model.StatusBusy, model.StatusRunningTest:
-		if !online {
-			return model.StatusOffline // lost the device mid-hold; reserve layer must react
+		if online {
+			m.clearHeldSince(d.ID)
+			return d.Status
+		}
+		// tolerate a brief disappearance (USB blip, WDA relaunch) — only demote
+		// once the device has been gone past the grace window. Real expiry is
+		// still handled by the reservation heartbeat / idle timeout.
+		if m.heldOfflineTooLong(d.ID, now) {
+			return model.StatusOffline
 		}
 		return d.Status
 	case model.StatusDegraded:
@@ -259,6 +281,9 @@ func (m *Manager) reconcile(d model.Device, online, authorized bool, now time.Ti
 	default:
 		switch {
 		case online && authorized:
+			if m.isHeld(d.ID) {
+				return model.StatusReserved // device came back and the lease is still alive
+			}
 			return model.StatusFree
 		case online:
 			return model.StatusUnauthorized
@@ -266,6 +291,25 @@ func (m *Manager) reconcile(d model.Device, online, authorized bool, now time.Ti
 			return model.StatusOffline
 		}
 	}
+}
+
+// heldOfflineTooLong records when a held device first went missing and reports
+// whether that was more than heldOfflineGrace ago.
+func (m *Manager) heldOfflineTooLong(id string, now time.Time) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	since, ok := m.heldSince[id]
+	if !ok {
+		m.heldSince[id] = now
+		return false
+	}
+	return now.Sub(since) > heldOfflineGrace
+}
+
+func (m *Manager) clearHeldSince(id string) {
+	m.mu.Lock()
+	delete(m.heldSince, id)
+	m.mu.Unlock()
 }
 
 // isFlapping reports whether a device changed connectivity 3+ times in 60s.

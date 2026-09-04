@@ -69,11 +69,11 @@ func serve(log *slog.Logger, cfgPath string) error {
 	}
 	defer st.Close()
 
-	mgr, err := devices.New(cfg, st, log)
+	res := reserve.New(st, st.DB(), cfg.IdleTimeout, cfg.MaxLease)
+	mgr, err := devices.New(cfg, st, res.IsHeld, log)
 	if err != nil {
 		return err
 	}
-	res := reserve.New(st, st.DB(), cfg.IdleTimeout, cfg.MaxLease)
 	inst := install.New(adb.New(cfg.ADBPath), ios.Default(), install.Options{
 		BundletoolJar:   os.Getenv("POLIGON_BUNDLETOOL"),
 		SigningIdentity: os.Getenv("POLIGON_SIGNING_IDENTITY"),

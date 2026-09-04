@@ -242,6 +242,12 @@ func (m *Manager) Release(deviceID, user string, admin bool) error {
 	return tx.Commit()
 }
 
+// IsHeld reports whether a device currently has an active reservation.
+func (m *Manager) IsHeld(deviceID string) bool {
+	_, ok, _ := m.Holder(deviceID)
+	return ok
+}
+
 // Holder returns the active reservation for a device, or ok=false.
 func (m *Manager) Holder(deviceID string) (model.Reservation, bool, error) {
 	var res model.Reservation
