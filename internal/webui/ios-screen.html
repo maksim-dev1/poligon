@@ -27,6 +27,11 @@
          opacity:0; transition:opacity .1s; }
   #err { color:#f85149; padding:0 12px; }
   #hint { color:#8b93a1; font-size:11px; padding:2px 12px; }
+  #down { position:fixed; inset:0; background:rgba(15,17,21,.94); display:none;
+          flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center; }
+  #down.show { display:flex; }
+  #down .msg { color:#f85149; max-width:520px; font:12px/1.5 ui-monospace,Menlo,monospace; white-space:pre-wrap; }
+  #down button { padding:8px 16px; }
 </style>
 </head>
 <body>
@@ -36,12 +41,18 @@
   <span class="sp"></span>
   <button onclick="send({type:'home'})">Home</button>
   <button onclick="send({type:'wake'})">Wake</button>
+  <button id="restartBtn" onclick="restartAgent()">Restart agent</button>
   <button onclick="location.reload()">Reload</button>
 </div>
 <div id="err"></div>
 <div id="hint">click = tap · drag = swipe/scroll · type to enter text</div>
 <div id="stage"><img id="screen" alt="device screen" draggable="false"></div>
 <div id="dot"></div>
+<div id="down">
+  <div><b>Live screen is down</b></div>
+  <div class="msg" id="down-msg">WebDriverAgent is not responding.</div>
+  <button id="down-btn" onclick="restartAgent()">Restart WebDriverAgent</button>
+</div>
 
 <script>
 const id = new URLSearchParams(location.search).get("id") || location.pathname.split("/").pop();
@@ -51,15 +62,51 @@ const statusEl = document.getElementById("status");
 document.getElementById("title").textContent = id;
 
 let dev = { w: 390, h: 844 };
+let errStreak = 0;
+const down = document.getElementById("down");
 
 async function init() {
+  down.classList.remove("show");
   try {
     const r = await fetch(base + "/size");
     if (r.ok) { const s = await r.json(); dev = s; }
   } catch (e) {}
   img.src = base + "/mjpeg?t=" + Date.now();
-  img.onload = () => statusEl.textContent = "streaming";
-  img.onerror = () => { statusEl.textContent = "stream error"; setTimeout(() => img.src = base + "/mjpeg?t=" + Date.now(), 2000); };
+  img.onload = () => { statusEl.textContent = "streaming"; errStreak = 0; down.classList.remove("show"); };
+  img.onerror = () => {
+    statusEl.textContent = "stream error";
+    if (++errStreak >= 3) showDown("WebDriverAgent stopped responding.\nRestart it to bring the screen back.");
+    else setTimeout(() => img.src = base + "/mjpeg?t=" + Date.now(), 2000);
+  };
+}
+
+function showDown(msg) {
+  document.getElementById("down-msg").textContent = msg;
+  down.classList.add("show");
+}
+
+async function restartAgent() {
+  const btns = document.querySelectorAll("#restartBtn,#down-btn");
+  btns.forEach(b => b.disabled = true);
+  showDown("Restarting WebDriverAgent…");
+  try {
+    const r = await fetch(base + "/restart", { method: "POST" });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    // poll the job until it finishes
+    for (let i = 0; i < 120; i++) {
+      await new Promise(res => setTimeout(res, 2000));
+      const j = await (await fetch(base + "/job")).json();
+      if (j.step) document.getElementById("down-msg").textContent = "Restarting… " + j.step;
+      if (j.state === "done") break;
+      if (j.state === "failed") throw new Error(j.err || "restart failed");
+    }
+    errStreak = 0;
+    init();
+  } catch (e) {
+    showDown("Restart failed:\n" + e.message);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
 }
 
 // map a browser event on the <img> to device coordinates

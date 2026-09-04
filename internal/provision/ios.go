@@ -205,6 +205,104 @@ func (m *Manager) Resume(ctx context.Context) {
 	}
 }
 
+// RestartScreen tears down and re-creates a device's live screen. Runs async as
+// a job (keyed by device id) that the dashboard polls, same as adopt.
+func (m *Manager) RestartScreen(deviceID string) (Job, error) {
+	d, err := m.st.Device(deviceID)
+	if err != nil {
+		return Job{}, err
+	}
+	m.mu.Lock()
+	if j, ok := m.jobs[deviceID]; ok && j.State == stateRunning {
+		snap := j.copy()
+		m.mu.Unlock()
+		return snap, nil
+	}
+	j := &Job{DeviceID: deviceID, State: stateRunning, Step: "restarting screen", StartedAt: time.Now()}
+	m.jobs[deviceID] = j
+	m.mu.Unlock()
+
+	go func() {
+		var err error
+		switch d.Platform {
+		case model.IOS:
+			err = m.restartIOS(d, j)
+		case model.Android:
+			err = m.restartAndroid(d, j)
+		default:
+			err = fmt.Errorf("unknown platform %q", d.Platform)
+		}
+		m.mu.Lock()
+		if err != nil {
+			j.State, j.Err = stateFailed, err.Error()
+			m.log.Warn("restart screen failed", "device", deviceID, "err", err)
+		} else {
+			j.State, j.Step = stateDone, "ready"
+			m.log.Info("screen restarted", "device", deviceID)
+		}
+		m.mu.Unlock()
+	}()
+	return j.copy(), nil
+}
+
+func (m *Manager) restartIOS(d model.Device, j *Job) error {
+	if d.UDID == "" {
+		return fmt.Errorf("device has no udid")
+	}
+	xctestrun := findXCTestRun(expandHome(m.cfg.IOSWDA.DerivedData))
+	if xctestrun == "" {
+		return fmt.Errorf("WebDriverAgent is not built yet — use \"connect to farm\" first")
+	}
+	m.step(j, "stopping WebDriverAgent")
+	m.stopWDA(d.ID, d.UDID)
+	time.Sleep(2 * time.Second)
+
+	ep, wp, err := m.startWDA(j, d.UDID, xctestrun)
+	if err != nil {
+		return err
+	}
+	m.iosCtl.Set(d.ID, ep)
+	_ = m.st.SetIOSScreen(store.IOSScreenRow{
+		DeviceID: d.ID, WDA: ep.WDA, MJPEG: ep.MJPEG,
+		WDARunPID: pidOf(wp.run), WDAPID: pidOf(wp.wda), MJPEGPID: pidOf(wp.mjpeg),
+	})
+	return nil
+}
+
+func (m *Manager) restartAndroid(d model.Device, j *Job) error {
+	if d.Serial == "" {
+		return fmt.Errorf("device has no adb serial")
+	}
+	m.step(j, "restarting on-device screen server")
+	bin := m.cfg.ADBPath
+	if bin == "" {
+		bin = "adb"
+	}
+	// ws-scrcpy leaves the scrcpy server holding tcp:8886 after a client drops;
+	// killing it lets ws-scrcpy spawn a fresh one on the next connect.
+	_ = exec.Command(bin, "-s", d.Serial, "shell", "pkill", "-9", "-f", "scrcpy").Run()
+	return nil
+}
+
+// stopWDA kills the tracked WDA runner + iproxy tunnels for a device.
+func (m *Manager) stopWDA(deviceID, udid string) {
+	m.mu.Lock()
+	wp := m.procs[deviceID]
+	if wp == nil {
+		wp = m.procs[udid]
+	}
+	delete(m.procs, deviceID)
+	delete(m.procs, udid)
+	m.mu.Unlock()
+	if wp != nil {
+		_ = kill(wp.run)
+		_ = kill(wp.wda)
+		_ = kill(wp.mjpeg)
+	}
+	_ = killMatching("test-without-building.*" + udid)
+	_ = killMatching("iproxy .*" + udid)
+}
+
 func (m *Manager) wdaTeam() string {
 	if v := os.Getenv("POLIGON_WDA_TEAM"); v != "" {
 		return v

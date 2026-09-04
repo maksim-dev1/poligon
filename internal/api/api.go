@@ -57,8 +57,10 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("POST /devices/{id}/heartbeat", s.heartbeat)
 	api.HandleFunc("POST /devices/{id}/install", s.install)
 	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
+	api.HandleFunc("POST /devices/{id}/screen/restart", s.restartScreen)
 	api.HandleFunc("POST /devices/{id}/adopt", s.adoptDevice)
 	api.HandleFunc("GET /devices/{id}/adopt", s.adoptStatus)
+	api.HandleFunc("GET /devices/{id}/job", s.adoptStatus)
 	api.HandleFunc("POST /session", s.session)
 
 	// multi-device batches: reserve a set, install once to all, one grid of screens
@@ -74,6 +76,8 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	ios.HandleFunc("GET /ios/{id}/size", s.iosSize)
 	ios.HandleFunc("GET /ios/{id}/mjpeg", s.iosMJPEG)
 	ios.HandleFunc("POST /ios/{id}/input", s.iosInput)
+	ios.HandleFunc("POST /ios/{id}/restart", s.iosRestart)
+	ios.HandleFunc("GET /ios/{id}/job", s.iosJob)
 	ios.HandleFunc("GET /grid", s.screenGrid)
 
 	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
@@ -285,6 +289,51 @@ func (s *Server) iosInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// iosRestart tears down and re-creates the device's WebDriverAgent screen.
+func (s *Server) iosRestart(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	job, err := s.prov.RestartScreen(id)
+	if err != nil {
+		fail(w, http.StatusConflict, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
+}
+
+// iosJob returns the current provision/restart job for the device.
+func (s *Server) iosJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	job, jok := s.prov.Get(id)
+	if !jok {
+		writeJSON(w, http.StatusOK, map[string]string{"state": "none"})
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
+}
+
+// restartScreen (bearer-auth, used from the grid) restarts a device's live
+// screen: WebDriverAgent for iOS, the scrcpy server for Android.
+func (s *Server) restartScreen(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	id := r.PathValue("id")
+	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
+		return
+	}
+	job, err := s.prov.RestartScreen(id)
+	if err != nil {
+		fail(w, http.StatusConflict, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
 }
 
 // screenLink returns the live-screen URL for a device the caller may control.
