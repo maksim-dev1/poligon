@@ -42,6 +42,9 @@ func (m *Manager) Reserve(deviceID, user string) (model.Reservation, error) {
 	if err != nil {
 		return model.Reservation{}, err
 	}
+	if !d.Adopted {
+		return model.Reservation{}, fmt.Errorf("%w: %s is a candidate — connect it to the farm first", ErrUnavailable, deviceID)
+	}
 	switch d.Status {
 	case model.StatusFree:
 		// ok
@@ -92,6 +95,9 @@ func (m *Manager) ReserveMany(deviceIDs []string, user string) (string, []model.
 		d, err := m.st.Device(id)
 		if err != nil {
 			return "", nil, err
+		}
+		if !d.Adopted {
+			return "", nil, fmt.Errorf("%w: %s is a candidate — connect it to the farm first", ErrUnavailable, id)
 		}
 		if d.Status != model.StatusFree {
 			return "", nil, fmt.Errorf("%w: %s is %s", ErrTaken, id, d.Status)

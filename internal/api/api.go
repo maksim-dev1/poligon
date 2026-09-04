@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pancir/poligon/internal/auth"
@@ -20,6 +21,7 @@ import (
 	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/live"
 	"github.com/pancir/poligon/internal/model"
+	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
 	"github.com/pancir/poligon/internal/webui"
@@ -33,13 +35,14 @@ type Server struct {
 	inst *install.Installer
 	live *live.Proxy
 	ios  *iosscreen.Controller
+	prov *provision.Manager
 	log  *slog.Logger
 	web  http.FileSystem
 }
 
 // New builds the API server.
-func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, web: web, log: log}
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, web: web, log: log}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -54,6 +57,8 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("POST /devices/{id}/heartbeat", s.heartbeat)
 	api.HandleFunc("POST /devices/{id}/install", s.install)
 	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
+	api.HandleFunc("POST /devices/{id}/adopt", s.adoptDevice)
+	api.HandleFunc("GET /devices/{id}/adopt", s.adoptStatus)
 	api.HandleFunc("POST /session", s.session)
 
 	// multi-device batches: reserve a set, install once to all, one grid of screens
@@ -84,6 +89,20 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 type deviceView struct {
 	model.Device
 	Reservation *model.Reservation `json:"reservation,omitempty"`
+	Job         *provision.Job     `json:"job,omitempty"` // active/last adopt job, candidates only
+}
+
+func (s *Server) fillView(d model.Device) deviceView {
+	dv := deviceView{Device: d}
+	if res, ok, _ := s.res.Holder(d.ID); ok {
+		dv.Reservation = &res
+	}
+	if !d.Adopted {
+		if j, ok := s.prov.Get(d.ID); ok {
+			dv.Job = &j
+		}
+	}
+	return dv
 }
 
 func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
@@ -94,11 +113,7 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]deviceView, 0, len(pool))
 	for _, d := range pool {
-		dv := deviceView{Device: d}
-		if res, ok, _ := s.res.Holder(d.ID); ok {
-			dv.Reservation = &res
-		}
-		out = append(out, dv)
+		out = append(out, s.fillView(d))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -109,11 +124,27 @@ func (s *Server) getDevice(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, err)
 		return
 	}
-	dv := deviceView{Device: d}
-	if res, ok, _ := s.res.Holder(d.ID); ok {
-		dv.Reservation = &res
+	writeJSON(w, http.StatusOK, s.fillView(d))
+}
+
+// adoptDevice starts (or re-attaches to) a candidate device's preparation job.
+func (s *Server) adoptDevice(w http.ResponseWriter, r *http.Request) {
+	job, err := s.prov.Start(r.PathValue("id"))
+	if err != nil {
+		fail(w, http.StatusConflict, err)
+		return
 	}
-	writeJSON(w, http.StatusOK, dv)
+	writeJSON(w, http.StatusOK, job)
+}
+
+// adoptStatus returns the current preparation job for a device.
+func (s *Server) adoptStatus(w http.ResponseWriter, r *http.Request) {
+	job, ok := s.prov.Get(r.PathValue("id"))
+	if !ok {
+		fail(w, http.StatusNotFound, errors.New("no preparation job for this device"))
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
 }
 
 // --- reservations ---
@@ -277,7 +308,8 @@ func (s *Server) screenLink(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"url": "/live/ios/" + id})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"url": live.StreamPath(d)})
+	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	writeJSON(w, http.StatusOK, map[string]string{"url": live.StreamPath(d, r.Host, secure)})
 }
 
 // --- install ---

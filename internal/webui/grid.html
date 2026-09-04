@@ -9,17 +9,34 @@
   body { margin:0; background:#0f1115; color:#e6e8ec;
          font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   header { padding:8px 14px; border-bottom:1px solid #2a2f3a; display:flex; gap:10px; align-items:center; }
+  header b { font-size:14px; }
+  header .sp { margin-left:auto; }
+  button { background:#22262e; color:#e6e8ec; border:1px solid #2a2f3a; border-radius:6px;
+           padding:5px 10px; cursor:pointer; font-size:12px; }
+  button:hover { background:#2b303a; }
+  button.danger { border-color:#5c2b2b; color:#f85149; }
   #grid { display:grid; gap:10px; padding:12px;
           grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
   .cell { border:1px solid #2a2f3a; border-radius:10px; overflow:hidden; background:#000;
-          display:flex; flex-direction:column; height:70vh; }
-  .cell .t { padding:4px 8px; background:#191c22; font-size:12px; }
-  .cell iframe { flex:1; border:0; width:100%; }
+          display:flex; flex-direction:column; height:78vh; }
+  .cell .t { padding:5px 8px; background:#191c22; font-size:12px; display:flex; gap:6px; align-items:center; }
+  .cell .t .id { font-weight:600; }
+  .cell .t .plat { color:#8b93a1; }
+  .cell .t .sp { margin-left:auto; }
+  .cell .t button { padding:3px 7px; font-size:11px; }
+  .cell iframe { flex:1; border:0; width:100%; background:#000; }
+  .cell.gone { opacity:.4; }
   #err { color:#f85149; padding:8px 14px; }
 </style>
 </head>
 <body>
-<header><b>screen grid</b> <span id="sub" style="color:#8b93a1"></span></header>
+<header>
+  <b>screen grid</b>
+  <span id="sub" style="color:#8b93a1"></span>
+  <span class="sp"></span>
+  <button onclick="location.href='/'">&larr; Back to farm</button>
+  <button class="danger" onclick="releaseAll()">Release all &amp; exit</button>
+</header>
 <div id="err"></div>
 <div id="grid"></div>
 <script>
@@ -27,25 +44,82 @@ const batch = new URLSearchParams(location.search).get("b");
 const tok = localStorage.getItem("poligon_token") || "";
 const H = { Authorization: "Bearer " + tok };
 
+async function screenURL(id) {
+  try {
+    const r = await fetch(`/api/devices/${id}/screen`, { headers: H });
+    if (!r.ok) return null;
+    return (await r.json()).url;
+  } catch { return null; }
+}
+
+function cell(d, url) {
+  const c = document.createElement("div");
+  c.className = "cell";
+  c.id = "cell-" + d.id;
+  const body = url
+    ? `<iframe id="if-${d.id}" src="${url}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
+    : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`;
+  c.innerHTML = `
+    <div class="t">
+      <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
+      <span class="sp"></span>
+      <button onclick="pick('${d.id}')">Upload</button>
+      <button onclick="reopen('${d.id}', '${url || ""}')">Reopen</button>
+      <button onclick="window.open('${url || ""}','w-${d.id}')">Pop out</button>
+      <button class="danger" onclick="releaseOne('${d.id}')">Release</button>
+      <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
+             onchange="upload('${d.id}', this.files[0])">
+    </div>
+    ${body}`;
+  return c;
+}
+
+function reopen(id, url) {
+  const f = document.getElementById("if-" + id);
+  if (f) f.src = url + (url.includes("?") ? "&" : "#") + "r=" + Date.now();
+}
+function pick(id) { document.getElementById("f-" + id).click(); }
+
+async function upload(id, file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append("artifact", file);
+  const btn = event?.target;
+  document.getElementById("sub").textContent = `installing ${file.name} on ${id}…`;
+  try {
+    const r = await fetch(`/api/devices/${id}/install`, { method: "POST", headers: H, body: fd });
+    const b = await r.json();
+    alert(r.ok && b.status === "ok" ? `${id}: installed` : `${id}: ${b.detail || b.error || "failed"}`);
+  } catch (e) { alert(e.message); }
+  document.getElementById("sub").textContent = `${count} device(s)`;
+}
+
+async function releaseOne(id) {
+  try { await fetch(`/api/devices/${id}/release`, { method: "POST", headers: H }); } catch {}
+  document.getElementById("cell-" + id)?.remove();
+}
+
+async function releaseAll() {
+  try { await fetch(`/api/batches/${batch}/release`, { method: "POST", headers: H }); } catch {}
+  localStorage.removeItem("poligon_batch");
+  location.href = "/";
+}
+
+let count = 0;
 async function main() {
   if (!batch) { document.getElementById("err").textContent = "no batch"; return; }
   const b = await (await fetch(`/api/batches/${batch}`, { headers: H })).json();
   if (!b.devices) { document.getElementById("err").textContent = b.error || "batch not found"; return; }
-  document.getElementById("sub").textContent = `${b.devices.length} devices`;
+  count = b.devices.length;
+  document.getElementById("sub").textContent = `${count} device(s)`;
   const grid = document.getElementById("grid");
   for (const d of b.devices) {
-    let url;
-    try {
-      const r = await fetch(`/api/devices/${d.id}/screen`, { headers: H });
-      url = (await r.json()).url;
-    } catch { url = null; }
-    const cell = document.createElement("div");
-    cell.className = "cell";
-    cell.innerHTML = `<div class="t">${d.id} · ${d.platform}</div>` +
-      (url ? `<iframe src="${url}" allow="autoplay"></iframe>`
-           : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`);
-    grid.appendChild(cell);
+    const url = await screenURL(d.id);
+    grid.appendChild(cell(d, url));
   }
+  // keep the batch lease alive while the grid is open
+  setInterval(() => {
+    fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: H }).catch(() => {});
+  }, 60000);
 }
 main().catch(e => document.getElementById("err").textContent = e.message);
 </script>

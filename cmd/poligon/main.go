@@ -22,6 +22,7 @@ import (
 	"github.com/pancir/poligon/internal/ios"
 	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/live"
+	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
 	"github.com/pancir/poligon/internal/webui"
@@ -81,9 +82,18 @@ func serve(log *slog.Logger, cfgPath string) error {
 	})
 	a := auth.New(st.DB())
 	lp := live.New(cfg.LiveSidecar, st, res, log)
-	iosCtl := iosscreen.New(iosscreen.ParseEndpoints(cfg.IOSScreen))
 
-	srv := api.New(cfg, st, res, inst, lp, iosCtl, http.FS(webui.FS()), log)
+	// iOS screen endpoints: static config plus any persisted by earlier adopts.
+	iosEndpoints := iosscreen.ParseEndpoints(cfg.IOSScreen)
+	if rows, err := st.IOSScreens(); err == nil {
+		for _, rr := range rows {
+			iosEndpoints[rr.DeviceID] = iosscreen.Endpoint{WDA: rr.WDA, MJPEG: rr.MJPEG}
+		}
+	}
+	iosCtl := iosscreen.New(iosEndpoints)
+	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
+
+	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, http.FS(webui.FS()), log)
 	handler := srv.Handler(a, os.Getenv("POLIGON_DEV_USER"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -91,6 +101,7 @@ func serve(log *slog.Logger, cfgPath string) error {
 
 	go mgr.Run(ctx)
 	go reapLoop(ctx, res, log)
+	go prov.Resume(ctx)
 
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: handler}
 	go func() {

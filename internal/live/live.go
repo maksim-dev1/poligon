@@ -8,6 +8,7 @@
 package live
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -116,16 +117,30 @@ func SidecarTargets(devs []model.Device) []string {
 	return out
 }
 
-// StreamPath builds the dashboard link that opens a device's screen.
+// scrcpyServerPort is the port ws-scrcpy's on-device scrcpy server listens on
+// (ws-scrcpy common/Constants.ts SERVER_PORT). ws-scrcpy reaches it via an adb
+// tunnel it sets up itself; we only name it in the proxy-adb ws URL.
+const scrcpyServerPort = 8886
+
+// StreamPath builds the dashboard link that opens a device's screen straight in
+// ws-scrcpy's player — no device-list detour.
 //
-// ws-scrcpy 0.9's stream deep link needs a fully-formed ws= URL; instead we open
-// its device list (which auto-connects the tracker WebSocket through the proxy)
-// and let the user pick the reserved device. The udid is passed so ws-scrcpy can
-// pre-select it where supported.
-func StreamPath(d model.Device) string {
+// ws-scrcpy's stream deep link (#!action=stream) needs a fully-formed ws= URL
+// pointing at its proxy-adb endpoint. We build it against the dashboard's own
+// host so the WebSocket rides poligon's authenticated /live/ proxy (StripPrefix
+// drops /live before it hits the sidecar). wsHost is the browser-facing host
+// (r.Host); secure selects ws vs wss.
+func StreamPath(d model.Device, wsHost string, secure bool) string {
 	id := d.Serial
 	if id == "" {
 		id = d.UDID
 	}
-	return "/live/#!action=devices&udid=" + url.QueryEscape(id)
+	scheme := "ws"
+	if secure {
+		scheme = "wss"
+	}
+	ws := fmt.Sprintf("%s://%s/live/?action=proxy-adb&remote=tcp:%d&udid=%s",
+		scheme, wsHost, scrcpyServerPort, url.QueryEscape(id))
+	return "/live/#!action=stream&udid=" + url.QueryEscape(id) +
+		"&player=webcodecs&ws=" + url.QueryEscape(ws)
 }

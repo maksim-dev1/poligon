@@ -5,9 +5,7 @@ package devices
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +14,7 @@ import (
 	"github.com/pancir/poligon/internal/config"
 	"github.com/pancir/poligon/internal/ios"
 	"github.com/pancir/poligon/internal/model"
+	"github.com/pancir/poligon/internal/naming"
 	"github.com/pancir/poligon/internal/store"
 )
 
@@ -166,13 +165,13 @@ func (m *Manager) autoRegisterAndroid(ctx context.Context, serial string, author
 		Source: model.SourceAuto, Tags: []string{"auto"}, LastSeen: now,
 	}
 	if !authorized {
-		d.ID = "pending-" + shortSerial(serial)
+		d.ID = "pending-" + naming.ShortSerial(serial)
 		d.Status = model.StatusUnauthorized
 	} else {
 		sp, _ := m.adb.Specs(ctx, serial)
 		d.Specs = sp
 		d.Status = model.StatusFree
-		d.ID = uniqueID(slug(sp.Manufacturer, sp.Model), serial, taken)
+		d.ID = naming.UniqueID(naming.Slug(sp.Manufacturer, sp.Model), taken)
 	}
 	if err := m.st.CreateAutoDevice(d); err != nil {
 		m.log.Warn("auto-register android", "serial", serial, "err", err)
@@ -188,7 +187,7 @@ func (m *Manager) autoRegisterIOS(ctx context.Context, udid string, taken map[st
 	if err != nil {
 		// device present but not yet trusted / Developer Mode off
 		d := model.Device{
-			ID: "pending-" + shortSerial(udid), Platform: model.IOS, UDID: udid,
+			ID: "pending-" + naming.ShortSerial(udid), Platform: model.IOS, UDID: udid,
 			Status: model.StatusUnauthorized, Source: model.SourceAuto,
 			Tags: []string{"auto"}, LastSeen: now,
 		}
@@ -197,7 +196,7 @@ func (m *Manager) autoRegisterIOS(ctx context.Context, udid string, taken map[st
 		return
 	}
 	d := model.Device{
-		ID:       uniqueID(slug("apple", sp.Model), udid, taken),
+		ID:       naming.UniqueID(naming.Slug("apple", sp.Model), taken),
 		Platform: model.IOS, UDID: udid, Specs: sp,
 		Status: model.StatusFree, Source: model.SourceAuto,
 		Tags: []string{"auto"}, LastSeen: now,
@@ -223,7 +222,7 @@ func (m *Manager) upgradePending(ctx context.Context, d model.Device, taken map[
 	if d.Platform == model.IOS {
 		vendor = "apple"
 	}
-	newID := uniqueID(slug(vendor, sp.Model), d.Serial+d.UDID, taken)
+	newID := naming.UniqueID(naming.Slug(vendor, sp.Model), taken)
 	upgraded := model.Device{
 		ID: newID, Platform: d.Platform, Serial: d.Serial, UDID: d.UDID,
 		Tags: []string{"auto"}, Status: model.StatusFree,
@@ -236,40 +235,6 @@ func (m *Manager) upgradePending(ctx context.Context, d model.Device, taken map[
 	_ = m.st.DeleteDevice(d.ID)
 	taken[newID] = true
 	m.log.Info("device authorized", "was", d.ID, "now", newID)
-}
-
-var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
-
-func slug(parts ...string) string {
-	s := strings.ToLower(strings.Join(parts, "-"))
-	s = slugRe.ReplaceAllString(s, "-")
-	s = strings.Trim(s, "-")
-	if s == "" {
-		s = "device"
-	}
-	return s
-}
-
-func shortSerial(s string) string {
-	if len(s) > 8 {
-		return s[:8]
-	}
-	return s
-}
-
-// uniqueID returns base, or base-2, base-3, ... until it is free. seed keeps the
-// choice stable for a given device across restarts when base collides.
-func uniqueID(base, seed string, taken map[string]bool) string {
-	if !taken[base] {
-		return base
-	}
-	for i := 2; ; i++ {
-		cand := fmt.Sprintf("%s-%d", base, i)
-		if !taken[cand] {
-			return cand
-		}
-		_ = seed
-	}
 }
 
 // reconcile decides the next status given physical presence, whether the device

@@ -30,7 +30,23 @@ type Config struct {
 	// (see internal/iosscreen). Omitted -> iOS live screen disabled.
 	IOSScreen map[string]iosscreen.Endpoint `yaml:"ios_screen"`
 
+	// IOSWDA configures automatic WebDriverAgent provisioning when an iOS
+	// device is adopted (see internal/provision). Omitted -> iOS adopt fails
+	// with a clear message and the manual scripts/ios-wda.sh is still available.
+	IOSWDA IOSWDAConfig `yaml:"ios_wda"`
+
 	Devices []DeviceSpec `yaml:"devices"`
+}
+
+// IOSWDAConfig holds the inputs scripts/ios-wda.sh needs, so poligon can run
+// the same build/run/forward pipeline itself.
+type IOSWDAConfig struct {
+	Team          string `yaml:"team"`            // Apple DEVELOPMENT_TEAM (10 chars); $POLIGON_WDA_TEAM overrides
+	Src           string `yaml:"src"`             // WebDriverAgent checkout dir (default ~/WebDriverAgent)
+	DerivedData   string `yaml:"derived_data"`    // xcodebuild -derivedDataPath (default /tmp/wda-dd)
+	BundleID      string `yaml:"bundle_id"`       // WDA runner bundle id
+	WDAPortBase   int    `yaml:"wda_port_base"`   // first host port for WDA http (default 18100)
+	MJPEGPortBase int    `yaml:"mjpeg_port_base"` // first host port for WDA mjpeg (default 19100)
 }
 
 // DeviceSpec is one entry in devices.yaml.
@@ -55,6 +71,13 @@ func Default() Config {
 		ADBPath:       "adb",
 		AutoDiscover:  true,
 		LiveSidecar:   "http://127.0.0.1:8000",
+		IOSWDA: IOSWDAConfig{
+			Src:           "~/WebDriverAgent",
+			DerivedData:   "/tmp/wda-dd",
+			BundleID:      "com.poligon.WebDriverAgentRunner",
+			WDAPortBase:   18100,
+			MJPEGPortBase: 19100,
+		},
 	}
 }
 

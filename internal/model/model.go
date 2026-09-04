@@ -44,6 +44,10 @@ type Device struct {
 	Source   Source       `json:"source"`
 	Specs    Specs        `json:"specs"`
 	LastSeen time.Time    `json:"last_seen"`
+	// Adopted is true once the device has been prepared and admitted to the
+	// pool. Config devices are adopted on load; auto-discovered devices start
+	// as candidates (adopted=false) until a user runs "connect to farm".
+	Adopted bool `json:"adopted"`
 }
 
 // Specs are hardware/OS characteristics, refreshed periodically.

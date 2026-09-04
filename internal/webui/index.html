@@ -6,22 +6,27 @@
 <title>poligon — phone farm</title>
 <style>
   :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --muted:#8b93a1;
-          --free:#3fb950; --busy:#d29922; --off:#6e7681; --bad:#f85149; }
+          --free:#3fb950; --busy:#d29922; --off:#6e7681; --bad:#f85149; --accent:#388bfd; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg);
          font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
   header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; }
   header h1 { margin:0; font-size:18px; }
   header .muted { color:var(--muted); }
-  main { padding:24px; display:grid; gap:16px;
+  h3.section { margin:22px 24px 0; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  main { padding:12px 24px 24px; display:grid; gap:16px;
          grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
-  .card h2 { margin:0 0 4px; font-size:15px; display:flex; justify-content:space-between; align-items:center; }
-  .badge { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; position:relative; }
+  .card.selectable { cursor:pointer; }
+  .card.selectable:hover { border-color:#3a414f; }
+  .card.sel { outline:2px solid var(--accent); border-color:var(--accent); }
+  .card h2 { margin:0 0 4px; font-size:15px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .badge { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:20px; white-space:nowrap; }
   .b-free{background:rgba(63,185,80,.15);color:var(--free)}
   .b-busy,.b-reserved,.b-running{background:rgba(210,153,34,.15);color:var(--busy)}
   .b-offline{background:rgba(110,118,129,.15);color:var(--off)}
   .b-degraded,.b-maintenance,.b-unauthorized{background:rgba(248,81,73,.15);color:var(--bad)}
+  .b-candidate{background:rgba(56,139,253,.15);color:var(--accent)}
   .src{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
   .hint{color:var(--busy);font-size:12px;margin-top:8px}
   .specs { color:var(--muted); font-size:13px; margin:8px 0 0; }
@@ -31,12 +36,19 @@
            border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; }
   button:hover { background:#2b303a; }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { background:#4c9aff; }
   .hold { color:var(--muted); font-size:12px; margin-top:8px; }
   #err { color:var(--bad); padding:0 24px; }
-  .card.in-batch { outline:2px solid var(--free); }
-  .card h2 label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .prep { margin-top:10px; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .prep.failed { color:var(--bad); }
+  .spinner { width:13px; height:13px; border:2px solid var(--line); border-top-color:var(--accent);
+             border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .joblog { margin-top:6px; max-height:96px; overflow:auto; font:11px/1.45 ui-monospace,Menlo,monospace;
+            color:var(--muted); background:#0c0e12; border:1px solid var(--line); border-radius:6px; padding:6px 8px; white-space:pre-wrap; }
   #batchbar { position:sticky; bottom:0; background:#191c22; border-top:1px solid var(--line);
-              padding:12px 24px; display:flex; gap:10px; align-items:center; }
+              padding:12px 24px; display:flex; gap:10px; align-items:center; z-index:5; }
 </style>
 </head>
 <body>
@@ -58,7 +70,12 @@
   <div id="gate-err" style="color:#f85149;font-size:13px;margin-top:8px"></div>
 </div>
 
-<main id="pool"></main>
+<div id="app" hidden>
+  <h3 class="section" id="cand-title" hidden>New devices — connect to the farm</h3>
+  <main id="candidates"></main>
+  <h3 class="section" id="farm-title" hidden>Farm</h3>
+  <main id="pool"></main>
+</div>
 <div id="batchbar" hidden></div>
 
 <script>
@@ -75,7 +92,7 @@ async function api(path, opts = {}) {
 
 function showGate() {
   document.getElementById("gate").hidden = false;
-  document.getElementById("pool").hidden = true;
+  document.getElementById("app").hidden = true;
   document.getElementById("logout").hidden = true;
 }
 async function login() {
@@ -84,47 +101,46 @@ async function login() {
   const r = await fetch("/api/devices", { headers: { Authorization: "Bearer " + t } });
   if (!r.ok) { document.getElementById("gate-err").textContent = "invalid token"; return; }
   TOKEN = t; localStorage.setItem("poligon_token", t);
-  // set the cookie /live/ needs for iframe + WebSocket auth
   await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + t } });
   document.getElementById("gate").hidden = true;
-  document.getElementById("pool").hidden = false;
+  document.getElementById("app").hidden = false;
   document.getElementById("logout").hidden = false;
   refresh();
 }
 function logout() { localStorage.removeItem("poligon_token"); TOKEN = ""; showGate(); }
 
 function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
 const sel = new Set();               // device ids ticked for a new batch
 let batch = localStorage.getItem("poligon_batch") || "";   // active batch id
 let batchIds = [];                   // device ids in the active batch
+let fastPoll = null;
 
+// ---- farm card (adopted devices) ----
 function card(d) {
   const s = d.specs || {};
-  const held = d.reservation ? `held by ${d.reservation.user}` : "";
+  const held = d.reservation ? `held by ${esc(d.reservation.user)}` : "";
   const canReserve = d.status === "free";
   const canRelease = !!d.reservation;
-  const unauth = d.status === "unauthorized";
-  const inBatch = batchIds.includes(d.id);
-  return `<div class="card${inBatch ? " in-batch" : ""}">
+  const selected = sel.has(d.id);
+  return `<div class="card${canReserve ? " selectable" : ""}${selected ? " sel" : ""}"
+       ${canReserve ? `onclick="toggleSel('${d.id}')"` : ""}>
     <h2>
-      <label><input type="checkbox" ${canReserve ? "" : "disabled"} ${sel.has(d.id) ? "checked" : ""}
-        onchange="toggleSel('${d.id}', this.checked)"> ${d.id}</label>
+      <label onclick="event.stopPropagation()"><input type="checkbox" ${canReserve ? "" : "disabled"}
+        ${selected ? "checked" : ""} onchange="toggleSel('${d.id}')"> ${esc(d.id)}</label>
       ${badge(d.status)}
     </h2>
-    <div class="muted">${d.platform} · ${s.model || "?"} · ${s.os_version || "?"}
+    <div class="muted">${d.platform} · ${esc(s.model || "?")} · ${esc(s.os_version || "?")}
       <span class="src">${d.source || "config"}</span></div>
-    ${unauth ? `<div class="hint">On the device: unlock screen, replug USB, tap
-      "Allow USB debugging" (Always allow).</div>` : ""}
     <div class="specs">
-      <div><span>SoC</span><span>${s.soc || "—"}</span></div>
-      <div><span>RAM</span><span>${s.ram || "—"}</span></div>
-      <div><span>Storage</span><span>${s.storage || "—"}</span></div>
-      <div><span>Screen</span><span>${s.screen_size || "—"} ${s.screen_density ? "@"+s.screen_density : ""}</span></div>
+      <div><span>SoC</span><span>${esc(s.soc || "—")}</span></div>
+      <div><span>RAM</span><span>${esc(s.ram || "—")}</span></div>
+      <div><span>Screen</span><span>${esc(s.screen_size || "—")} ${s.screen_density ? "@"+esc(s.screen_density) : ""}</span></div>
       <div><span>Battery</span><span>${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
     </div>
     ${held ? `<div class="hold">${held}</div>` : ""}
-    <div class="row">
+    <div class="row" onclick="event.stopPropagation()">
       <button ${canReserve ? "" : "disabled"} onclick="reserve('${d.id}')">Reserve</button>
       <button ${canRelease ? "" : "disabled"} onclick="release('${d.id}')">Release</button>
       <button ${canRelease ? "" : "disabled"} onclick="pickFile('${d.id}')">Upload app</button>
@@ -135,7 +151,37 @@ function card(d) {
   </div>`;
 }
 
-function toggleSel(id, on) { on ? sel.add(id) : sel.delete(id); renderBar(); }
+// ---- candidate card (not yet adopted) ----
+function candidateCard(d) {
+  const j = d.job;
+  const running = j && (j.state === "running" || j.state === "queued");
+  const failed = j && j.state === "failed";
+  const idcode = d.serial || d.udid || "";
+  let prep = "";
+  if (running) prep = `<div class="prep"><span class="spinner"></span><span>${esc(j.step || "preparing…")}</span></div>`;
+  else if (failed) prep = `<div class="prep failed">✗ ${esc(j.err || "preparation failed")}</div>`;
+  const logHtml = j && j.log && j.log.length
+    ? `<div class="joblog">${esc(j.log.slice(-12).join("\n"))}</div>` : "";
+  return `<div class="card">
+    <h2>${esc(d.id)} ${badge("candidate")}</h2>
+    <div class="muted">${d.platform} · <code>${esc(idcode)}</code>
+      ${d.status === "unauthorized" ? badge("unauthorized") : ""}</div>
+    ${d.status === "unauthorized" ? `<div class="hint">On the device: unlock, replug USB, then
+      approve the debugging / Trust prompt.</div>` : ""}
+    <div class="row">
+      <button class="primary" ${running ? "disabled" : ""} onclick="adopt('${d.id}')">
+        ${failed ? "Retry" : running ? "Preparing…" : "Connect to farm"}</button>
+    </div>
+    ${prep}${logHtml}
+  </div>`;
+}
+
+function toggleSel(id) {
+  sel.has(id) ? sel.delete(id) : sel.add(id);
+  renderBar();
+  // cheap local re-render of selection outline
+  refresh();
+}
 
 function renderBar() {
   const bar = document.getElementById("batchbar");
@@ -143,8 +189,8 @@ function renderBar() {
     bar.hidden = false;
     bar.innerHTML =
       `<b>Batch:</b> ${batchIds.length} device(s) &nbsp;` +
+      `<button class="primary" onclick="openGrid()">Open screens</button>` +
       `<button onclick="pickBatchFile()">Install to all</button>` +
-      `<button onclick="openGrid()">Open all screens</button>` +
       `<button onclick="releaseBatch()">Release all</button>` +
       `<input type="file" id="bf" hidden accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files[0])">`;
     return;
@@ -152,23 +198,28 @@ function renderBar() {
   if (sel.size) {
     bar.hidden = false;
     bar.innerHTML = `<b>${sel.size} selected</b> &nbsp;` +
-      `<button onclick="reserveBatch()">Reserve selected</button>` +
-      `<button onclick="sel.clear();refresh()">Clear</button>`;
+      `<button class="primary" onclick="startTesting()">Start testing (${sel.size})</button>` +
+      `<button onclick="clearSel()">Clear</button>`;
     return;
   }
   bar.hidden = true;
 }
+function clearSel() { sel.clear(); renderBar(); refresh(); }
 
-async function reserveBatch() {
+// select -> reserve -> straight to the screen grid (same tab)
+async function startTesting() {
+  const ids = [...sel];
+  if (!ids.length) return;
   try {
     const res = await api("/batches", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ devices: [...sel] }) });
+      body: JSON.stringify({ devices: ids }) });
     batch = res.batch; localStorage.setItem("poligon_batch", batch);
     sel.clear();
-    refresh();
+    location.href = "/live/grid?b=" + encodeURIComponent(batch);
   } catch (e) { alert(e.message); }
 }
+
 async function releaseBatch() {
   try { await api(`/batches/${batch}/release`, { method: "POST" }); } catch (e) {}
   batch = ""; batchIds = []; localStorage.removeItem("poligon_batch");
@@ -186,7 +237,17 @@ async function batchUpload(file) {
   } catch (e) { alert(e.message); }
   refresh();
 }
-function openGrid() { window.open(`/live/grid?b=${encodeURIComponent(batch)}`, "poligon-grid"); }
+function openGrid() { location.href = "/live/grid?b=" + encodeURIComponent(batch); }
+
+async function adopt(id) {
+  try { await api(`/devices/${id}/adopt`, { method: "POST" }); refresh(); scheduleFastPoll(); }
+  catch (e) { alert(e.message); }
+}
+
+function scheduleFastPoll() {
+  if (fastPoll) return;
+  fastPoll = setInterval(refresh, 2000);
+}
 
 async function refresh() {
   try {
@@ -196,10 +257,25 @@ async function refresh() {
       try { const b = await api(`/batches/${batch}`); batchIds = b.devices.map(d => d.id); }
       catch { batch = ""; batchIds = []; localStorage.removeItem("poligon_batch"); }
     }
-    document.getElementById("pool").innerHTML = pool.map(card).join("");
-    const free = pool.filter(d => d.status === "free").length;
-    document.getElementById("summary").textContent = `${pool.length} devices · ${free} free`;
+    const cands = pool.filter(d => !d.adopted);
+    const farm  = pool.filter(d => d.adopted);
+    // drop selections that are no longer free
+    for (const id of [...sel]) if (!farm.find(d => d.id === id && d.status === "free")) sel.delete(id);
+
+    document.getElementById("candidates").innerHTML = cands.map(candidateCard).join("");
+    document.getElementById("pool").innerHTML = farm.map(card).join("");
+    document.getElementById("cand-title").hidden = cands.length === 0;
+    document.getElementById("farm-title").hidden = cands.length === 0; // only label the farm when there's a candidates list too
+
+    const free = farm.filter(d => d.status === "free").length;
+    document.getElementById("summary").textContent =
+      `${farm.length} on farm · ${free} free` + (cands.length ? ` · ${cands.length} new` : "");
     document.getElementById("logout").hidden = false;
+
+    const anyJob = cands.some(d => d.job && (d.job.state === "running" || d.job.state === "queued"));
+    if (!anyJob && fastPoll) { clearInterval(fastPoll); fastPoll = null; }
+    if (anyJob) scheduleFastPoll();
+
     renderBar();
   } catch (e) {
     if (e.message !== "unauthorized")
@@ -233,7 +309,7 @@ document.getElementById("token-in")?.addEventListener("keydown", e => { if (e.ke
 
 async function boot() {
   if (!TOKEN) { showGate(); return; }
-  // (re)seed the cookie that /live/ WebSocket + iframe auth needs
+  document.getElementById("app").hidden = false;
   await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + TOKEN } }).catch(() => {});
   refresh();
 }

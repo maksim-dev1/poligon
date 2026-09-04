@@ -41,6 +41,9 @@ type Controller struct {
 
 // New builds a Controller. endpoints may be nil/empty (iOS screen disabled).
 func New(endpoints map[string]Endpoint) *Controller {
+	if endpoints == nil {
+		endpoints = map[string]Endpoint{}
+	}
 	return &Controller{
 		endpoints: endpoints,
 		sessions:  map[string]string{},
@@ -49,16 +52,34 @@ func New(endpoints map[string]Endpoint) *Controller {
 	}
 }
 
+// Set registers (or replaces) a device's screen endpoint at runtime, used when
+// a device is adopted and its WebDriverAgent comes up.
+func (c *Controller) Set(deviceID string, ep Endpoint) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.endpoints[deviceID] = ep
+	delete(c.sessions, deviceID) // force a fresh WDA session against the new endpoint
+	delete(c.proxies, deviceID)
+}
+
+// endpoint returns a copy of a device's endpoint under the lock.
+func (c *Controller) endpoint(deviceID string) (Endpoint, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ep, ok := c.endpoints[deviceID]
+	return ep, ok
+}
+
 // Configured reports whether a device has an iOS-screen endpoint.
 func (c *Controller) Configured(deviceID string) bool {
-	_, ok := c.endpoints[deviceID]
+	_, ok := c.endpoint(deviceID)
 	return ok
 }
 
 // MJPEGHandler proxies the device's mjpeg stream. The caller must have already
 // checked auth + reservation.
 func (c *Controller) MJPEGHandler(deviceID string) (http.Handler, error) {
-	ep, ok := c.endpoints[deviceID]
+	ep, ok := c.endpoint(deviceID)
 	if !ok || ep.MJPEG == "" {
 		return nil, fmt.Errorf("no ios screen endpoint for %q", deviceID)
 	}
@@ -87,7 +108,7 @@ type Input struct {
 
 // Do performs an input action against the device's WDA.
 func (c *Controller) Do(deviceID string, in Input) error {
-	ep, ok := c.endpoints[deviceID]
+	ep, ok := c.endpoint(deviceID)
 	if !ok || ep.WDA == "" {
 		return fmt.Errorf("no ios screen endpoint for %q", deviceID)
 	}
@@ -134,7 +155,7 @@ func (c *Controller) Do(deviceID string, in Input) error {
 
 // Size returns the device's logical screen size (points).
 func (c *Controller) Size(deviceID string) (w, h int, err error) {
-	ep, ok := c.endpoints[deviceID]
+	ep, ok := c.endpoint(deviceID)
 	if !ok {
 		return 0, 0, fmt.Errorf("no ios screen endpoint for %q", deviceID)
 	}
