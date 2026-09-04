@@ -63,16 +63,16 @@ document.getElementById("title").textContent = id;
 
 let dev = { w: 390, h: 844 };
 let errStreak = 0;
-const down = document.getElementById("down");
+const downEl = document.getElementById("down");
 
 async function init() {
-  down.classList.remove("show");
+  downEl.classList.remove("show");
   try {
     const r = await fetch(base + "/size");
     if (r.ok) { const s = await r.json(); dev = s; }
   } catch (e) {}
   img.src = base + "/mjpeg?t=" + Date.now();
-  img.onload = () => { statusEl.textContent = "streaming"; errStreak = 0; down.classList.remove("show"); };
+  img.onload = () => { statusEl.textContent = "streaming"; errStreak = 0; downEl.classList.remove("show"); };
   img.onerror = () => {
     statusEl.textContent = "stream error";
     if (++errStreak >= 3) showDown("WebDriverAgent stopped responding.\nRestart it to bring the screen back.");
@@ -82,7 +82,7 @@ async function init() {
 
 function showDown(msg) {
   document.getElementById("down-msg").textContent = msg;
-  down.classList.add("show");
+  downEl.classList.add("show");
 }
 
 async function restartAgent() {
