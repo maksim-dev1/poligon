@@ -8,12 +8,15 @@
   :root { color-scheme: dark; }
   body { margin:0; background:#0f1115; color:#e6e8ec;
          font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-  header { padding:8px 14px; border-bottom:1px solid #2a2f3a; display:flex; gap:10px; align-items:center; }
+  header { padding:8px 14px; border-bottom:1px solid #2a2f3a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   header b { font-size:14px; }
   header .sp { margin-left:auto; }
   button { background:#22262e; color:#e6e8ec; border:1px solid #2a2f3a; border-radius:6px;
            padding:5px 10px; cursor:pointer; font-size:12px; }
   button:hover { background:#2b303a; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.primary { background:#388bfd; border-color:#388bfd; color:#fff; }
+  button.primary:hover { background:#4c9aff; }
   button.danger { border-color:#5c2b2b; color:#f85149; }
   #grid { display:grid; gap:10px; padding:12px;
           grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
@@ -25,7 +28,6 @@
   .cell .t .sp { margin-left:auto; }
   .cell .t button { padding:3px 7px; font-size:11px; }
   .cell iframe { flex:1; border:0; width:100%; background:#000; }
-  .cell.gone { opacity:.4; }
   #err { color:#f85149; padding:8px 14px; }
 </style>
 </head>
@@ -34,8 +36,12 @@
   <b>screen grid</b>
   <span id="sub" style="color:#8b93a1"></span>
   <span class="sp"></span>
+  <button class="primary" onclick="pickInstall()">Install app to all</button>
+  <button onclick="restartAll()">Restart screens</button>
+  <button onclick="reloadAll()">Reload</button>
   <button onclick="location.href='/'">&larr; Back to farm</button>
   <button class="danger" onclick="releaseAll()">Release all &amp; exit</button>
+  <input type="file" id="installFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files[0])">
 </header>
 <div id="err"></div>
 <div id="grid"></div>
@@ -43,6 +49,10 @@
 const batch = new URLSearchParams(location.search).get("b");
 const tok = localStorage.getItem("poligon_token") || "";
 const H = { Authorization: "Bearer " + tok };
+let devices = [];
+const urls = {};              // device id -> screen url
+const sub = document.getElementById("sub");
+function setSub(t) { sub.textContent = t || `${devices.length} device(s)`; }
 
 async function screenURL(id) {
   try {
@@ -56,68 +66,67 @@ function cell(d, url) {
   const c = document.createElement("div");
   c.className = "cell";
   c.id = "cell-" + d.id;
+  const noInput = d.specs && d.specs.input_injection === "blocked";
   const body = url
     ? `<iframe id="if-${d.id}" src="${url}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
     : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`;
-  const noInput = d.specs && d.specs.input_injection === "blocked";
   c.innerHTML = `
     <div class="t">
       <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
       ${noInput ? `<span title="taps blocked by the OS — enable MIUI USB debugging (Security settings)" style="color:#f85149">⚠ no input</span>` : ""}
       <span class="sp"></span>
-      <button onclick="pick('${d.id}')">Upload</button>
-      <button onclick="restartScreen('${d.id}', '${url || ""}')">Restart</button>
-      <button onclick="reopen('${d.id}', '${url || ""}')">Reopen</button>
-      <button onclick="window.open('${url || ""}','w-${d.id}')">Pop out</button>
+      <button onclick="reopen('${d.id}')">Reopen</button>
+      <button onclick="window.open(urls['${d.id}'],'w-${d.id}')">Pop out</button>
       <button class="danger" onclick="releaseOne('${d.id}')">Release</button>
-      <input type="file" id="f-${d.id}" hidden accept=".apk,.aab,.apks,.ipa"
-             onchange="upload('${d.id}', this.files[0])">
     </div>
     ${body}`;
   return c;
 }
 
-function reopen(id, url) {
-  const f = document.getElementById("if-" + id);
-  if (f) f.src = url + (url.includes("?") ? "&" : "#") + "r=" + Date.now();
+function reopen(id) {
+  const f = document.getElementById("if-" + id), u = urls[id];
+  if (f && u) f.src = u + (u.includes("?") ? "&" : "#") + "r=" + Date.now();
 }
-function pick(id) { document.getElementById("f-" + id).click(); }
+function reloadAll() { devices.forEach(d => reopen(d.id)); }
 
-async function restartScreen(id, url) {
-  const btn = event?.target;
-  if (btn) { btn.disabled = true; btn.textContent = "Restarting…"; }
-  try {
-    const r = await fetch(`/api/devices/${id}/screen/restart`, { method: "POST", headers: H });
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    for (let i = 0; i < 120; i++) {
-      await new Promise(res => setTimeout(res, 2000));
-      const jr = await fetch(`/api/devices/${id}/job`, { headers: H });
-      if (jr.status === 403) throw new Error("reservation lost — reserve the device again");
-      const j = await jr.json();
-      if (j.state === "done") break;
-      if (j.state === "failed") throw new Error(j.err || "restart failed");
-    }
-    reopen(id, url);
-  } catch (e) { alert(`${id}: ${e.message}`); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = "Restart"; } }
-}
+// ---- global actions ----
+function pickInstall() { document.getElementById("installFile").click(); }
 
-async function upload(id, file) {
+async function installAll(file) {
   if (!file) return;
   const fd = new FormData(); fd.append("artifact", file);
-  const btn = event?.target;
-  document.getElementById("sub").textContent = `installing ${file.name} on ${id}…`;
+  setSub(`installing ${file.name} on ${devices.length} device(s)…`);
   try {
-    const r = await fetch(`/api/devices/${id}/install`, { method: "POST", headers: H, body: fd });
+    const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: H, body: fd });
     const b = await r.json();
-    alert(r.ok && b.status === "ok" ? `${id}: installed` : `${id}: ${b.detail || b.error || "failed"}`);
+    const bad = (b.results || []).filter(x => x.status !== "ok");
+    alert(`installed on ${b.ok}/${b.total}` + (bad.length ? "\n\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""));
   } catch (e) { alert(e.message); }
-  document.getElementById("sub").textContent = `${count} device(s)`;
+  setSub();
+}
+
+async function restartAll() {
+  setSub("restarting screens…");
+  await Promise.all(devices.map(async d => {
+    try {
+      const r = await fetch(`/api/devices/${d.id}/screen/restart`, { method: "POST", headers: H });
+      if (!r.ok) return;
+      for (let i = 0; i < 90; i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        const j = await (await fetch(`/api/devices/${d.id}/job`, { headers: H })).json();
+        if (j.state === "done" || j.state === "failed") break;
+      }
+      reopen(d.id);
+    } catch {}
+  }));
+  setSub();
 }
 
 async function releaseOne(id) {
   try { await fetch(`/api/devices/${id}/release`, { method: "POST", headers: H }); } catch {}
   document.getElementById("cell-" + id)?.remove();
+  devices = devices.filter(d => d.id !== id);
+  setSub();
 }
 
 async function releaseAll() {
@@ -126,19 +135,18 @@ async function releaseAll() {
   location.href = "/";
 }
 
-let count = 0;
 async function main() {
   if (!batch) { document.getElementById("err").textContent = "no batch"; return; }
   const b = await (await fetch(`/api/batches/${batch}`, { headers: H })).json();
   if (!b.devices) { document.getElementById("err").textContent = b.error || "batch not found"; return; }
-  count = b.devices.length;
-  document.getElementById("sub").textContent = `${count} device(s)`;
+  devices = b.devices;
+  setSub();
   const grid = document.getElementById("grid");
-  for (const d of b.devices) {
+  for (const d of devices) {
     const url = await screenURL(d.id);
+    urls[d.id] = url || "";
     grid.appendChild(cell(d, url));
   }
-  // keep the batch lease alive while the grid is open
   setInterval(() => {
     fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: H }).catch(() => {});
   }, 60000);
