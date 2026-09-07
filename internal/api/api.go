@@ -97,7 +97,13 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	mux.Handle("/live/grid", http.StripPrefix("/live", a.Middleware(ios)))
 	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(ios)))
 	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(s.live.Handler())))
-	mux.Handle("/", http.FileServer(s.web))
+	// embedded assets change on every deploy and are tiny — always revalidate so
+	// a redeploy shows immediately (no stale app.css in an iframe).
+	fs := http.FileServer(s.web)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		fs.ServeHTTP(w, r)
+	}))
 	return logging(s.log, mux)
 }
 
