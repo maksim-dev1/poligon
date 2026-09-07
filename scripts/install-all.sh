@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 REPO="$(pwd)"
 UID_N="$(id -u)"
 USER_N="$(id -un)"
-export PATH="/usr/local/go/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+export PATH="/usr/local/go/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 echo "==> build poligon"
 go build -o poligon ./cmd/poligon
@@ -30,7 +30,7 @@ launchctl enable "gui/$UID_N/com.pancir.poligon"
 echo "==> ws-scrcpy sidecar + go-ios tunnel  (system LaunchDaemons — sudo)"
 for label in com.pancir.poligon-live com.pancir.go-ios-tunnel; do
   render "deploy/launchd/$label.plist" | sudo tee "/Library/LaunchDaemons/$label.plist" >/dev/null
-  sudo chown root:wheel "/Library/LaunchDaemons/$label.plist"
+  sudo chmod 644 "/Library/LaunchDaemons/$label.plist"
   sudo launchctl bootout "system/$label" 2>/dev/null || true
   sudo launchctl bootstrap system "/Library/LaunchDaemons/$label.plist"
   sudo launchctl enable "system/$label"
