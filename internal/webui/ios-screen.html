@@ -96,10 +96,17 @@ async function restartAgent() {
   }
 }
 
+// map a browser event to device points, accounting for object-fit:contain
+// letterboxing inside the (full-size) <img> box
 function toDevice(ev) {
   const r = img.getBoundingClientRect();
-  const x = (ev.clientX - r.left) / r.width * dev.w;
-  const y = (ev.clientY - r.top) / r.height * dev.h;
+  const ir = dev.w / dev.h;           // device aspect (== frame aspect)
+  const br = r.width / r.height;       // img box aspect
+  let w = r.width, h = r.height, ox = 0, oy = 0;
+  if (br > ir) { w = h * ir; ox = (r.width - w) / 2; }   // pillarbox (bars L/R)
+  else         { h = w / ir; oy = (r.height - h) / 2; }  // letterbox (bars T/B)
+  const x = (ev.clientX - r.left - ox) / w * dev.w;
+  const y = (ev.clientY - r.top - oy) / h * dev.h;
   return { x: Math.max(0, Math.min(dev.w, x)), y: Math.max(0, Math.min(dev.h, y)) };
 }
 
