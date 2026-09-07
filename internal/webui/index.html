@@ -348,9 +348,6 @@ async function refresh() {
   }
 }
 
-for (const id of ["email-in", "pw-in", "pw2-in"])
-  $(id)?.addEventListener("keydown", e => { if (e.key === "Enter") submitGate(); });
-
 async function boot() {
   const r = await fetch("/auth/me").catch(() => null);
   if (!r || !r.ok) { showGate(); $("email-in").focus(); return; }

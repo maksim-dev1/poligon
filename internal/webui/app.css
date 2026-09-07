@@ -23,12 +23,15 @@
   --line-2:      rgba(255,255,255,.12);
   --line-strong: rgba(255,255,255,.18);
 
-  /* accent — the only non-neutral for action + focus */
-  --accent:      #3d97e8;
-  --accent-hi:   #57a8f0;
-  --accent-dim:  rgba(61,151,232,.14);
+  /* accent — the only non-neutral for action + focus.
+     base is dark enough for white text (~5:1); --accent-hi is the lighter
+     tint used only on dark surfaces (links, focus ring). */
+  --accent:      #2570c4;
+  --accent-press:#1f5fa8;
+  --accent-hi:   #5a9fe6;
+  --accent-dim:  rgba(74,150,224,.16);
   --accent-fg:   #fff;
-  --ring:        0 0 0 2px var(--bg), 0 0 0 3px var(--accent);
+  --ring:        0 0 0 2px var(--bg), 0 0 0 3px var(--accent-hi);
 
   /* status LEDs (device state) — desaturated for dark */
   --ok:    #3fb98a;   /* free / online / done */
@@ -60,8 +63,8 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { color: var(--accent-hi); }
+a { color: var(--accent-hi); text-decoration: none; }
+a:hover { color: #7bb3ec; }
 
 code, kbd, samp { font-family: var(--mono); }
 
@@ -157,7 +160,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
   border-color: var(--accent);
   color: var(--accent-fg);
 }
-.btn--primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.btn--primary:hover { background: var(--accent-press); border-color: var(--accent-press); }
 
 .btn--danger { color: var(--down); border-color: rgba(229,84,75,.35); }
 .btn--danger:hover { background: rgba(229,84,75,.12); border-color: rgba(229,84,75,.5); }
