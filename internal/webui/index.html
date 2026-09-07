@@ -35,6 +35,7 @@
   <header class="topbar">
     <span class="wordmark">poligon</span>
     <span class="readout" id="summary">loading…</span>
+    <span class="health" id="health" title="checking system…"></span>
     <span class="spacer"></span>
     <button id="chpw" class="btn btn--ghost btn--sm" hidden onclick="changePassword()">Password</button>
     <button id="logout" class="btn btn--ghost btn--sm" hidden onclick="logout()">Sign out</button>
@@ -357,6 +358,24 @@ async function boot() {
 }
 boot();
 setInterval(() => { if (signedIn) refresh(); }, 5000);
+
+async function pollHealth() {
+  const el = $("health");
+  try {
+    const h = await (await fetch("/healthz")).json();
+    const bad = [];
+    if (!h.ws_scrcpy) bad.push("ws-scrcpy sidecar down");
+    if (!h.go_ios_tunnel) bad.push("go-ios tunnel down");
+    if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS screen(s) down`);
+    el.className = "health " + (bad.length ? "health--warn" : "health--ok");
+    el.title = bad.length ? bad.join(" · ") : `all systems ok · ${h.adb_devices ?? "?"} adb device(s)`;
+  } catch {
+    el.className = "health health--warn";
+    el.title = "health check failed";
+  }
+}
+pollHealth();
+setInterval(pollHealth, 15000);
 </script>
 </body>
 </html>

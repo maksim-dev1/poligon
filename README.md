@@ -4,7 +4,7 @@ Self-hosted phone farm for testing built Flutter apps (`.apk` / `.aab` / `.ipa`)
 on real wired devices. poligon does **not** build apps — it takes finished
 artifacts, installs them on reserved devices, and lets you test.
 
-Host: Mac mini (`ssh admin@172.24.17.30`). Single Go binary + SQLite, no Redis/Postgres.
+Host: Mac mini (`ssh dev-mac@172.24.18.20`). Single Go binary + SQLite, no Redis/Postgres.
 
 ## Status — Phase 1 (device catalog + reservations + manual install)
 
@@ -75,7 +75,35 @@ deeplinks) survive. Register new device UDIDs with `scripts/register-device.sh`.
 `scripts/bootstrap-mac.sh` — installs adb, libimobiledevice, ios-deploy, go,
 node, bundletool, maestro, fastlane, appium.
 
-`deploy/launchd/com.pancir.poligon.plist` — run poligon as a launchd daemon.
+`scripts/install-live-sidecar.sh` — builds the ws-scrcpy sidecar.
+
+`scripts/install-all.sh` — installs the three services (below) + log rotation.
+
+`scripts/host-setup.sh` — the power-loss recovery settings (needs a reboot).
+
+## Operations
+
+Three services keep the farm running. All are `KeepAlive` and start at boot;
+each (re)start is self-cleaning.
+
+| service | what | logs |
+|---|---|---|
+| `com.pancir.poligon` (LaunchAgent, gui) | the Go binary — API, dashboard, device poll, iOS WebDriverAgent | `~/poligon/poligon.{out,err}.log` |
+| `com.pancir.poligon-live` (LaunchDaemon) | ws-scrcpy sidecar for Android screens; runs `deploy/ws-scrcpy-run.sh` which frees `:8000` + resets adb + clears stale on-device state on every start | `~/poligon-sidecar/ws-scrcpy.{out,err}.log` |
+| `com.pancir.go-ios-tunnel` (LaunchDaemon, root) | go-ios tunnel — required for iOS 17+ | `/var/log/com.pancir.go-ios-tunnel.{out,err}.log` |
+
+- **Deploy:** `scripts/update.sh` — pull, atomic build (a broken build never
+  replaces the running binary), restart all three, wait for `/healthz`.
+- **Diagnose:** `scripts/farm-doctor.sh` (report) / `--fix` (clean up + restart).
+- **Health:** `GET /healthz` (unauthenticated) — poligon, ws-scrcpy, tunnel, adb
+  device count, iOS screens ready/total. The dashboard shows it as a dot in the
+  top bar.
+- **On poligon restart:** iOS screens are torn down and rebuilt (≈1 min each) —
+  no orphaned `ios runwda` / `ios forward` processes accumulate. A background
+  watchdog also auto-restarts an iOS screen whose WebDriverAgent stops answering.
+- **Power loss:** with `scripts/host-setup.sh` applied (FileVault off, auto-login,
+  `pmset autorestart 1`) the mac powers on, logs in, and all services come up
+  with no human at the keyboard.
 
 ## Layout
 

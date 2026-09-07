@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  go-ios tunnel agent. Required for CoreDevice / iOS 17+ (WebDriverAgent runwda
+  + port-forward). Runs as root (the tunnel opens a network interface). poligon
+  probes it via `ios tunnel ls` and fails iOS-17+ adopts fast with a clear
+  message when it is down.
+
+  Install:
+    sudo cp deploy/launchd/com.pancir.go-ios-tunnel.plist /Library/LaunchDaemons/
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.pancir.go-ios-tunnel.plist
+  Restart:
+    sudo launchctl kickstart -k system/com.pancir.go-ios-tunnel
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key> <string>com.pancir.go-ios-tunnel</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/ios</string>
+    <string>tunnel</string>
+    <string>start</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key> <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>KeepAlive</key>         <true/>
+  <key>RunAtLoad</key>         <true/>
+  <key>ThrottleInterval</key>  <integer>15</integer>
+  <key>ExitTimeOut</key>       <integer>10</integer>
+  <key>StandardOutPath</key>   <string>/var/log/com.pancir.go-ios-tunnel.out.log</string>
+  <key>StandardErrorPath</key> <string>/var/log/com.pancir.go-ios-tunnel.err.log</string>
+</dict>
+</plist>

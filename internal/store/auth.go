@@ -21,7 +21,7 @@ var ErrNoSession = errors.New("session not found")
 var ErrUserExists = errors.New("account already exists")
 
 // CreateUser inserts a farm account with no password yet (setup pending).
-// token_hash is written explicitly ('') so this works on pre-existing databases
+// token_hash is written explicitly as ” so this works on pre-existing databases
 // whose users.token_hash column has NOT NULL without a default.
 func (s *Store) CreateUser(name string) error {
 	_, err := s.db.Exec(`INSERT INTO users (name, token_hash) VALUES (?, '')`, name)
@@ -172,6 +172,15 @@ func (s *Store) RevokeUserSessionsExcept(name, keepTokenHash string) error {
 		`UPDATE sessions SET revoked = 1 WHERE user_name = ? AND token_hash != ?`,
 		name, keepTokenHash)
 	return err
+}
+
+// SessionCount returns the number of live (unrevoked, unexpired) sessions.
+func (s *Store) SessionCount() int {
+	var n int
+	_ = s.db.QueryRow(
+		`SELECT count(*) FROM sessions WHERE revoked = 0 AND expires_at > ?`,
+		time.Now()).Scan(&n)
+	return n
 }
 
 // PurgeExpiredSessions deletes revoked or long-expired session rows.

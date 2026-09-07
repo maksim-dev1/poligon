@@ -123,6 +123,13 @@ func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaPro
 	}
 	xctestName := xctestConfigName(app)
 
+	// iOS 17+ needs the go-ios tunnel agent; fail fast with a clear message
+	// instead of hanging 90s on a runwda that can never connect.
+	if m.iosMajor(udid) >= 17 && !tunnelReady() {
+		return iosscreen.Endpoint{}, nil, fmt.Errorf(
+			"go-ios tunnel is not running — needed for iOS 17+ (start com.pancir.go-ios-tunnel)")
+	}
+
 	used := m.usedPorts()
 	wdaPort := freePort(m.cfg.IOSWDA.WDAPortBase, used)
 	used[wdaPort] = true
@@ -162,9 +169,13 @@ func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaPro
 
 	// readiness = WDA answers /status through the tunnel (more reliable than
 	// grepping the runner's log for a specific line)
-	if err := waitFor(func() bool { return probeWDA(wdaPort) == nil }, 120*time.Second); err != nil {
+	if err := waitFor(func() bool { return probeWDA(wdaPort) == nil }, 90*time.Second); err != nil {
 		_ = kill(runCmd)
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent did not become ready on :%d within 120s", wdaPort)
+		_ = kill(wdaTun)
+		_ = kill(mjpegTun)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf(
+			"WebDriverAgent did not answer on :%d within 90s — check the iPhone is unlocked, "+
+				"Developer Mode is on, and (iOS 17+) the go-ios tunnel is running", wdaPort)
 	}
 
 	wp := &wdaProc{run: runCmd, wda: wdaTun, mjpeg: mjpegTun, wdaPort: wdaPort, mjpegPort: mjpegPort}
@@ -189,13 +200,10 @@ func (m *Manager) Resume(ctx context.Context) {
 	}
 	dd := expandHome(m.cfg.IOSWDA.DerivedData)
 	for _, r := range rows {
-		ep := iosscreen.Endpoint{WDA: r.WDA, MJPEG: r.MJPEG}
-		m.iosCtl.Set(r.DeviceID, ep) // make the screen usable immediately if procs are alive
-		port := portOf(r.WDA)
-		if port > 0 && probeWDA(port) == nil {
-			m.log.Info("provision resume: screen alive", "device", r.DeviceID, "wda", r.WDA)
-			continue
-		}
+		// ReapOrphans ran first, so nothing from a previous poligon is alive —
+		// rebuild every screen from scratch. Register the last-known endpoint so
+		// the device shows as "configured" while its runner comes back up.
+		m.iosCtl.Set(r.DeviceID, iosscreen.Endpoint{WDA: r.WDA, MJPEG: r.MJPEG})
 		d, err := m.st.Device(r.DeviceID)
 		if err != nil || d.UDID == "" || iosRunnerApp(dd) == "" {
 			m.log.Warn("provision resume: cannot respawn WDA", "device", r.DeviceID)
@@ -322,6 +330,11 @@ func (m *Manager) stopWDA(deviceID, udid string) {
 	_ = killMatching("ios runwda.*" + udid)
 	_ = killMatching("ios forward.*" + udid)
 	_ = killMatching("iproxy .*" + udid) // legacy, in case an old tunnel lingers
+	if wp != nil {
+		// also free the exact ports in case the forward was reparented / renamed
+		freePortRange(wp.wdaPort, 1)
+		freePortRange(wp.mjpegPort, 1)
+	}
 }
 
 func (m *Manager) wdaTeam() string {
@@ -515,16 +528,6 @@ func probeWDA(port int) error {
 		return fmt.Errorf("status %d", resp.StatusCode)
 	}
 	return nil
-}
-
-func portOf(hostPort string) int {
-	_, p, err := net.SplitHostPort(hostPort)
-	if err != nil {
-		return 0
-	}
-	n := 0
-	fmt.Sscan(p, &n)
-	return n
 }
 
 func waitFor(cond func() bool, timeout time.Duration) error {

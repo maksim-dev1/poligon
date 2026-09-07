@@ -2,12 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  ws-scrcpy sidecar for poligon's live screen. Serves 127.0.0.1:8000;
+  ws-scrcpy sidecar for poligon's Android live screen. Serves 127.0.0.1:8000;
   poligon reverse-proxies it under /live/ with auth.
 
-  Install (paths assume ~/poligon-sidecar/ws-scrcpy):
+  ProgramArguments run deploy/ws-scrcpy-run.sh, which frees :8000, resets the
+  adb server and clears stale on-device scrcpy state on every (re)start — so a
+  crash-restart or `kickstart -k` always comes up clean (no EADDRINUSE loop).
+
+  Install (paths assume the repo at ~/poligon and ws-scrcpy at
+  ~/poligon-sidecar/ws-scrcpy):
     sudo cp deploy/launchd/com.pancir.poligon-live.plist /Library/LaunchDaemons/
     sudo launchctl bootstrap system /Library/LaunchDaemons/com.pancir.poligon-live.plist
+  Restart:
+    sudo launchctl kickstart -k system/com.pancir.poligon-live
 -->
 <plist version="1.0">
 <dict>
@@ -16,17 +23,20 @@
   <key>WorkingDirectory</key> <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/node</string>
-    <string>dist/index.js</string>
+    <string>/bin/bash</string>
+    <string>/Users/dev-mac/poligon/deploy/ws-scrcpy-run.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key>                 <string>/usr/local/bin:/usr/bin:/bin</string>
-    <key>WS_SCRCPY_PORT</key>       <string>8000</string>
-    <key>WS_SCRCPY_HOSTNAME</key>   <string>127.0.0.1</string>
+    <key>PATH</key>               <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>WS_SCRCPY_DIR</key>      <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy</string>
+    <key>WS_SCRCPY_PORT</key>     <string>8000</string>
+    <key>WS_SCRCPY_HOSTNAME</key> <string>127.0.0.1</string>
   </dict>
   <key>KeepAlive</key>         <true/>
   <key>RunAtLoad</key>         <true/>
+  <key>ThrottleInterval</key>  <integer>20</integer>
+  <key>ExitTimeOut</key>       <integer>15</integer>
   <key>StandardOutPath</key>   <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy.out.log</string>
   <key>StandardErrorPath</key> <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy.err.log</string>
 </dict>

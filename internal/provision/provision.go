@@ -56,17 +56,19 @@ type Manager struct {
 	iosCtl *iosscreen.Controller
 	log    *slog.Logger
 
-	mu    sync.Mutex
-	jobs  map[string]*Job
-	procs map[string]*wdaProc // deviceID -> processes
+	mu     sync.Mutex
+	jobs   map[string]*Job
+	procs  map[string]*wdaProc // deviceID -> processes
+	iosVer map[string]int      // udid -> iOS major version (cache)
 }
 
 // New wires a Manager.
 func New(cfg config.Config, st *store.Store, a *adb.ADB, iosTools ios.Tools, iosCtl *iosscreen.Controller, log *slog.Logger) *Manager {
 	return &Manager{
 		cfg: cfg, st: st, adb: a, ios: iosTools, iosCtl: iosCtl, log: log,
-		jobs:  map[string]*Job{},
-		procs: map[string]*wdaProc{},
+		jobs:   map[string]*Job{},
+		procs:  map[string]*wdaProc{},
+		iosVer: map[string]int{},
 	}
 }
 

@@ -59,6 +59,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	mux.HandleFunc("GET /auth/setup/check", s.setupCheck)
 	mux.HandleFunc("POST /auth/setup", s.setupSubmit)
 	mux.HandleFunc("GET /auth/me", s.authMe)
+	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("POST /auth/password", a.Middleware(http.HandlerFunc(s.authChangePassword)))
 
 	api := http.NewServeMux()

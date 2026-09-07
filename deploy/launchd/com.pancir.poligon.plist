@@ -36,6 +36,9 @@
   </dict>
   <key>KeepAlive</key>         <true/>
   <key>RunAtLoad</key>         <true/>
+  <key>ThrottleInterval</key>  <integer>15</integer>
+  <key>ExitTimeOut</key>       <integer>20</integer>
+  <key>ProcessType</key>       <string>Interactive</string>
   <key>StandardOutPath</key>   <string>/Users/dev-mac/poligon/poligon.out.log</string>
   <key>StandardErrorPath</key> <string>/Users/dev-mac/poligon/poligon.err.log</string>
 </dict>
