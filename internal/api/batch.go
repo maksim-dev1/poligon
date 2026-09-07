@@ -4,16 +4,50 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/model"
 )
+
+// platformForExt maps an artifact extension to the device platform that can
+// install it. Unknown extensions return "".
+func platformForExt(name string) model.Platform {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".apk", ".aab", ".apks":
+		return model.Android
+	case ".ipa":
+		return model.IOS
+	}
+	return ""
+}
+
+// saveUpload streams one multipart file into dir, keeping its base name.
+func saveUpload(hdr *multipart.FileHeader, dir string) (string, error) {
+	src, err := hdr.Open()
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+	path := filepath.Join(dir, filepath.Base(hdr.Filename))
+	dst, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", err
+	}
+	return path, nil
+}
 
 type batchCreateReq struct {
 	Devices []string `json:"devices"`
@@ -70,8 +104,10 @@ func (s *Server) batchRelease(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "released"})
 }
 
-// batchInstall uploads one artifact and installs it on every device in the
-// batch, in parallel (bounded), re-signing an ipa once for all iOS targets.
+// batchInstall uploads one artifact per platform (an .apk/.aab for Android, an
+// .ipa for iOS) and installs each device in the batch with the artifact that
+// matches its platform, in parallel (bounded). A mixed Android+iOS batch needs
+// both files; a device whose platform has no artifact is skipped.
 func (s *Server) batchInstall(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 	batch := r.PathValue("batch")
@@ -86,12 +122,11 @@ func (s *Server) batchInstall(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err)
 		return
 	}
-	file, hdr, err := r.FormFile("artifact")
-	if err != nil {
-		fail(w, http.StatusBadRequest, err)
+	headers := r.MultipartForm.File["artifact"]
+	if len(headers) == 0 {
+		fail(w, http.StatusBadRequest, errors.New("no artifact uploaded"))
 		return
 	}
-	defer file.Close()
 
 	dir := filepath.Join(s.cfg.StorageDir, "uploads",
 		time.Now().Format("20060102-150405")+"-batch-"+batch)
@@ -99,18 +134,28 @@ func (s *Server) batchInstall(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err)
 		return
 	}
-	artifactPath := filepath.Join(dir, filepath.Base(hdr.Filename))
-	dst, err := os.Create(artifactPath)
-	if err != nil {
-		fail(w, http.StatusInternalServerError, err)
-		return
+
+	// one artifact per platform, keyed by the extension's target platform
+	artifacts := map[model.Platform]string{}
+	names := map[model.Platform]string{}
+	for _, hdr := range headers {
+		plat := platformForExt(hdr.Filename)
+		if plat == "" {
+			fail(w, http.StatusBadRequest, fmt.Errorf("unsupported artifact %q (want .apk/.aab/.apks or .ipa)", hdr.Filename))
+			return
+		}
+		if _, dup := artifacts[plat]; dup {
+			fail(w, http.StatusBadRequest, fmt.Errorf("more than one %s artifact uploaded", plat))
+			return
+		}
+		p, err := saveUpload(hdr, dir)
+		if err != nil {
+			fail(w, http.StatusInternalServerError, err)
+			return
+		}
+		artifacts[plat] = p
+		names[plat] = hdr.Filename
 	}
-	if _, err := io.Copy(dst, file); err != nil {
-		dst.Close()
-		fail(w, http.StatusInternalServerError, err)
-		return
-	}
-	dst.Close()
 
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Minute)
 	defer cancel()
@@ -138,6 +183,12 @@ func (s *Server) batchInstall(w http.ResponseWriter, r *http.Request) {
 				results[i] = deviceResult{Device: id, Status: "failed", Detail: err.Error()}
 				return
 			}
+			artifactPath, ok := artifacts[dev.Platform]
+			if !ok {
+				results[i] = deviceResult{Device: id, Status: "skipped",
+					Detail: fmt.Sprintf("no %s build uploaded", dev.Platform)}
+				return
+			}
 			_ = s.st.SetDeviceStatus(id, model.StatusBusy, time.Now())
 			res, ierr := s.inst.Run(ctx, dev, artifactPath)
 			if ierr != nil {
@@ -156,8 +207,12 @@ func (s *Server) batchInstall(w http.ResponseWriter, r *http.Request) {
 			ok++
 		}
 	}
+	uploaded := make([]string, 0, len(names))
+	for _, n := range names {
+		uploaded = append(uploaded, n)
+	}
 	s.log.Info("batch install", "batch", batch, "user", u.Name,
-		"artifact", hdr.Filename, "ok", ok, "total", len(ids))
+		"artifacts", strings.Join(uploaded, ", "), "ok", ok, "total", len(ids))
 
 	code := http.StatusOK
 	if ok < len(ids) {

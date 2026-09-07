@@ -183,6 +183,8 @@ function platTag(p) { return `<span class="plat">${esc(p)}</span>`; }
 const sel = new Set();
 let batch = localStorage.getItem("poligon_batch") || "";
 let batchIds = [];
+let batchDevs = [];
+const PLAT_EXT = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
 let fastPoll = null;
 
 // ---- farm card ----
@@ -253,9 +255,9 @@ function renderBar() {
     bar.innerHTML = `<div class="tray">
       <span class="tray-count">${batchIds.length}<span> in batch</span></span>
       <button class="btn btn--primary" onclick="openGrid()">Open screens</button>
-      <button class="btn" onclick="pickBatchFile()">Install to all</button>
+      <button class="btn" onclick="pickBatchFile()">Install build(s)</button>
       <button class="btn btn--danger" onclick="releaseBatch()">Release all</button>
-      <input type="file" id="bf" hidden accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files[0])">
+      <input type="file" id="bf" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files); this.value=''">
     </div>`;
     return;
   }
@@ -290,13 +292,36 @@ async function releaseBatch() {
   refresh();
 }
 function pickBatchFile() { $("bf").click(); }
-async function batchUpload(file) {
-  if (!file) return;
-  toast(`Installing ${file.name} on ${batchIds.length} device(s)…`);
-  const fd = new FormData(); fd.append("artifact", file);
+function platformOf(name) {
+  const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+  for (const [p, exts] of Object.entries(PLAT_EXT)) if (exts.includes(ext)) return p;
+  return null;
+}
+async function batchUpload(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+
+  const byPlat = {};
+  for (const f of files) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    byPlat[p] = f;
+  }
+  const need = [...new Set(batchDevs.map(d => d.platform))];
+  const missing = need.filter(p => !byPlat[p]);
+  if (missing.length) {
+    toast(`batch has ${missing.join(" + ")} device(s) — add ${missing.map(p => p === "ios" ? "an .ipa" : "an .apk/.aab").join(" + ")}`, "err");
+    return;
+  }
+
+  const label = files.map(f => f.name).join(" + ");
+  toast(`Installing ${label} on ${batchIds.length} device(s)…`);
+  const fd = new FormData();
+  for (const f of files) fd.append("artifact", f);
   try {
     const res = await api(`/batches/${batch}/install`, { method: "POST", body: fd });
-    const bad = res.results.filter(r => r.status !== "ok");
+    const bad = (res.results || []).filter(r => r.status !== "ok" && r.status !== "skipped");
     toast(`Installed on ${res.ok}/${res.total}` + (bad.length ? "\n" + bad.map(r => `${r.device}: ${r.detail}`).join("\n") : ""),
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
@@ -319,8 +344,8 @@ async function refresh() {
     const pool = await api("/devices");
     $("err").textContent = "";
     if (batch) {
-      try { const b = await api(`/batches/${batch}`); batchIds = b.devices.map(d => d.id); }
-      catch { batch = ""; batchIds = []; localStorage.removeItem("poligon_batch"); }
+      try { const b = await api(`/batches/${batch}`); batchDevs = b.devices; batchIds = b.devices.map(d => d.id); }
+      catch { batch = ""; batchIds = []; batchDevs = []; localStorage.removeItem("poligon_batch"); }
     }
     const cands = pool.filter(d => !d.adopted);
     const farm  = pool.filter(d => d.adopted);

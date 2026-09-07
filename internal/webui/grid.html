@@ -12,12 +12,12 @@
   <span class="readout" id="sub"></span>
   <span class="health" id="health" title="checking system…"></span>
   <span class="spacer"></span>
-  <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install to all</button>
+  <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install build(s)</button>
   <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
   <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
   <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
   <button class="btn btn--danger btn--sm" onclick="releaseAll()">Release all</button>
-  <input type="file" id="installFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files[0])">
+  <input type="file" id="installFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files); this.value=''">
 </header>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
@@ -30,7 +30,15 @@ const HW = () => ({ "X-Poligon-CSRF": csrf() });
 let devices = [];
 const urls = {};
 const sub = document.getElementById("sub");
-function setSub(t) { sub.textContent = t || `${devices.length} device(s)`; }
+const platExt = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
+function batchPlatforms() { return [...new Set(devices.map(d => d.platform))]; }
+function defaultSub() {
+  const by = {};
+  for (const d of devices) by[d.platform] = (by[d.platform] || 0) + 1;
+  const parts = Object.entries(by).map(([p, n]) => `${n} ${p}`);
+  return parts.join(" · ") || `${devices.length} device(s)`;
+}
+function setSub(t) { sub.textContent = t || defaultSub(); }
 
 function toast(msg, kind) {
   const el = document.createElement("div");
@@ -80,15 +88,42 @@ function reloadAll() { devices.forEach(d => reopen(d.id)); }
 
 function pickInstall() { document.getElementById("installFile").click(); }
 
-async function installAll(file) {
-  if (!file) return;
-  toast(`Installing ${file.name} on ${devices.length} device(s)…`);
-  setSub(`installing ${file.name}…`);
-  const fd = new FormData(); fd.append("artifact", file);
+function platformOf(name) {
+  const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+  for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
+  return null;
+}
+
+async function installAll(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+
+  // classify + reject unknown / duplicate-platform uploads client-side
+  const byPlat = {};
+  for (const f of files) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    byPlat[p] = f;
+  }
+
+  const need = batchPlatforms();
+  const missing = need.filter(p => !byPlat[p]);
+  if (missing.length) {
+    toast(`batch has ${missing.join(" + ")} device(s) — add ${missing.map(p => p === "ios" ? "an .ipa" : "an .apk/.aab").join(" + ")}`, "err");
+    return;
+  }
+
+  const label = files.map(f => f.name).join(" + ");
+  toast(`Installing ${label} on ${devices.length} device(s)…`);
+  setSub(`installing ${label}…`);
+  const fd = new FormData();
+  for (const f of files) fd.append("artifact", f);
   try {
     const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
-    const bad = (b.results || []).filter(x => x.status !== "ok");
+    if (!r.ok && !b.results) throw new Error(b.error || r.statusText);
+    const bad = (b.results || []).filter(x => x.status !== "ok" && x.status !== "skipped");
     toast(`Installed on ${b.ok}/${b.total}` + (bad.length ? "\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""),
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
