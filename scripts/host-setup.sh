@@ -11,22 +11,29 @@ run() { echo "  \$ $*"; [ "$APPLY" -eq 1 ] && sudo "$@"; }
 echo "poligon host-setup  (apply=$APPLY)"
 echo
 
+# Manual GUI steps — fdesetup/auto-login prompt for a FileVault user and can't
+# be driven headlessly, so this script only checks and instructs.
+FV_OK=1; AL_OK=1
 echo "1. FileVault OFF  — an encrypted disk blocks *everything* (services, SSH)"
 echo "   until someone types the password at the console after every boot."
 if fdesetup status | grep -q "FileVault is On"; then
-  echo "   currently: ON  →  needs turning off"
-  run fdesetup disable
-  echo "   (or: System Settings → Privacy & Security → FileVault → Turn Off)"
+  FV_OK=0
+  echo "   currently: ON  →  TURN OFF:  System Settings → Privacy & Security →"
+  echo "   FileVault → Turn Off   (or:  sudo fdesetup disable)"
 else
   echo "   currently: OFF  ✓"
 fi
 echo
 
-echo "2. Auto-login for the farm user  — so the LaunchAgent (poligon) starts"
+echo "2. Auto-login for '$(id -un)'  — so the LaunchAgent (poligon) starts"
 echo "   without anyone logging in. Available only once FileVault is off."
-echo "   Do this in the GUI: System Settings → Users & Groups →"
-echo "   'Automatically log in as' → $(id -un)."
-echo "   Verify:  defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser"
+if [ "$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null)" = "$(id -un)" ]; then
+  echo "   currently: ON  ✓"
+else
+  AL_OK=0
+  echo "   currently: OFF  →  SET:  System Settings → Users & Groups →"
+  echo "   'Automatically log in as' → $(id -un)"
+fi
 echo
 
 echo "3. Power / sleep"
@@ -44,5 +51,9 @@ else
 fi
 echo
 
-[ "$APPLY" -eq 1 ] && echo "==> done — reboot to verify:  sudo reboot" \
-                   || echo "==> dry run — re-run with --apply, then reboot"
+echo
+if [ "$FV_OK" -eq 0 ] || [ "$AL_OK" -eq 0 ]; then
+  echo "==> still needed (GUI): $([ $FV_OK -eq 0 ] && echo 'FileVault off') $([ $AL_OK -eq 0 ] && echo 'auto-login')"
+fi
+[ "$APPLY" -eq 1 ] && echo "==> pmset/ssh applied — reboot to verify:  sudo reboot && scripts/farm-doctor.sh" \
+                   || echo "==> dry run — re-run with --apply for pmset/ssh"
