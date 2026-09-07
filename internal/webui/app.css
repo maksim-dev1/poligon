@@ -638,17 +638,15 @@ body.ios-player {
 .page-error:empty { display: none; }
 .player-stage {
   flex: 1;
-  min-height: 0;   /* let the column shrink below the image's intrinsic height */
-  min-width: 0;
-  display: grid;
-  place-items: center;
-  padding: 14px;
+  min-height: 0;
+  position: relative;   /* bound #screen absolutely so it can never overflow */
   overflow: hidden;
 }
 #screen {
-  display: block;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 12px;
+  width: calc(100% - 24px);
+  height: calc(100% - 24px);
   object-fit: contain;
   object-position: center;
   background: #000;
