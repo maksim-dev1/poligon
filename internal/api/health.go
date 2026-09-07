@@ -39,7 +39,7 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	out["sessions"] = s.st.SessionCount()
 	out["adb_devices"] = adbCount(s.cfg.ADBPath)
 
-	ok := out["ws_scrcpy"] == true && out["go_ios_tunnel"] == true && ready == len(rows)
+	ok := out["ws_scrcpy"] == true && out["go_ios_tunnel"] == true && ready == total
 	out["ok"] = ok
 
 	code := http.StatusOK
