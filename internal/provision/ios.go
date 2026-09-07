@@ -152,9 +152,12 @@ func (m *Manager) startWDA(j *Job, udid string) (iosscreen.Endpoint, *wdaProc, e
 	}
 
 	m.step(j, "installing WebDriverAgent")
-	if out, err := run(context.Background(), "ios", "install", "--path="+app, "--udid="+udid); err != nil {
+	ictx, icancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	out, err := run(ictx, "ios", "install", "--path="+app, "--udid="+udid)
+	icancel()
+	if err != nil {
 		m.logf(j, "%s", oneLine(out))
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("ios install: %w", err)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("ios install (unlock the iPhone?): %w", err)
 	}
 
 	m.step(j, "starting WebDriverAgent on the device")

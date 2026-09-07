@@ -20,13 +20,21 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	out["go_ios_tunnel"] = exec.CommandContext(tctx, "ios", "tunnel", "ls").Run() == nil
 
 	rows, _ := s.st.IOSScreens()
-	ready := 0
+	seen := map[string]bool{}
+	total, ready := 0, 0
 	for _, row := range rows {
-		if row.WDA != "" && getOK("http://"+row.WDA+"/status") {
+		// an offline device's stale row may still point at another device's WDA —
+		// don't count it, and don't credit the same endpoint twice
+		if d, err := s.st.Device(row.DeviceID); err == nil && d.Status == "offline" {
+			continue
+		}
+		total++
+		if row.WDA != "" && !seen[row.WDA] && getOK("http://"+row.WDA+"/status") {
+			seen[row.WDA] = true
 			ready++
 		}
 	}
-	out["ios_screens_total"] = len(rows)
+	out["ios_screens_total"] = total
 	out["ios_screens_ready"] = ready
 	out["sessions"] = s.st.SessionCount()
 	out["adb_devices"] = adbCount(s.cfg.ADBPath)
