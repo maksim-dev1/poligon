@@ -70,6 +70,8 @@ function cell(d, url) {
       <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
       ${noInput ? `<span class="noinput" title="taps blocked by the OS — enable MIUI USB debugging (Security settings)">no input</span>` : ""}
       <span class="sp"></span>
+      <button class="btn" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')" title="open a screenshot">Shot</button>
+      ${d.platform === "android" ? `<button class="btn" onclick="window.open('/api/devices/${d.id}/logcat','_blank')" title="download logcat since last grab">Log</button>` : ""}
       <button class="btn" onclick="reopen('${d.id}')">Reopen</button>
       <button class="btn" onclick="window.open(urls['${d.id}'],'w-${d.id}')">Pop out</button>
       <button class="btn btn--danger" onclick="releaseOne('${d.id}')">Release</button>

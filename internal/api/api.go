@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/pancir/poligon/internal/auth"
+	"github.com/pancir/poligon/internal/capture"
 	"github.com/pancir/poligon/internal/config"
 	"github.com/pancir/poligon/internal/install"
 	"github.com/pancir/poligon/internal/iosscreen"
@@ -36,14 +37,15 @@ type Server struct {
 	live *live.Proxy
 	ios  *iosscreen.Controller
 	prov *provision.Manager
+	capt *capture.Capturer
 	auth *auth.Auth
 	log  *slog.Logger
 	web  http.FileSystem
 }
 
 // New builds the API server.
-func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, web: web, log: log}
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, capt *capture.Capturer, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, web: web, log: log}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -69,6 +71,8 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("POST /devices/{id}/release", s.release)
 	api.HandleFunc("POST /devices/{id}/heartbeat", s.heartbeat)
 	api.HandleFunc("POST /devices/{id}/install", s.install)
+	api.HandleFunc("GET /devices/{id}/screenshot", s.deviceScreenshot)
+	api.HandleFunc("GET /devices/{id}/logcat", s.deviceLogcat)
 	api.HandleFunc("GET /devices/{id}/screen", s.screenLink)
 	api.HandleFunc("POST /devices/{id}/screen/restart", s.restartScreen)
 	api.HandleFunc("POST /devices/{id}/adopt", s.adoptDevice)

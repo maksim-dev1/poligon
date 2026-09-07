@@ -18,6 +18,7 @@ import (
 	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/api"
 	"github.com/pancir/poligon/internal/auth"
+	"github.com/pancir/poligon/internal/capture"
 	"github.com/pancir/poligon/internal/config"
 	"github.com/pancir/poligon/internal/devices"
 	"github.com/pancir/poligon/internal/install"
@@ -109,7 +110,8 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	iosCtl := iosscreen.New(iosEndpoints)
 	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
 
-	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, http.FS(webui.FS()), log)
+	capt := capture.New(adb.New(cfg.ADBPath), iosCtl)
+	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, capt, http.FS(webui.FS()), log)
 	handler := srv.Handler(a)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

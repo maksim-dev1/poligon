@@ -179,6 +179,40 @@ func (a *ADB) Launch(ctx context.Context, serial, pkg string) error {
 	return err
 }
 
+// Screenshot grabs the current framebuffer as PNG bytes (raw, no adb newline
+// translation — `exec-out` keeps the stream binary-clean).
+func (a *ADB) Screenshot(ctx context.Context, serial string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	var out, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, a.bin, "-s", serial, "exec-out", "screencap", "-p")
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("adb screencap: %w: %s", err, strings.TrimSpace(errb.String()))
+	}
+	return out.Bytes(), nil
+}
+
+// LogcatDump returns the current logcat buffer (non-blocking, -d) and then
+// clears it, so each call yields only what happened since the last one.
+func (a *ADB) LogcatDump(ctx context.Context, serial string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := a.run(ctx, "-s", serial, "logcat", "-d", "-v", "threadtime")
+	if err != nil {
+		return out, err
+	}
+	_, _ = a.run(ctx, "-s", serial, "logcat", "-c")
+	return out, nil
+}
+
+// LogcatClear empties the logcat buffer — call before a test run so the dump
+// afterwards is scoped to the run.
+func (a *ADB) LogcatClear(ctx context.Context, serial string) error {
+	_, err := a.run(ctx, "-s", serial, "logcat", "-c")
+	return err
+}
+
 func firstNonEmpty(vs ...string) string {
 	for _, v := range vs {
 		if v != "" {
