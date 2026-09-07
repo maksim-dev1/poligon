@@ -450,6 +450,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
 
 .auth-wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -569,6 +570,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
   display: flex;
   flex-direction: column;
   height: 78vh;
+  height: 78dvh;
   min-height: 420px;
   background: #000;
   border: 1px solid var(--line);
@@ -605,6 +607,7 @@ body.ios-player {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;   /* dynamic viewport — don't hide behind mobile toolbars */
   overflow: hidden;
 }
 .player-bar {
@@ -634,12 +637,12 @@ body.ios-player {
   overflow: hidden;
 }
 #screen {
-  max-height: 100%;
+  display: block;
   max-width: 100%;
-  border-radius: 16px;
-  border: 1px solid var(--line-2);
-  outline: 1px solid rgba(255,255,255,.06);
-  outline-offset: -1px;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
   background: #000;
   touch-action: none;
   cursor: crosshair;
