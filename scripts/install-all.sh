@@ -45,6 +45,7 @@ render deploy/launchd/com.pancir.poligon.plist > "$AGENT"
 reload_agent "gui/$UID_N" "$AGENT" com.pancir.poligon
 
 echo "==> ws-scrcpy sidecar + go-ios tunnel  (system LaunchDaemons — sudo)"
+sudo mkdir -p /Users/Shared/go-ios   # go-ios tunnel needs a writable cwd/HOME
 for label in com.pancir.poligon-live com.pancir.go-ios-tunnel; do
   render "deploy/launchd/$label.plist" | sudo tee "/Library/LaunchDaemons/$label.plist" >/dev/null
   sudo chmod 644 "/Library/LaunchDaemons/$label.plist"

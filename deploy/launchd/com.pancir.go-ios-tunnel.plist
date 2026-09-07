@@ -16,6 +16,9 @@
 <plist version="1.0">
 <dict>
   <key>Label</key> <string>com.pancir.go-ios-tunnel</string>
+  <!-- go-ios writes selfIdentity.plist / pair records relative to cwd + $HOME;
+       the system volume is read-only, so point both at a writable dir. -->
+  <key>WorkingDirectory</key> <string>/Users/Shared/go-ios</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/ios</string>
@@ -25,6 +28,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key> <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key> <string>/Users/Shared/go-ios</string>
   </dict>
   <key>KeepAlive</key>         <true/>
   <key>RunAtLoad</key>         <true/>
