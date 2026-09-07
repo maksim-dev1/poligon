@@ -27,13 +27,9 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 	if d.UDID == "" {
 		return fmt.Errorf("device has no udid")
 	}
-	team := m.wdaTeam()
-	if team == "" {
+	if m.wdaTeam() == "" {
 		return fmt.Errorf("iOS provisioning not configured: set ios_wda.team (or $POLIGON_WDA_TEAM) to your Apple team id")
 	}
-	src := expandHome(m.cfg.IOSWDA.Src)
-	dd := expandHome(m.cfg.IOSWDA.DerivedData)
-	bundle := m.cfg.IOSWDA.BundleID
 
 	m.step(j, "pairing with the device")
 	if out, err := run(ctx, "idevicepair", "-u", d.UDID, "validate"); err != nil {
@@ -45,42 +41,14 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 	}
 	m.logf(j, "%s · iOS %s (%s)", sp.Model, sp.OSVersion, sp.Build)
 
-	// 1. WebDriverAgent checkout
-	if _, err := os.Stat(filepath.Join(src, "WebDriverAgent.xcodeproj")); err != nil {
-		m.step(j, "fetching WebDriverAgent")
-		if out, err := run(ctx, "git", "clone", "--depth", "1",
-			"https://github.com/appium/WebDriverAgent.git", src); err != nil {
-			return fmt.Errorf("git clone WebDriverAgent: %w (%s)", err, oneLine(out))
-		}
-	}
-
-	// 2. build-for-testing (shared by every device; skip if already built)
-	if iosRunnerApp(dd) == "" {
-		m.step(j, "building WebDriverAgent (a few minutes)")
-		bctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
-		err := m.streamCmd(j, exec.CommandContext(bctx, "xcodebuild",
-			"build-for-testing",
-			"-project", filepath.Join(src, "WebDriverAgent.xcodeproj"),
-			"-scheme", "WebDriverAgentRunner",
-			"-destination", "generic/platform=iOS",
-			"-allowProvisioningUpdates",
-			"-derivedDataPath", dd,
-			"DEVELOPMENT_TEAM="+team,
-			"CODE_SIGN_STYLE=Automatic",
-			"PRODUCT_BUNDLE_IDENTIFIER="+bundle,
-		))
-		cancel()
-		if err != nil {
-			return fmt.Errorf("xcodebuild build-for-testing: %w", err)
-		}
-		if iosRunnerApp(dd) == "" {
-			return fmt.Errorf("build produced no WebDriverAgentRunner-Runner.app under %s", dd)
-		}
+	// 1+2. checkout + build-for-testing (shared by every device; cached)
+	if _, err := m.ensureWDABuilt(ctx, j); err != nil {
+		return err
 	}
 
 	// 3. run WDA (go-ios, not xcodebuild — Xcode 16's test session drops iOS 15
 	//    devices) + forward ports
-	ep, wp, err := m.startWDA(j, d.UDID, dd)
+	ep, wp, err := m.startWDA(j, d.UDID)
 	if err != nil {
 		return err
 	}
@@ -108,14 +76,67 @@ func (m *Manager) adoptIOS(ctx context.Context, d model.Device, j *Job) error {
 	return nil
 }
 
-// startWDA installs WebDriverAgent (if needed), launches it via go-ios, and
-// forwards its ports. go-ios talks to the device's own services instead of an
-// xcodebuild test session, which Xcode 16 cannot keep alive against iOS 15/16.
-// All processes are detached so the screen survives a poligon restart.
-func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaProc, error) {
+// ensureWDABuilt makes sure a WebDriverAgentRunner-Runner.app exists under the
+// configured derivedData path, checking out and building it if not. The build is
+// shared by every device; it just needs to survive across poligon restarts (put
+// derived_data somewhere persistent, not /tmp).
+func (m *Manager) ensureWDABuilt(ctx context.Context, j *Job) (string, error) {
+	src := expandHome(m.cfg.IOSWDA.Src)
+	dd := expandHome(m.cfg.IOSWDA.DerivedData)
+	if iosRunnerApp(dd) != "" {
+		return dd, nil
+	}
+	// only one build at a time; concurrent startWDA calls wait, then find it done
+	m.buildMu.Lock()
+	defer m.buildMu.Unlock()
+	if iosRunnerApp(dd) != "" {
+		return dd, nil
+	}
+	team := m.wdaTeam()
+	if team == "" {
+		return "", fmt.Errorf("iOS provisioning not configured: set ios_wda.team (or $POLIGON_WDA_TEAM)")
+	}
+	if _, err := os.Stat(filepath.Join(src, "WebDriverAgent.xcodeproj")); err != nil {
+		m.step(j, "fetching WebDriverAgent")
+		if out, err := run(ctx, "git", "clone", "--depth", "1",
+			"https://github.com/appium/WebDriverAgent.git", src); err != nil {
+			return "", fmt.Errorf("git clone WebDriverAgent: %w (%s)", err, oneLine(out))
+		}
+	}
+	m.step(j, "building WebDriverAgent (a few minutes)")
+	bctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	defer cancel()
+	if err := m.streamCmd(j, exec.CommandContext(bctx, "xcodebuild",
+		"build-for-testing",
+		"-project", filepath.Join(src, "WebDriverAgent.xcodeproj"),
+		"-scheme", "WebDriverAgentRunner",
+		"-destination", "generic/platform=iOS",
+		"-allowProvisioningUpdates",
+		"-derivedDataPath", dd,
+		"DEVELOPMENT_TEAM="+team,
+		"CODE_SIGN_STYLE=Automatic",
+		"PRODUCT_BUNDLE_IDENTIFIER="+m.cfg.IOSWDA.BundleID,
+	)); err != nil {
+		return "", fmt.Errorf("xcodebuild build-for-testing: %w", err)
+	}
+	if iosRunnerApp(dd) == "" {
+		return "", fmt.Errorf("build produced no *-Runner.app under %s", dd)
+	}
+	return dd, nil
+}
+
+// startWDA builds WebDriverAgent if the cached build is gone (e.g. after a
+// reboot cleared its derivedData), then launches it via go-ios and forwards its
+// ports. go-ios talks to the device's own services instead of an xcodebuild
+// test session, which Xcode 16 cannot keep alive against iOS 15/16.
+func (m *Manager) startWDA(j *Job, udid string) (iosscreen.Endpoint, *wdaProc, error) {
+	dd, err := m.ensureWDABuilt(context.Background(), j)
+	if err != nil {
+		return iosscreen.Endpoint{}, nil, err
+	}
 	app := iosRunnerApp(dd)
 	if app == "" {
-		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent is not built (%s)", dd)
+		return iosscreen.Endpoint{}, nil, fmt.Errorf("WebDriverAgent build missing under %s", dd)
 	}
 	runnerID := bundleIDOf(app)
 	if runnerID == "" {
@@ -205,14 +226,13 @@ func (m *Manager) Resume(ctx context.Context) {
 		m.log.Warn("provision resume: read ios_screen", "err", err)
 		return
 	}
-	dd := expandHome(m.cfg.IOSWDA.DerivedData)
 	for _, r := range rows {
 		// ReapOrphans ran first, so nothing from a previous poligon is alive —
 		// rebuild every screen from scratch. Register the last-known endpoint so
 		// the device shows as "configured" while its runner comes back up.
 		m.iosCtl.Set(r.DeviceID, iosscreen.Endpoint{WDA: r.WDA, MJPEG: r.MJPEG})
 		d, err := m.st.Device(r.DeviceID)
-		if err != nil || d.UDID == "" || iosRunnerApp(dd) == "" {
+		if err != nil || d.UDID == "" {
 			m.log.Warn("provision resume: cannot respawn WDA", "device", r.DeviceID)
 			continue
 		}
@@ -221,7 +241,7 @@ func (m *Manager) Resume(ctx context.Context) {
 		m.jobs[r.DeviceID] = j
 		m.mu.Unlock()
 		go func(d model.Device, j *Job) {
-			newEp, wp, err := m.startWDA(j, d.UDID, dd)
+			newEp, wp, err := m.startWDA(j, d.UDID)
 			m.mu.Lock()
 			if err != nil {
 				j.State, j.Err = stateFailed, err.Error()
@@ -284,15 +304,11 @@ func (m *Manager) restartIOS(d model.Device, j *Job) error {
 	if d.UDID == "" {
 		return fmt.Errorf("device has no udid")
 	}
-	dd := expandHome(m.cfg.IOSWDA.DerivedData)
-	if iosRunnerApp(dd) == "" {
-		return fmt.Errorf("WebDriverAgent is not built yet — use \"connect to farm\" first")
-	}
 	m.step(j, "stopping WebDriverAgent")
 	m.stopWDA(d.ID, d.UDID)
 	time.Sleep(2 * time.Second)
 
-	ep, wp, err := m.startWDA(j, d.UDID, dd)
+	ep, wp, err := m.startWDA(j, d.UDID)
 	if err != nil {
 		return err
 	}

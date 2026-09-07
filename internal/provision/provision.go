@@ -56,10 +56,11 @@ type Manager struct {
 	iosCtl *iosscreen.Controller
 	log    *slog.Logger
 
-	mu     sync.Mutex
-	jobs   map[string]*Job
-	procs  map[string]*wdaProc // deviceID -> processes
-	iosVer map[string]int      // udid -> iOS major version (cache)
+	mu      sync.Mutex
+	jobs    map[string]*Job
+	procs   map[string]*wdaProc // deviceID -> processes
+	iosVer  map[string]int      // udid -> iOS major version (cache)
+	buildMu sync.Mutex          // serialises the WebDriverAgent xcodebuild
 }
 
 // New wires a Manager.

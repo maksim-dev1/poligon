@@ -65,7 +65,7 @@ type TLSConfig struct {
 type IOSWDAConfig struct {
 	Team          string `yaml:"team"`            // Apple DEVELOPMENT_TEAM (10 chars); $POLIGON_WDA_TEAM overrides
 	Src           string `yaml:"src"`             // WebDriverAgent checkout dir (default ~/WebDriverAgent)
-	DerivedData   string `yaml:"derived_data"`    // xcodebuild -derivedDataPath (default /tmp/wda-dd)
+	DerivedData   string `yaml:"derived_data"`    // xcodebuild -derivedDataPath — must persist across reboots (default ~/Library/Caches/poligon/wda-dd)
 	BundleID      string `yaml:"bundle_id"`       // WDA runner bundle id
 	WDAPortBase   int    `yaml:"wda_port_base"`   // first host port for WDA http (default 18100)
 	MJPEGPortBase int    `yaml:"mjpeg_port_base"` // first host port for WDA mjpeg (default 19100)
@@ -99,7 +99,7 @@ func Default() Config {
 		},
 		IOSWDA: IOSWDAConfig{
 			Src:           "~/WebDriverAgent",
-			DerivedData:   "/tmp/wda-dd",
+			DerivedData:   "~/Library/Caches/poligon/wda-dd",
 			BundleID:      "com.poligon.WebDriverAgentRunner",
 			WDAPortBase:   18100,
 			MJPEGPortBase: 19100,
