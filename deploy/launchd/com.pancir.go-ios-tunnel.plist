@@ -27,7 +27,7 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key> <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>PATH</key> <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key> <string>/Users/Shared/go-ios</string>
   </dict>
   <key>KeepAlive</key>         <true/>

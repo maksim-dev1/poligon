@@ -28,7 +28,7 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key>               <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>PATH</key>               <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>WS_SCRCPY_DIR</key>      <string>/Users/dev-mac/poligon-sidecar/ws-scrcpy</string>
     <key>WS_SCRCPY_PORT</key>     <string>8000</string>
     <key>WS_SCRCPY_HOSTNAME</key> <string>127.0.0.1</string>
