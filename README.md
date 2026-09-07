@@ -37,15 +37,25 @@ curl -sX POST https://farm/api/runs \
 # maestro flow, build pulled from CI artifact storage, callback on finish
 curl -sX POST https://farm/api/runs \
   -H "Authorization: Bearer plgn_…" \
-  -d type=maestro -d platform=android -d count=1 \
-  -d artifact_url=https://ci/…/app.apk -d flow_url=https://ci/…/flow.yaml \
-  -d callback_url=https://ci/…/hook
+  --data-urlencode type=maestro --data-urlencode platform=android --data-urlencode count=1 \
+  --data-urlencode artifact_url=https://ci/…/app.apk \
+  --data-urlencode flow_url=https://ci/…/flow.yaml \
+  --data-urlencode callback_url=https://ci/…/hook
+
+# generic: run any command, ANDROID_SERIAL / DEVICE_UDID / POLIGON_RUN_DIR in env
+curl -sX POST https://farm/api/runs -H "Authorization: Bearer plgn_…" \
+  --data-urlencode type=command --data-urlencode device=pixel6-01 \
+  --data-urlencode 'command=appium ... || exit 1'
 
 # poll: GET /api/runs/{id} → {status: queued|running|passed|failed|error|canceled, devices:[…]}
 ```
 
-Device selection is `device=<id>` (repeatable) **or** `platform=`/`count=`/`tag=`.
-Artifacts: `GET /api/runs/{id}/artifacts/{device}/{path}`.
+Run types: `install_smoke`, `maestro`, `command`. Device selection is
+`device=<id>` (repeatable) **or** `platform=`/`count=`/`tag=`. Per-device cap
+`timeout_seconds` (default 1200). Artifacts:
+`GET /api/runs/{id}/artifacts/{device}/{path}`. Status SVG for a CI dashboard:
+`GET /runs/{id}/badge.svg` (no auth). Use `--data-urlencode` for urlencoded
+bodies (a raw `;` or space is rejected).
 
 ## Run
 
