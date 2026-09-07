@@ -626,6 +626,8 @@ body.ios-player {
 }
 .player-stage {
   flex: 1;
+  min-height: 0;   /* let the column shrink below the image's intrinsic height */
+  min-width: 0;
   display: grid;
   place-items: center;
   padding: 14px;
