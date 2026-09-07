@@ -15,6 +15,7 @@
   <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install build(s)</button>
   <button class="btn btn--sm" onclick="pickSmoke()">Smoke test</button>
   <button class="btn btn--sm" onclick="pickMaestro()">Maestro run</button>
+  <button class="btn btn--sm" onclick="commandRun()">Command run</button>
   <button class="btn btn--ghost btn--sm" onclick="location.href='/runs.html'">Runs</button>
   <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
   <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
@@ -189,6 +190,23 @@ async function startMaestro(files) {
   for (const f of builds) fd.append("artifact", f);
   for (const d of devices) fd.append("device", d.id);
   toast(`Starting Maestro run on ${devices.length} device(s)…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Run ${b.id} queued`, "ok");
+    setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function commandRun() {
+  const cmd = prompt("Shell command to run on each device.\nEnv: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (cwd).\nFiles written to cwd are collected as artifacts.");
+  if (!cmd) return;
+  const fd = new FormData();
+  fd.append("type", "command");
+  fd.append("command", cmd);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Starting command run on ${devices.length} device(s)…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();

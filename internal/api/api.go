@@ -64,6 +64,8 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	mux.HandleFunc("POST /auth/setup", s.setupSubmit)
 	mux.HandleFunc("GET /auth/me", s.authMe)
 	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.HandleFunc("GET /runs/{id}/badge", s.runBadge) // unauth: status SVG for CI
+	mux.HandleFunc("GET /runs/{id}/badge.svg", s.runBadge)
 	mux.Handle("POST /auth/password", a.Middleware(http.HandlerFunc(s.authChangePassword)))
 
 	api := http.NewServeMux()
@@ -93,6 +95,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("GET /runs", s.listRuns)
 	api.HandleFunc("GET /runs/{id}", s.getRun)
 	api.HandleFunc("POST /runs/{id}/cancel", s.cancelRun)
+	api.HandleFunc("POST /runs/{id}/rerun", s.rerunRun)
 	api.HandleFunc("GET /runs/{id}/artifacts/{device}/{path...}", s.runArtifact)
 
 	// iOS live screen (WebDriverAgent-backed): player page + MJPEG + input.

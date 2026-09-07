@@ -20,6 +20,8 @@
   .run-id { color: var(--text); letter-spacing: 0.03em; }
   .run-type { color: var(--text-3); }
   .run-when { color: var(--text-muted); margin-left: auto; font-size: 11px; }
+  .run-act { display: flex; gap: 6px; }
+  .run-act .btn { height: 22px; padding: 0 8px; font-size: 11px; }
   .run-devs { border-top: 1px solid var(--line); padding: 4px 0; }
   .run-dev {
     display: grid; grid-template-columns: 1fr auto;
@@ -89,6 +91,12 @@ function runCard(r) {
       <span class="pill ${r.status}">${r.status}</span>
       <span class="run-type">${r.type}${r.detail ? ` — ${r.detail}` : ""}</span>
       <span class="run-when">${fmt(r.created_at)} · ${dur(r.started_at, r.finished_at)}</span>
+      <span class="run-act" onclick="event.stopPropagation()">
+        ${["passed","failed","error","canceled"].includes(r.status)
+          ? `<button class="btn" onclick="rerun('${r.id}')">Re-run</button>` : ""}
+        ${["queued","running"].includes(r.status)
+          ? `<button class="btn btn--danger" onclick="cancelRun('${r.id}')">Cancel</button>` : ""}
+      </span>
     </div>${devs}
   </div>`;
 }
@@ -97,6 +105,19 @@ function toggle(id) {
   open.has(id) ? open.delete(id) : open.add(id);
   render(LAST);
 }
+
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+async function post(path) {
+  const r = await fetch(path, { method: "POST", headers: { "X-Poligon-CSRF": csrf() }, credentials: "same-origin" });
+  const b = await r.json().catch(() => ({}));
+  if (!r.ok) { alert(b.error || r.statusText); return null; }
+  return b;
+}
+async function rerun(id) {
+  const b = await post(`/api/runs/${id}/rerun`);
+  if (b) { open.add(b.id); load(); }
+}
+async function cancelRun(id) { if (await post(`/api/runs/${id}/cancel`)) load(); }
 
 let LAST = [];
 function render(runs) {

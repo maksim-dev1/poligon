@@ -125,10 +125,12 @@ type Run struct {
 // RunSpec carries the run's inputs. Artifacts are stored under the run's upload
 // dir keyed by platform; WatchSeconds is the smoke-test settle window.
 type RunSpec struct {
-	Artifacts    map[Platform]string `json:"artifacts,omitempty"` // platform -> stored filename
-	WatchSeconds int                 `json:"watch_seconds,omitempty"`
-	FlowPath     string              `json:"flow_path,omitempty"`    // maestro
-	CallbackURL  string              `json:"callback_url,omitempty"` // POSTed the run JSON on finish
+	Artifacts      map[Platform]string `json:"artifacts,omitempty"` // platform -> stored filename
+	WatchSeconds   int                 `json:"watch_seconds,omitempty"`
+	FlowPath       string              `json:"flow_path,omitempty"`       // maestro
+	Command        string              `json:"command,omitempty"`         // command run type
+	TimeoutSeconds int                 `json:"timeout_seconds,omitempty"` // per-device cap (default 1200)
+	CallbackURL    string              `json:"callback_url,omitempty"`    // POSTed the run JSON on finish
 }
 
 // RunDevice is one device's slice of a run.

@@ -27,7 +27,7 @@ import (
 )
 
 // Types is the set of run types the runner understands.
-var Types = map[string]bool{"install_smoke": true, "maestro": true}
+var Types = map[string]bool{"install_smoke": true, "maestro": true, "command": true}
 
 // Runner schedules and executes runs. One run executes at a time; devices within
 // a run run in parallel.
@@ -324,13 +324,26 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 		return
 	}
 
+	timeout := 20 * time.Minute
+	if t := run.Spec.TimeoutSeconds; t > 0 {
+		timeout = time.Duration(t) * time.Second
+	}
+	dctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	switch run.Type {
 	case "install_smoke":
-		r.smoke(ctx, run, dev, &rd, devDir)
+		r.smoke(dctx, run, dev, &rd, devDir)
 	case "maestro":
-		r.runMaestro(ctx, run, dev, &rd, devDir)
+		r.runMaestro(dctx, run, dev, &rd, devDir)
+	case "command":
+		r.runCommand(dctx, run, dev, &rd, devDir)
 	default:
 		rd.Status, rd.Detail = model.RunSkipped, "unknown run type"
+	}
+
+	if rd.Status == model.RunRunning && dctx.Err() == context.DeadlineExceeded {
+		rd.Status, rd.Detail = model.RunError, "timed out after "+timeout.String()
 	}
 }
 

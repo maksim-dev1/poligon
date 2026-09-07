@@ -121,6 +121,8 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		spec.Artifacts[plat] = p
 	}
 
+	spec.Command = r.FormValue("command")
+
 	switch typ {
 	case "install_smoke":
 		if len(spec.Artifacts) == 0 {
@@ -132,11 +134,21 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, errors.New("maestro needs a flow (flow file or flow_url)"))
 			return
 		}
+	case "command":
+		if spec.Command == "" {
+			fail(w, http.StatusBadRequest, errors.New("command run needs command="))
+			return
+		}
 	}
 
 	if v := r.FormValue("watch_seconds"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			spec.WatchSeconds = n
+		}
+	}
+	if v := r.FormValue("timeout_seconds"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			spec.TimeoutSeconds = n
 		}
 	}
 	spec.CallbackURL = r.FormValue("callback_url")
@@ -280,6 +292,39 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, redact(run))
 }
 
+// rerunRun re-submits a finished run with the same spec and device set.
+func (s *Server) rerunRun(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	old, err := s.st.Run(r.PathValue("id"))
+	if err != nil {
+		fail(w, http.StatusNotFound, err)
+		return
+	}
+	// verify the original upload files still exist
+	for _, p := range old.Spec.Artifacts {
+		if _, err := os.Stat(p); err != nil {
+			fail(w, http.StatusGone, errors.New("original artifact no longer on disk — start a fresh run"))
+			return
+		}
+	}
+	if old.Spec.FlowPath != "" {
+		if _, err := os.Stat(old.Spec.FlowPath); err != nil {
+			fail(w, http.StatusGone, errors.New("original flow no longer on disk — start a fresh run"))
+			return
+		}
+	}
+	ids := make([]string, 0, len(old.Devices))
+	for _, d := range old.Devices {
+		ids = append(ids, d.DeviceID)
+	}
+	run, err := s.run.Submit(u.Name, old.Type, old.Spec, ids, "ui")
+	if err != nil {
+		fail(w, http.StatusConflict, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, redact(run))
+}
+
 func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 	id := r.PathValue("id")
@@ -297,6 +342,40 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "canceling"})
+}
+
+// runBadge serves a shields-style SVG for a run's status — for embedding in a
+// CI dashboard or README. Unauthenticated (run ids are unguessable enough on a
+// trusted LAN) and cache-busting.
+func (s *Server) runBadge(w http.ResponseWriter, r *http.Request) {
+	run, err := s.st.Run(strings.TrimSuffix(r.PathValue("id"), ".svg"))
+	label := "unknown"
+	color := "#9f9f9f"
+	if err == nil {
+		label = string(run.Status)
+		switch run.Status {
+		case model.RunPassed:
+			color = "#3fb950"
+		case model.RunFailed, model.RunError:
+			color = "#e5534b"
+		case model.RunRunning, model.RunQueued:
+			color = "#d29922"
+		case model.RunCanceled:
+			color = "#8b949e"
+		}
+	}
+	lw := 44
+	vw := 8*len(label) + 20
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="20" role="img">`+
+		`<rect width="%d" height="20" fill="#555"/>`+
+		`<rect x="%d" width="%d" height="20" fill="%s"/>`+
+		`<g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">`+
+		`<text x="6" y="14">poligon</text>`+
+		`<text x="%d" y="14">%s</text></g></svg>`,
+		lw+vw, lw, lw, vw, color, lw+6, label)
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-cache, max-age=0")
+	_, _ = w.Write([]byte(svg))
 }
 
 // runArtifact serves one file written by a run, e.g.
