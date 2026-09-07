@@ -21,8 +21,10 @@ var ErrNoSession = errors.New("session not found")
 var ErrUserExists = errors.New("account already exists")
 
 // CreateUser inserts a farm account with no password yet (setup pending).
+// token_hash is written explicitly ('') so this works on pre-existing databases
+// whose users.token_hash column has NOT NULL without a default.
 func (s *Store) CreateUser(name string) error {
-	_, err := s.db.Exec(`INSERT INTO users (name) VALUES (?)`, name)
+	_, err := s.db.Exec(`INSERT INTO users (name, token_hash) VALUES (?, '')`, name)
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return ErrUserExists
 	}
