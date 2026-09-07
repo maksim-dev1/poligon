@@ -6,19 +6,46 @@ artifacts, installs them on reserved devices, and lets you test.
 
 Host: Mac mini (`ssh dev-mac@172.24.18.20`). Single Go binary + SQLite, no Redis/Postgres.
 
-## Status — Phase 1 (device catalog + reservations + manual install)
+## Status
 
 Done:
 - device inventory from `config/devices.yaml`, health poll (adb / libimobiledevice), flap → `degraded`
 - hardware specs per device (model, SoC, RAM, screen, battery, OS)
-- auth: open self-service signup (email + password), server-side sessions, no admin role
-- reservations: one holder per device, heartbeat lease, idle + hard-cap auto-release
-- manual install via dashboard / API: apk direct, aab via bundletool, ipa re-signed with farm profiles then `ios-deploy`
-- minimal dashboard at `/`
+- auth: open self-service signup (email + password), server-side sessions, no admin role; personal API tokens for scripts / CI
+- reservations: one holder per device, heartbeat lease, idle + hard-cap auto-release; multi-device batches
+- manual install via dashboard / API: apk direct, aab via bundletool, ipa re-signed with farm profiles then `ios-deploy`; mixed Android+iOS batches take one artifact per platform
+- live screens: ws-scrcpy for Android, WebDriverAgent for iOS, one grid for a batch
+- per-device diagnostics: screenshot + logcat from the grid (`internal/capture`)
+- **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash) and `maestro` (run a `.yaml` flow, collect report + recording). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html`
 
 Next:
-- Phase 2 — live screen (ws-scrcpy for Android, WDA/screenshot for iOS), multi-device select
-- Phase 3 — automated jobs (`install_only` / `maestro` / `appium`), CI webhooks
+- more run types — Flutter `integration_test`, generic `appium` / command
+- run history filters, status badge
+
+### Test-run API
+
+```sh
+# mint a token on the host
+poligon token create you@company.com ci
+
+# smoke-test a build on 2 free Android devices
+curl -sX POST https://farm/api/runs \
+  -H "Authorization: Bearer plgn_…" \
+  -F type=install_smoke -F platform=android -F count=2 \
+  -F artifact=@app-release.apk
+
+# maestro flow, build pulled from CI artifact storage, callback on finish
+curl -sX POST https://farm/api/runs \
+  -H "Authorization: Bearer plgn_…" \
+  -d type=maestro -d platform=android -d count=1 \
+  -d artifact_url=https://ci/…/app.apk -d flow_url=https://ci/…/flow.yaml \
+  -d callback_url=https://ci/…/hook
+
+# poll: GET /api/runs/{id} → {status: queued|running|passed|failed|error|canceled, devices:[…]}
+```
+
+Device selection is `device=<id>` (repeatable) **or** `platform=`/`count=`/`tag=`.
+Artifacts: `GET /api/runs/{id}/artifacts/{device}/{path}`.
 
 ## Run
 
@@ -118,6 +145,8 @@ internal/devices   poll loop, flap detection, specs refresh
 internal/reserve   booking, leases, auto-release
 internal/auth      users + bearer tokens
 internal/install   apk / aab / ipa(re-sign) install pipeline
+internal/capture   screenshot / logcat off a device
+internal/runner    automated test runs (install_smoke, maestro)
 internal/api       JSON API + dashboard
 internal/webui     embedded dashboard assets
 ```
