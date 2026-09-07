@@ -19,21 +19,36 @@ chmod +x deploy/ws-scrcpy-run.sh
 
 render() { sed -e "s#/Users/dev-mac/poligon#$REPO#g" -e "s#<string>dev-mac</string>#<string>$USER_N</string>#g" "$1"; }
 
+# (re)load a service idempotently: replace the plist, then bootstrap if it isn't
+# loaded, else kickstart it.
+reload_agent() {  # domain plistpath label
+  local dom=$1 plist=$2 label=$3
+  if launchctl print "$dom/$label" >/dev/null 2>&1; then
+    launchctl kickstart -k "$dom/$label"
+  else
+    launchctl bootstrap "$dom" "$plist" && launchctl enable "$dom/$label"
+  fi
+}
+reload_daemon() { # plistpath label
+  local plist=$1 label=$2
+  if sudo launchctl print "system/$label" >/dev/null 2>&1; then
+    sudo launchctl kickstart -k "system/$label"
+  else
+    sudo launchctl bootstrap system "$plist" && sudo launchctl enable "system/$label"
+  fi
+}
+
 echo "==> poligon  (LaunchAgent, gui/$UID_N)"
 AGENT="$HOME/Library/LaunchAgents/com.pancir.poligon.plist"
 mkdir -p "$(dirname "$AGENT")"
 render deploy/launchd/com.pancir.poligon.plist > "$AGENT"
-launchctl bootout "gui/$UID_N/com.pancir.poligon" 2>/dev/null || true
-launchctl bootstrap "gui/$UID_N" "$AGENT"
-launchctl enable "gui/$UID_N/com.pancir.poligon"
+reload_agent "gui/$UID_N" "$AGENT" com.pancir.poligon
 
 echo "==> ws-scrcpy sidecar + go-ios tunnel  (system LaunchDaemons — sudo)"
 for label in com.pancir.poligon-live com.pancir.go-ios-tunnel; do
   render "deploy/launchd/$label.plist" | sudo tee "/Library/LaunchDaemons/$label.plist" >/dev/null
   sudo chmod 644 "/Library/LaunchDaemons/$label.plist"
-  sudo launchctl bootout "system/$label" 2>/dev/null || true
-  sudo launchctl bootstrap system "/Library/LaunchDaemons/$label.plist"
-  sudo launchctl enable "system/$label"
+  reload_daemon "/Library/LaunchDaemons/$label.plist" "$label"
 done
 
 echo "==> log rotation"
