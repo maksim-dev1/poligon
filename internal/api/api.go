@@ -24,6 +24,7 @@ import (
 	"github.com/pancir/poligon/internal/model"
 	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/reserve"
+	"github.com/pancir/poligon/internal/runner"
 	"github.com/pancir/poligon/internal/store"
 	"github.com/pancir/poligon/internal/webui"
 )
@@ -38,14 +39,15 @@ type Server struct {
 	ios  *iosscreen.Controller
 	prov *provision.Manager
 	capt *capture.Capturer
+	run  *runner.Runner
 	auth *auth.Auth
 	log  *slog.Logger
 	web  http.FileSystem
 }
 
 // New builds the API server.
-func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, capt *capture.Capturer, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, web: web, log: log}
+func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, capt *capture.Capturer, run *runner.Runner, web http.FileSystem, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, run: run, web: web, log: log}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -85,6 +87,13 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("POST /batches/{batch}/install", s.batchInstall)
 	api.HandleFunc("POST /batches/{batch}/heartbeat", s.batchHeartbeat)
 	api.HandleFunc("POST /batches/{batch}/release", s.batchRelease)
+
+	// automated test runs
+	api.HandleFunc("POST /runs", s.createRun)
+	api.HandleFunc("GET /runs", s.listRuns)
+	api.HandleFunc("GET /runs/{id}", s.getRun)
+	api.HandleFunc("POST /runs/{id}/cancel", s.cancelRun)
+	api.HandleFunc("GET /runs/{id}/artifacts/{device}/{name}", s.runArtifact)
 
 	// iOS live screen (WebDriverAgent-backed): player page + MJPEG + input.
 	ios := http.NewServeMux()

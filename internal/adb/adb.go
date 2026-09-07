@@ -213,6 +213,21 @@ func (a *ADB) LogcatClear(ctx context.Context, serial string) error {
 	return err
 }
 
+// Running reports whether a process for pkg is currently alive on the device.
+func (a *ADB) Running(ctx context.Context, serial, pkg string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, err := a.shell(ctx, serial, "pidof", pkg)
+	if err != nil {
+		// pidof exits 1 when nothing matches — that is "not running", not an error
+		if strings.TrimSpace(out) == "" {
+			return false, nil
+		}
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
 func firstNonEmpty(vs ...string) string {
 	for _, v := range vs {
 		if v != "" {

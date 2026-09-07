@@ -92,6 +92,57 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// RunStatus is the lifecycle state of a test run or one device within it.
+type RunStatus string
+
+const (
+	RunQueued   RunStatus = "queued"
+	RunRunning  RunStatus = "running"
+	RunPassed   RunStatus = "passed"
+	RunFailed   RunStatus = "failed" // ran, assertions did not hold
+	RunError    RunStatus = "error"  // could not run (install failed, device lost)
+	RunCanceled RunStatus = "canceled"
+	RunPending  RunStatus = "pending" // per-device: not started yet
+	RunSkipped  RunStatus = "skipped" // per-device: run type unsupported on this device
+)
+
+// Run is one automated test run over a set of reserved devices.
+type Run struct {
+	ID         string      `json:"id"`
+	User       string      `json:"user"`
+	Type       string      `json:"type"`
+	Status     RunStatus   `json:"status"`
+	Trigger    string      `json:"trigger"`
+	Batch      string      `json:"-"`
+	Spec       RunSpec     `json:"spec"`
+	Detail     string      `json:"detail,omitempty"`
+	CreatedAt  time.Time   `json:"created_at"`
+	StartedAt  *time.Time  `json:"started_at,omitempty"`
+	FinishedAt *time.Time  `json:"finished_at,omitempty"`
+	Devices    []RunDevice `json:"devices,omitempty"`
+}
+
+// RunSpec carries the run's inputs. Artifacts are stored under the run's upload
+// dir keyed by platform; WatchSeconds is the smoke-test settle window.
+type RunSpec struct {
+	Artifacts    map[Platform]string `json:"artifacts,omitempty"` // platform -> stored filename
+	WatchSeconds int                 `json:"watch_seconds,omitempty"`
+	FlowPath     string              `json:"flow_path,omitempty"` // maestro, later
+}
+
+// RunDevice is one device's slice of a run.
+type RunDevice struct {
+	RunID      string     `json:"-"`
+	DeviceID   string     `json:"device_id"`
+	Platform   Platform   `json:"platform"`
+	Status     RunStatus  `json:"status"`
+	Detail     string     `json:"detail,omitempty"`
+	Package    string     `json:"package,omitempty"`
+	Artifacts  []string   `json:"artifacts"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+}
+
 // Session is a browser login: a server-side record keyed by a random token,
 // revocable and expiring. The token itself lives only in the client cookie;
 // the store keeps its hash.

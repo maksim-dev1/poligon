@@ -87,3 +87,32 @@ CREATE TABLE IF NOT EXISTS installs (
     detail      TEXT NOT NULL DEFAULT '',
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Phase 3: automated test runs on a set of reserved devices.
+CREATE TABLE IF NOT EXISTS runs (
+    id          TEXT PRIMARY KEY,           -- short random id
+    user        TEXT NOT NULL,
+    type        TEXT NOT NULL,              -- install_smoke | maestro | ...
+    status      TEXT NOT NULL,              -- queued | running | passed | failed | error | canceled
+    trigger     TEXT NOT NULL DEFAULT 'ui', -- ui | api
+    batch       TEXT NOT NULL DEFAULT '',   -- reservation batch held for the run
+    spec        TEXT NOT NULL DEFAULT '{}', -- json: artifact names, options
+    detail      TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at  TIMESTAMP,
+    finished_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS run_devices (
+    run_id      TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    device_id   TEXT NOT NULL,
+    platform    TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL,              -- pending | running | passed | failed | error | skipped
+    detail      TEXT NOT NULL DEFAULT '',
+    package     TEXT NOT NULL DEFAULT '',
+    artifacts   TEXT NOT NULL DEFAULT '[]', -- json array of file names under runs/<id>/<device_id>/
+    started_at  TIMESTAMP,
+    finished_at TIMESTAMP,
+    PRIMARY KEY (run_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_run_devices_run ON run_devices(run_id);

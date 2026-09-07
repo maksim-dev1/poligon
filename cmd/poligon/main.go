@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/pancir/poligon/internal/live"
 	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/reserve"
+	"github.com/pancir/poligon/internal/runner"
 	"github.com/pancir/poligon/internal/store"
 	"github.com/pancir/poligon/internal/webui"
 )
@@ -111,7 +113,9 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
 
 	capt := capture.New(adb.New(cfg.ADBPath), iosCtl)
-	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, capt, http.FS(webui.FS()), log)
+	run := runner.New(st, res, inst, capt, adb.New(cfg.ADBPath),
+		filepath.Join(cfg.StorageDir, "runs"), log)
+	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, capt, run, http.FS(webui.FS()), log)
 	handler := srv.Handler(a)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -124,6 +128,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	go reapLoop(ctx, res, st, log)
 	go prov.Resume(ctx)
 	go depsWatchdog(ctx, cfg, st, prov, log)
+	go run.Run(ctx)
 
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: handler}
 	go func() {

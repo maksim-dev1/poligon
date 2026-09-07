@@ -13,11 +13,14 @@
   <span class="health" id="health" title="checking system…"></span>
   <span class="spacer"></span>
   <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install build(s)</button>
+  <button class="btn btn--sm" onclick="pickSmoke()">Smoke test</button>
+  <button class="btn btn--ghost btn--sm" onclick="location.href='/runs.html'">Runs</button>
   <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
   <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
   <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
   <button class="btn btn--danger btn--sm" onclick="releaseAll()">Release all</button>
   <input type="file" id="installFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files); this.value=''">
+  <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
 </header>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
@@ -130,6 +133,37 @@ async function installAll(files) {
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
   setSub();
+}
+
+function pickSmoke() { document.getElementById("smokeFile").click(); }
+
+async function startSmoke(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+  const byPlat = {};
+  for (const f of files) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    byPlat[p] = f;
+  }
+  const missing = batchPlatforms().filter(p => !byPlat[p]);
+  if (missing.length) {
+    toast(`batch has ${missing.join(" + ")} device(s) — add a build for each`, "err");
+    return;
+  }
+  const fd = new FormData();
+  fd.append("type", "install_smoke");
+  for (const d of devices) fd.append("device", d.id);
+  for (const f of files) fd.append("artifact", f);
+  toast(`Starting smoke test on ${devices.length} device(s)…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Run ${b.id} queued`, "ok");
+    setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
+  } catch (e) { toast(e.message, "err"); }
 }
 
 async function restartAll() {

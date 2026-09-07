@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poligon — test runs</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .runs { padding: 12px 18px 96px; display: grid; gap: 10px; max-width: 900px; }
+  .run {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r-md); overflow: hidden;
+  }
+  .run-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; cursor: pointer;
+    font: 500 12px/1.3 var(--mono);
+  }
+  .run-head:hover { background: var(--surface-2); }
+  .run-id { color: var(--text); letter-spacing: 0.03em; }
+  .run-type { color: var(--text-3); }
+  .run-when { color: var(--text-muted); margin-left: auto; font-size: 11px; }
+  .run-devs { border-top: 1px solid var(--line); padding: 4px 0; }
+  .run-dev {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 4px 12px; padding: 8px 12px;
+    font: 400 12px/1.4 var(--mono);
+    border-top: 1px solid var(--line);
+  }
+  .run-dev:first-child { border-top: 0; }
+  .run-dev .did { color: var(--text-2); }
+  .run-dev .ddetail { color: var(--text-muted); grid-column: 1 / -1; white-space: pre-wrap; }
+  .run-dev .darts { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: 600 10px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2);
+    color: var(--text-2); white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+  .pill.passed  { color: var(--ok); border-color: rgba(63,185,138,.35); }
+  .pill.passed::before { background: var(--ok); }
+  .pill.failed, .pill.error { color: var(--down); border-color: rgba(229,84,75,.35); }
+  .pill.failed::before, .pill.error::before { background: var(--down); }
+  .pill.running, .pill.queued { color: var(--warn); border-color: rgba(217,154,43,.35); }
+  .pill.running::before, .pill.queued::before { background: var(--warn); }
+  .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
+  .empty2 { padding: 40px 18px; text-align: center; color: var(--text-3); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="wordmark">poligon</span>
+  <span class="readout">test runs</span>
+  <span class="spacer"></span>
+  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
+</header>
+<div class="page-error" id="err"></div>
+<div class="runs" id="runs"></div>
+
+<script>
+const want = new URLSearchParams(location.search).get("r");
+const open = new Set(want ? [want] : []);
+const fmt = t => t ? new Date(t).toLocaleString() : "—";
+const dur = (a, b) => {
+  if (!a) return "";
+  const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000);
+  return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
+};
+
+function devRow(runId, d) {
+  const arts = (d.artifacts || []).map(n =>
+    `<a href="/api/runs/${runId}/artifacts/${d.device_id}/${n}" target="_blank">${n}</a>`).join("");
+  return `<div class="run-dev">
+    <span class="did">${d.device_id}${d.package ? ` · ${d.package}` : ""}</span>
+    <span class="pill ${d.status}">${d.status}</span>
+    ${d.detail ? `<span class="ddetail">${d.detail}</span>` : ""}
+    ${arts ? `<span class="darts">${arts}</span>` : ""}
+  </div>`;
+}
+
+function runCard(r) {
+  const isOpen = open.has(r.id);
+  const devs = isOpen
+    ? `<div class="run-devs">${(r.devices || []).map(d => devRow(r.id, d)).join("")}</div>` : "";
+  return `<div class="run" id="run-${r.id}">
+    <div class="run-head" onclick="toggle('${r.id}')">
+      <span class="run-id">${r.id}</span>
+      <span class="pill ${r.status}">${r.status}</span>
+      <span class="run-type">${r.type}${r.detail ? ` — ${r.detail}` : ""}</span>
+      <span class="run-when">${fmt(r.created_at)} · ${dur(r.started_at, r.finished_at)}</span>
+    </div>${devs}
+  </div>`;
+}
+
+function toggle(id) {
+  open.has(id) ? open.delete(id) : open.add(id);
+  render(LAST);
+}
+
+let LAST = [];
+function render(runs) {
+  LAST = runs;
+  const el = document.getElementById("runs");
+  if (!runs.length) { el.innerHTML = `<div class="empty2">no runs yet — start one from the screen grid</div>`; return; }
+  el.innerHTML = runs.map(runCard).join("");
+}
+
+async function load() {
+  try {
+    const runs = await (await fetch("/api/runs?limit=100", { credentials: "same-origin" })).json();
+    document.getElementById("err").textContent = "";
+    render(runs);
+    const active = runs.some(r => r.status === "running" || r.status === "queued");
+    clearTimeout(window._t);
+    window._t = setTimeout(load, active ? 2500 : 15000);
+  } catch (e) {
+    document.getElementById("err").textContent = e.message;
+    window._t = setTimeout(load, 5000);
+  }
+}
+load();
+</script>
+</body>
+</html>
