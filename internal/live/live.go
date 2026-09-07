@@ -135,12 +135,13 @@ func StreamPath(d model.Device, wsHost string, secure bool) string {
 	if id == "" {
 		id = d.UDID
 	}
-	scheme := "ws"
+	scheme, player := "ws", "mse"
 	if secure {
-		scheme = "wss"
+		// WebCodecs (lower latency) needs a secure context; only offer it over HTTPS.
+		scheme, player = "wss", "webcodecs"
 	}
 	ws := fmt.Sprintf("%s://%s/live/?action=proxy-adb&remote=tcp:%d&udid=%s",
 		scheme, wsHost, scrcpyServerPort, url.QueryEscape(id))
 	return "/live/#!action=stream&udid=" + url.QueryEscape(id) +
-		"&player=webcodecs&ws=" + url.QueryEscape(ws)
+		"&player=" + player + "&ws=" + url.QueryEscape(ws)
 }
