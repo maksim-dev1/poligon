@@ -3,58 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — screen grid</title>
-<style>
-  :root { color-scheme: dark; }
-  body { margin:0; background:#0f1115; color:#e6e8ec;
-         font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-  header { padding:8px 14px; border-bottom:1px solid #2a2f3a; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  header b { font-size:14px; }
-  header .sp { margin-left:auto; }
-  button { background:#22262e; color:#e6e8ec; border:1px solid #2a2f3a; border-radius:6px;
-           padding:5px 10px; cursor:pointer; font-size:12px; }
-  button:hover { background:#2b303a; }
-  button:disabled { opacity:.5; cursor:default; }
-  button.primary { background:#388bfd; border-color:#388bfd; color:#fff; }
-  button.primary:hover { background:#4c9aff; }
-  button.danger { border-color:#5c2b2b; color:#f85149; }
-  #grid { display:grid; gap:10px; padding:12px;
-          grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
-  .cell { border:1px solid #2a2f3a; border-radius:10px; overflow:hidden; background:#000;
-          display:flex; flex-direction:column; height:78vh; }
-  .cell .t { padding:5px 8px; background:#191c22; font-size:12px; display:flex; gap:6px; align-items:center; }
-  .cell .t .id { font-weight:600; }
-  .cell .t .plat { color:#8b93a1; }
-  .cell .t .sp { margin-left:auto; }
-  .cell .t button { padding:3px 7px; font-size:11px; }
-  .cell iframe { flex:1; border:0; width:100%; background:#000; }
-  #err { color:#f85149; padding:8px 14px; }
-</style>
+<title>poligon — screens</title>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<header>
-  <b>screen grid</b>
-  <span id="sub" style="color:#8b93a1"></span>
-  <span class="sp"></span>
-  <button class="primary" onclick="pickInstall()">Install app to all</button>
-  <button onclick="restartAll()">Restart screens</button>
-  <button onclick="reloadAll()">Reload</button>
-  <button onclick="location.href='/'">&larr; Back to farm</button>
-  <button class="danger" onclick="releaseAll()">Release all &amp; exit</button>
+<header class="topbar">
+  <span class="wordmark">poligon</span>
+  <span class="readout" id="sub"></span>
+  <span class="spacer"></span>
+  <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install to all</button>
+  <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
+  <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
+  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
+  <button class="btn btn--danger btn--sm" onclick="releaseAll()">Release all</button>
   <input type="file" id="installFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files[0])">
 </header>
-<div id="err"></div>
-<div id="grid"></div>
+<div class="page-error" id="err"></div>
+<div class="wall" id="grid"></div>
+<div class="toasts" id="toasts"></div>
 <script>
 const batch = new URLSearchParams(location.search).get("b");
 const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
-// session cookie rides along automatically; only writes need the CSRF header.
 const H = {};
 const HW = () => ({ "X-Poligon-CSRF": csrf() });
 let devices = [];
-const urls = {};              // device id -> screen url
+const urls = {};
 const sub = document.getElementById("sub");
 function setSub(t) { sub.textContent = t || `${devices.length} device(s)`; }
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
+}
 
 async function screenURL(id) {
   try {
@@ -66,20 +49,20 @@ async function screenURL(id) {
 
 function cell(d, url) {
   const c = document.createElement("div");
-  c.className = "cell";
+  c.className = "tile";
   c.id = "cell-" + d.id;
   const noInput = d.specs && d.specs.input_injection === "blocked";
   const body = url
     ? `<iframe id="if-${d.id}" src="${url}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
-    : `<div style="padding:12px;color:#8b93a1">screen unavailable</div>`;
+    : `<div class="tile-blank">screen unavailable</div>`;
   c.innerHTML = `
-    <div class="t">
+    <div class="tile-bar">
       <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
-      ${noInput ? `<span title="taps blocked by the OS — enable MIUI USB debugging (Security settings)" style="color:#f85149">⚠ no input</span>` : ""}
+      ${noInput ? `<span class="noinput" title="taps blocked by the OS — enable MIUI USB debugging (Security settings)">no input</span>` : ""}
       <span class="sp"></span>
-      <button onclick="reopen('${d.id}')">Reopen</button>
-      <button onclick="window.open(urls['${d.id}'],'w-${d.id}')">Pop out</button>
-      <button class="danger" onclick="releaseOne('${d.id}')">Release</button>
+      <button class="btn" onclick="reopen('${d.id}')">Reopen</button>
+      <button class="btn" onclick="window.open(urls['${d.id}'],'w-${d.id}')">Pop out</button>
+      <button class="btn btn--danger" onclick="releaseOne('${d.id}')">Release</button>
     </div>
     ${body}`;
   return c;
@@ -91,19 +74,20 @@ function reopen(id) {
 }
 function reloadAll() { devices.forEach(d => reopen(d.id)); }
 
-// ---- global actions ----
 function pickInstall() { document.getElementById("installFile").click(); }
 
 async function installAll(file) {
   if (!file) return;
+  toast(`Installing ${file.name} on ${devices.length} device(s)…`);
+  setSub(`installing ${file.name}…`);
   const fd = new FormData(); fd.append("artifact", file);
-  setSub(`installing ${file.name} on ${devices.length} device(s)…`);
   try {
     const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     const bad = (b.results || []).filter(x => x.status !== "ok");
-    alert(`installed on ${b.ok}/${b.total}` + (bad.length ? "\n\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""));
-  } catch (e) { alert(e.message); }
+    toast(`Installed on ${b.ok}/${b.total}` + (bad.length ? "\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""),
+      bad.length ? "err" : "ok");
+  } catch (e) { toast(e.message, "err"); }
   setSub();
 }
 

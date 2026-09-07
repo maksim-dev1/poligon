@@ -3,91 +3,67 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — phone farm</title>
-<style>
-  :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --muted:#8b93a1;
-          --free:#3fb950; --busy:#d29922; --off:#6e7681; --bad:#f85149; --accent:#388bfd; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-         font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; }
-  header h1 { margin:0; font-size:18px; }
-  header .muted { color:var(--muted); }
-  h3.section { margin:22px 24px 0; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
-  main { padding:12px 24px 24px; display:grid; gap:16px;
-         grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; position:relative; }
-  .card.selectable { cursor:pointer; }
-  .card.selectable:hover { border-color:#3a414f; }
-  .card.sel { outline:2px solid var(--accent); border-color:var(--accent); }
-  .card h2 { margin:0 0 4px; font-size:15px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .badge { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:20px; white-space:nowrap; }
-  .b-free{background:rgba(63,185,80,.15);color:var(--free)}
-  .b-busy,.b-reserved,.b-running{background:rgba(210,153,34,.15);color:var(--busy)}
-  .b-offline{background:rgba(110,118,129,.15);color:var(--off)}
-  .b-degraded,.b-maintenance,.b-unauthorized{background:rgba(248,81,73,.15);color:var(--bad)}
-  .b-candidate{background:rgba(56,139,253,.15);color:var(--accent)}
-  .src{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
-  .hint{color:var(--busy);font-size:12px;margin-top:8px}
-  .specs { color:var(--muted); font-size:13px; margin:8px 0 0; }
-  .specs div { display:flex; justify-content:space-between; }
-  .row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
-  button { background:#22262e; color:var(--fg); border:1px solid var(--line);
-           border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; }
-  button:hover { background:#2b303a; }
-  button:disabled { opacity:.4; cursor:not-allowed; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  button.primary:hover { background:#4c9aff; }
-  .hold { color:var(--muted); font-size:12px; margin-top:8px; }
-  #err { color:var(--bad); padding:0 24px; }
-  .prep { margin-top:10px; font-size:13px; display:flex; align-items:center; gap:8px; }
-  .prep.failed { color:var(--bad); }
-  .spinner { width:13px; height:13px; border:2px solid var(--line); border-top-color:var(--accent);
-             border-radius:50%; animation:spin .8s linear infinite; flex:none; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  .joblog { margin-top:6px; max-height:96px; overflow:auto; font:11px/1.45 ui-monospace,Menlo,monospace;
-            color:var(--muted); background:#0c0e12; border:1px solid var(--line); border-radius:6px; padding:6px 8px; white-space:pre-wrap; }
-  #batchbar { position:sticky; bottom:0; background:#191c22; border-top:1px solid var(--line);
-              padding:12px 24px; display:flex; gap:10px; align-items:center; z-index:5; }
-</style>
+<title>poligon</title>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<header>
-  <h1>poligon</h1>
-  <span class="muted" id="summary">loading…</span>
-  <span style="margin-left:auto"></span>
-  <button id="chpw" hidden onclick="changePassword()">change password</button>
-  <button id="logout" hidden onclick="logout()">sign out</button>
-</header>
-<div id="err"></div>
 
-<div id="gate" hidden style="max-width:360px;margin:15vh auto;text-align:center">
-  <h2 style="font-weight:600" id="gate-title">Sign in</h2>
-  <p class="muted" id="gate-sub" style="font-size:13px">Your farm email and password.</p>
-  <input id="email-in" type="email" placeholder="you@example.com" autocomplete="username"
-    style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
-  <input id="pw-in" type="password" placeholder="password" autocomplete="current-password"
-    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
-  <input id="pw2-in" type="password" placeholder="repeat password" autocomplete="new-password" hidden
-    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
-  <button id="gate-go" style="margin-top:10px;width:100%" onclick="submitGate()">Continue</button>
-  <div id="gate-err" style="color:#f85149;font-size:13px;margin-top:8px"></div>
-  <p class="muted" style="font-size:12px;margin-top:12px">
-    <a id="gate-switch" href="#" onclick="toggleGate();return false" style="color:#8b93a1">No account? Create one</a>
-  </p>
+<div id="gate" class="auth-wrap" hidden>
+  <form class="auth-card" onsubmit="submitGate();return false">
+    <span class="wordmark">poligon</span>
+    <h1 id="gate-title">Sign in</h1>
+    <p class="sub" id="gate-sub">Your farm email and password.</p>
+    <label class="field">
+      <span class="field-label">Email</span>
+      <input id="email-in" class="input" type="email" placeholder="you@example.com" autocomplete="username">
+    </label>
+    <label class="field">
+      <span class="field-label">Password</span>
+      <input id="pw-in" class="input" type="password" placeholder="••••••••••" autocomplete="current-password">
+    </label>
+    <label class="field" id="pw2-field" hidden>
+      <span class="field-label">Repeat password</span>
+      <input id="pw2-in" class="input" type="password" placeholder="••••••••••" autocomplete="new-password">
+    </label>
+    <button id="gate-go" class="btn btn--primary btn--block" type="submit">Continue</button>
+    <div class="form-error" id="gate-err"></div>
+    <p class="auth-alt"><a id="gate-switch" href="#" onclick="toggleGate();return false">No account? Create one</a></p>
+  </form>
 </div>
 
 <div id="app" hidden>
-  <h3 class="section" id="cand-title" hidden>New devices — connect to the farm</h3>
-  <main id="candidates"></main>
-  <h3 class="section" id="farm-title" hidden>Farm</h3>
-  <main id="pool"></main>
+  <header class="topbar">
+    <span class="wordmark">poligon</span>
+    <span class="readout" id="summary">loading…</span>
+    <span class="spacer"></span>
+    <button id="chpw" class="btn btn--ghost btn--sm" hidden onclick="changePassword()">Password</button>
+    <button id="logout" class="btn btn--ghost btn--sm" hidden onclick="logout()">Sign out</button>
+  </header>
+
+  <div class="page-error" id="err"></div>
+
+  <h2 class="section-label" id="cand-title" hidden>Intake<span class="count" id="cand-count"></span></h2>
+  <main class="grid" id="candidates"></main>
+
+  <h2 class="section-label" id="farm-title" hidden>Farm</h2>
+  <main class="grid" id="pool"></main>
 </div>
-<div id="batchbar" hidden></div>
+
+<div id="batchbar"></div>
+<div class="toasts" id="toasts"></div>
 
 <script>
 let signedIn = false;
 const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+const $ = id => document.getElementById(id);
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
+}
 
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
@@ -100,109 +76,145 @@ async function api(path, opts = {}) {
 }
 
 function showGate() {
-  document.getElementById("gate").hidden = false;
-  document.getElementById("app").hidden = true;
-  document.getElementById("logout").hidden = true;
-  document.getElementById("chpw").hidden = true;
+  $("gate").hidden = false;
+  $("app").hidden = true;
+  $("logout").hidden = true;
+  $("chpw").hidden = true;
 }
 function showApp() {
-  document.getElementById("gate").hidden = true;
-  document.getElementById("app").hidden = false;
-  document.getElementById("logout").hidden = false;
-  document.getElementById("chpw").hidden = false;
+  $("gate").hidden = true;
+  $("app").hidden = false;
+  $("logout").hidden = false;
+  $("chpw").hidden = false;
 }
+
 let registerMode = false;
 function toggleGate() {
   registerMode = !registerMode;
-  document.getElementById("gate-title").textContent = registerMode ? "Create account" : "Sign in";
-  document.getElementById("gate-sub").textContent = registerMode
+  $("gate-title").textContent = registerMode ? "Create account" : "Sign in";
+  $("gate-sub").textContent = registerMode
     ? "Pick an email and a password (at least 10 characters)."
     : "Your farm email and password.";
-  document.getElementById("pw2-in").hidden = !registerMode;
-  document.getElementById("gate-go").textContent = registerMode ? "Create account & sign in" : "Continue";
-  document.getElementById("gate-switch").textContent = registerMode ? "Already have an account? Sign in" : "No account? Create one";
-  document.getElementById("gate-err").textContent = "";
+  $("pw2-field").hidden = !registerMode;
+  $("pw-in").setAttribute("autocomplete", registerMode ? "new-password" : "current-password");
+  $("gate-go").textContent = registerMode ? "Create account & sign in" : "Continue";
+  $("gate-switch").textContent = registerMode ? "Already have an account? Sign in" : "No account? Create one";
+  $("gate-err").textContent = "";
 }
 
 async function submitGate() {
-  const email = document.getElementById("email-in").value.trim();
-  const password = document.getElementById("pw-in").value;
-  const gerr = document.getElementById("gate-err");
+  const email = $("email-in").value.trim();
+  const password = $("pw-in").value;
+  const gerr = $("gate-err");
   if (!email || !password) return;
   gerr.textContent = "";
   if (registerMode) {
     if (password.length < 10) { gerr.textContent = "Password must be at least 10 characters."; return; }
-    if (password !== document.getElementById("pw2-in").value) { gerr.textContent = "Passwords don't match."; return; }
+    if (password !== $("pw2-in").value) { gerr.textContent = "Passwords don't match."; return; }
   }
-  const r = await fetch(registerMode ? "/auth/register" : "/auth/login", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!r.ok) {
-    const b = await r.json().catch(() => ({}));
-    gerr.textContent = r.status === 429 ? "Too many attempts — wait a few minutes." : (b.error || "failed");
-    return;
+  $("gate-go").disabled = true;
+  try {
+    const r = await fetch(registerMode ? "/auth/register" : "/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      gerr.textContent = r.status === 429 ? "Too many attempts — wait a few minutes." : (b.error || "failed");
+      return;
+    }
+    signedIn = true;
+    showApp();
+    refresh();
+  } finally {
+    $("gate-go").disabled = false;
   }
-  signedIn = true;
-  showApp();
-  refresh();
 }
+
 async function logout() {
   try { await fetch("/auth/logout", { method: "POST", headers: { "X-Poligon-CSRF": csrf() } }); } catch {}
   signedIn = false;
   showGate();
 }
-async function changePassword() {
-  const current = prompt("Current password:");
-  if (!current) return;
-  const next = prompt("New password (at least 10 characters):");
-  if (!next) return;
-  const r = await fetch("/auth/password", {
-    method: "POST", headers: { "Content-Type": "application/json", "X-Poligon-CSRF": csrf() },
-    body: JSON.stringify({ current, new: next }),
-  });
-  const b = await r.json().catch(() => ({}));
-  alert(r.ok ? "Password changed." : (b.error || "Could not change password."));
+
+function changePassword() {
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML = `
+    <form class="modal" onsubmit="return false">
+      <h2>Change password</h2>
+      <label class="field"><span class="field-label">Current password</span>
+        <input class="input" type="password" id="cp-cur" autocomplete="current-password"></label>
+      <label class="field"><span class="field-label">New password</span>
+        <input class="input" type="password" id="cp-new" autocomplete="new-password" placeholder="at least 10 characters"></label>
+      <div class="form-error" id="cp-err"></div>
+      <div class="modal-actions">
+        <button class="btn" type="button" id="cp-cancel">Cancel</button>
+        <button class="btn btn--primary" type="submit" id="cp-save">Save</button>
+      </div>
+    </form>`;
+  document.body.appendChild(back);
+  const close = () => back.remove();
+  back.addEventListener("click", e => { if (e.target === back) close(); });
+  document.addEventListener("keydown", function esc(e) { if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); } });
+  $("cp-cancel").onclick = close;
+  back.querySelector(".modal").onsubmit = async () => {
+    const cur = $("cp-cur").value, next = $("cp-new").value;
+    if (!cur || next.length < 10) { $("cp-err").textContent = "New password must be at least 10 characters."; return; }
+    $("cp-save").disabled = true;
+    try {
+      const r = await fetch("/auth/password", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Poligon-CSRF": csrf() },
+        body: JSON.stringify({ current: cur, new: next }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (r.ok) { close(); toast("Password changed. Other sessions signed out.", "ok"); }
+      else { $("cp-err").textContent = b.error || "Could not change password."; $("cp-save").disabled = false; }
+    } catch (e) { $("cp-err").textContent = e.message; $("cp-save").disabled = false; }
+  };
+  $("cp-cur").focus();
 }
 
-function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
+function led(s) { return `<span class="led led--${s}">${s}</span>`; }
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+function platTag(p) { return `<span class="plat">${esc(p)}</span>`; }
 
-const sel = new Set();               // device ids ticked for a new batch
-let batch = localStorage.getItem("poligon_batch") || "";   // active batch id
-let batchIds = [];                   // device ids in the active batch
+const sel = new Set();
+let batch = localStorage.getItem("poligon_batch") || "";
+let batchIds = [];
 let fastPoll = null;
 
-// ---- farm card (adopted devices) ----
+// ---- farm card ----
 function card(d) {
   const s = d.specs || {};
-  const held = d.reservation ? `held by ${esc(d.reservation.user)}` : "";
   const canReserve = d.status === "free";
-  const canRelease = !!d.reservation;
   const selected = sel.has(d.id);
-  return `<div class="card${canReserve ? " selectable" : ""}${selected ? " sel" : ""}"
-       ${canReserve ? `onclick="toggleSel('${d.id}')"` : ""}>
-    <h2>
-      <label onclick="event.stopPropagation()"><input type="checkbox" ${canReserve ? "" : "disabled"}
-        ${selected ? "checked" : ""} onchange="toggleSel('${d.id}')"> ${esc(d.id)}</label>
-      ${badge(d.status)}
-    </h2>
-    <div class="muted">${d.platform} · ${esc(s.model || "?")} · ${esc(s.os_version || "?")}
-      <span class="src">${d.source || "config"}</span></div>
-    ${s.input_injection === "blocked" ? `<div class="hint">⚠ Screen shows but taps/swipes are blocked by the OS.
-      On MIUI: Developer options → enable <b>USB debugging (Security settings)</b>
-      (needs a SIM + Mi account signed in on the phone).</div>` : ""}
-    <div class="specs">
-      <div><span>SoC</span><span>${esc(s.soc || "—")}</span></div>
-      <div><span>RAM</span><span>${esc(s.ram || "—")}</span></div>
-      <div><span>Screen</span><span>${esc(s.screen_size || "—")} ${s.screen_density ? "@"+esc(s.screen_density) : ""}</span></div>
-      <div><span>Battery</span><span>${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
+  const cls = ["card"];
+  if (canReserve) cls.push("card--free", "card--selectable");
+  else if (["offline", "degraded", "maintenance", "unauthorized"].includes(d.status)) cls.push("card--muted");
+  if (selected) cls.push("card--selected");
+  return `<div class="${cls.join(" ")}" ${canReserve ? `onclick="toggleSel('${d.id}')"` : ""}>
+    <div class="card-head">
+      <input type="checkbox" class="card-check" ${canReserve ? "" : "disabled"} ${selected ? "checked" : ""}
+        onclick="event.stopPropagation()" onchange="toggleSel('${d.id}')">
+      <span class="card-id">${platTag(d.platform)} ${esc(d.id)}</span>
+      ${led(d.status)}
     </div>
-    ${held ? `<div class="hold">${held}</div>` : ""}
+    <div class="card-sub">${esc(s.model || "unknown model")} · ${esc(s.os_version || "?")}
+      <span class="tag">${esc(d.source || "config")}</span></div>
+    ${s.input_injection === "blocked" ? `<div class="hint">Screen mirrors but taps/swipes are blocked by the OS.
+      MIUI: Developer options → enable <b>USB debugging (Security settings)</b> (needs a SIM + Mi account on the phone).</div>` : ""}
+    <div class="specs">
+      <div class="row"><span class="k">soc</span><span class="v">${esc(s.soc || "—")}</span></div>
+      <div class="row"><span class="k">ram</span><span class="v">${esc(s.ram || "—")}</span></div>
+      <div class="row"><span class="k">screen</span><span class="v">${esc(s.screen_size || "—")}${s.screen_density ? " @" + esc(s.screen_density) : ""}</span></div>
+      <div class="row"><span class="k">battery</span><span class="v">${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
+    </div>
+    ${d.reservation ? `<div class="hold">held by <b>${esc(d.reservation.user)}</b></div>` : ""}
   </div>`;
 }
 
-// ---- candidate card (not yet adopted) ----
+// ---- candidate card ----
 function candidateCard(d) {
   const j = d.job;
   const running = j && (j.state === "running" || j.state === "queued");
@@ -210,17 +222,18 @@ function candidateCard(d) {
   const idcode = d.serial || d.udid || "";
   let prep = "";
   if (running) prep = `<div class="prep"><span class="spinner"></span><span>${esc(j.step || "preparing…")}</span></div>`;
-  else if (failed) prep = `<div class="prep failed">✗ ${esc(j.err || "preparation failed")}</div>`;
+  else if (failed) prep = `<div class="prep prep--failed">✗ ${esc(j.err || "preparation failed")}</div>`;
   const logHtml = j && j.log && j.log.length
     ? `<div class="joblog">${esc(j.log.slice(-12).join("\n"))}</div>` : "";
   return `<div class="card">
-    <h2>${esc(d.id)} ${badge("candidate")}</h2>
-    <div class="muted">${d.platform} · <code>${esc(idcode)}</code>
-      ${d.status === "unauthorized" ? badge("unauthorized") : ""}</div>
-    ${d.status === "unauthorized" ? `<div class="hint">On the device: unlock, replug USB, then
-      approve the debugging / Trust prompt.</div>` : ""}
-    <div class="row">
-      <button class="primary" ${running ? "disabled" : ""} onclick="adopt('${d.id}')">
+    <div class="card-head">
+      <span class="card-id">${platTag(d.platform)} ${esc(d.id)}</span>
+      ${led(d.status === "unauthorized" ? "unauthorized" : "candidate")}
+    </div>
+    <div class="card-sub"><code>${esc(idcode)}</code></div>
+    ${d.status === "unauthorized" ? `<div class="hint">On the device: unlock, replug USB, then approve the debugging / Trust prompt.</div>` : ""}
+    <div class="card-actions">
+      <button class="btn btn--primary" ${running ? "disabled" : ""} onclick="adopt('${d.id}')">
         ${failed ? "Retry" : running ? "Preparing…" : "Connect to farm"}</button>
     </div>
     ${prep}${logHtml}
@@ -230,34 +243,33 @@ function candidateCard(d) {
 function toggleSel(id) {
   sel.has(id) ? sel.delete(id) : sel.add(id);
   renderBar();
-  // cheap local re-render of selection outline
   refresh();
 }
 
 function renderBar() {
-  const bar = document.getElementById("batchbar");
+  const bar = $("batchbar");
   if (batch) {
-    bar.hidden = false;
-    bar.innerHTML =
-      `<b>Batch:</b> ${batchIds.length} device(s) &nbsp;` +
-      `<button class="primary" onclick="openGrid()">Open screens</button>` +
-      `<button onclick="pickBatchFile()">Install to all</button>` +
-      `<button onclick="releaseBatch()">Release all</button>` +
-      `<input type="file" id="bf" hidden accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files[0])">`;
+    bar.innerHTML = `<div class="tray">
+      <span class="tray-count">${batchIds.length}<span> in batch</span></span>
+      <button class="btn btn--primary" onclick="openGrid()">Open screens</button>
+      <button class="btn" onclick="pickBatchFile()">Install to all</button>
+      <button class="btn btn--danger" onclick="releaseBatch()">Release all</button>
+      <input type="file" id="bf" hidden accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files[0])">
+    </div>`;
     return;
   }
   if (sel.size) {
-    bar.hidden = false;
-    bar.innerHTML = `<b>${sel.size} selected</b> &nbsp;` +
-      `<button class="primary" onclick="startTesting()">Start testing (${sel.size})</button>` +
-      `<button onclick="clearSel()">Clear</button>`;
+    bar.innerHTML = `<div class="tray">
+      <span class="tray-count">${sel.size}<span> selected</span></span>
+      <button class="btn btn--primary" onclick="startTesting()">Start testing</button>
+      <button class="btn btn--ghost" onclick="clearSel()">Clear</button>
+    </div>`;
     return;
   }
-  bar.hidden = true;
+  bar.innerHTML = "";
 }
 function clearSel() { sel.clear(); renderBar(); refresh(); }
 
-// select -> reserve -> straight to the screen grid (same tab)
 async function startTesting() {
   const ids = [...sel];
   if (!ids.length) return;
@@ -268,7 +280,7 @@ async function startTesting() {
     batch = res.batch; localStorage.setItem("poligon_batch", batch);
     sel.clear();
     location.href = "/live/grid?b=" + encodeURIComponent(batch);
-  } catch (e) { alert(e.message); }
+  } catch (e) { toast(e.message, "err"); }
 }
 
 async function releaseBatch() {
@@ -276,23 +288,24 @@ async function releaseBatch() {
   batch = ""; batchIds = []; localStorage.removeItem("poligon_batch");
   refresh();
 }
-function pickBatchFile() { document.getElementById("bf").click(); }
+function pickBatchFile() { $("bf").click(); }
 async function batchUpload(file) {
   if (!file) return;
+  toast(`Installing ${file.name} on ${batchIds.length} device(s)…`);
   const fd = new FormData(); fd.append("artifact", file);
-  document.getElementById("summary").textContent = `installing ${file.name} on ${batchIds.length} devices…`;
   try {
     const res = await api(`/batches/${batch}/install`, { method: "POST", body: fd });
-    alert(`installed on ${res.ok}/${res.total}\n` +
-      res.results.filter(r => r.status !== "ok").map(r => `${r.device}: ${r.detail}`).join("\n"));
-  } catch (e) { alert(e.message); }
+    const bad = res.results.filter(r => r.status !== "ok");
+    toast(`Installed on ${res.ok}/${res.total}` + (bad.length ? "\n" + bad.map(r => `${r.device}: ${r.detail}`).join("\n") : ""),
+      bad.length ? "err" : "ok");
+  } catch (e) { toast(e.message, "err"); }
   refresh();
 }
 function openGrid() { location.href = "/live/grid?b=" + encodeURIComponent(batch); }
 
 async function adopt(id) {
   try { await api(`/devices/${id}/adopt`, { method: "POST" }); refresh(); scheduleFastPoll(); }
-  catch (e) { alert(e.message); }
+  catch (e) { toast(e.message, "err"); }
 }
 
 function scheduleFastPoll() {
@@ -303,25 +316,27 @@ function scheduleFastPoll() {
 async function refresh() {
   try {
     const pool = await api("/devices");
-    document.getElementById("err").textContent = "";
+    $("err").textContent = "";
     if (batch) {
       try { const b = await api(`/batches/${batch}`); batchIds = b.devices.map(d => d.id); }
       catch { batch = ""; batchIds = []; localStorage.removeItem("poligon_batch"); }
     }
     const cands = pool.filter(d => !d.adopted);
     const farm  = pool.filter(d => d.adopted);
-    // drop selections that are no longer free
     for (const id of [...sel]) if (!farm.find(d => d.id === id && d.status === "free")) sel.delete(id);
 
-    document.getElementById("candidates").innerHTML = cands.map(candidateCard).join("");
-    document.getElementById("pool").innerHTML = farm.map(card).join("");
-    document.getElementById("cand-title").hidden = cands.length === 0;
-    document.getElementById("farm-title").hidden = cands.length === 0; // only label the farm when there's a candidates list too
+    $("candidates").innerHTML = cands.map(candidateCard).join("");
+    $("pool").innerHTML = farm.length ? farm.map(card).join("")
+      : `<div class="empty"><div class="big">no devices on the farm</div>plug a phone in — it shows up here to connect</div>`;
+    $("cand-title").hidden = cands.length === 0;
+    $("cand-count").textContent = cands.length ? cands.length : "";
+    $("farm-title").hidden = false;
 
     const free = farm.filter(d => d.status === "free").length;
-    document.getElementById("summary").textContent =
-      `${farm.length} on farm · ${free} free` + (cands.length ? ` · ${cands.length} new` : "");
-    document.getElementById("logout").hidden = false;
+    const online = farm.filter(d => d.status !== "offline").length;
+    $("summary").innerHTML =
+      `<b>${online}</b> online<span class="sep">·</span><b>${free}</b> free` +
+      (cands.length ? `<span class="sep">·</span><b>${cands.length}</b> new` : "");
 
     const anyJob = cands.some(d => d.job && (d.job.state === "running" || d.job.state === "queued"));
     if (!anyJob && fastPoll) { clearInterval(fastPoll); fastPoll = null; }
@@ -329,39 +344,16 @@ async function refresh() {
 
     renderBar();
   } catch (e) {
-    if (e.message !== "unauthorized")
-      document.getElementById("err").textContent = e.message;
+    if (e.message !== "unauthorized") $("err").textContent = e.message;
   }
 }
 
-async function reserve(id) { try { await api(`/devices/${id}/reserve`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
-async function release(id) { try { await api(`/devices/${id}/release`, {method:"POST"}); refresh(); } catch(e){ alert(e.message); } }
-function pickFile(id) { document.getElementById("f-" + id).click(); }
-async function screen(id) {
-  try {
-    const { url } = await api(`/devices/${id}/screen`);
-    window.open(url, "poligon-screen-" + id, "width=420,height=860");
-  } catch (e) { alert(e.message); }
-}
-
-async function upload(id, file) {
-  if (!file) return;
-  const fd = new FormData();
-  fd.append("artifact", file);
-  document.getElementById("summary").textContent = `installing ${file.name} on ${id}…`;
-  try {
-    const res = await api(`/devices/${id}/install`, { method:"POST", body: fd });
-    alert(res.status === "ok" ? "installed" : "failed:\n" + res.detail);
-  } catch (e) { alert(e.message); }
-  refresh();
-}
-
 for (const id of ["email-in", "pw-in", "pw2-in"])
-  document.getElementById(id)?.addEventListener("keydown", e => { if (e.key === "Enter") submitGate(); });
+  $(id)?.addEventListener("keydown", e => { if (e.key === "Enter") submitGate(); });
 
 async function boot() {
   const r = await fetch("/auth/me").catch(() => null);
-  if (!r || !r.ok) { showGate(); return; }
+  if (!r || !r.ok) { showGate(); $("email-in").focus(); return; }
   signedIn = true;
   showApp();
   refresh();

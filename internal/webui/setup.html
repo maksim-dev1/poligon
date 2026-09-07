@@ -3,34 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — set your password</title>
-<style>
-  :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --fg:#e6e8ec; --muted:#9aa3b2; --accent:#388bfd; --bad:#f85149; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-         font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  .box { max-width:360px; margin:12vh auto; background:var(--card); border:1px solid var(--line);
-         border-radius:12px; padding:24px; }
-  h1 { font-size:17px; margin:0 0 4px; }
-  .muted { color:var(--muted); font-size:13px; }
-  label { display:block; margin:14px 0 4px; font-size:13px; }
-  input { width:100%; padding:10px; border-radius:6px; border:1px solid var(--line); background:#0c0e12;
-          color:var(--fg); font-size:15px; }
-  button { width:100%; margin-top:16px; padding:10px; border:1px solid var(--accent); background:var(--accent);
-           color:#fff; border-radius:6px; font-size:14px; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  #err { color:var(--bad); font-size:13px; margin-top:10px; min-height:18px; }
-</style>
+<title>poligon — set password</title>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<div class="box" id="box">
-  <h1>Set your password</h1>
-  <p class="muted">for <b id="who">…</b></p>
-  <label for="p1">New password <span class="muted">(at least 10 characters)</span></label>
-  <input id="p1" type="password" autocomplete="new-password">
-  <label for="p2">Repeat password</label>
-  <input id="p2" type="password" autocomplete="new-password">
-  <button id="go" onclick="submitPw()">Save &amp; sign in</button>
-  <div id="err"></div>
+<div class="auth-wrap">
+  <form class="auth-card" id="box" onsubmit="submitPw();return false">
+    <span class="wordmark">poligon</span>
+    <h1>Set your password</h1>
+    <p class="sub">for <b id="who" style="color:var(--text-2)">…</b></p>
+    <label class="field">
+      <span class="field-label">New password <span style="color:var(--text-muted)">· at least 10 characters</span></span>
+      <input id="p1" class="input" type="password" autocomplete="new-password" placeholder="••••••••••">
+    </label>
+    <label class="field">
+      <span class="field-label">Repeat password</span>
+      <input id="p2" class="input" type="password" autocomplete="new-password" placeholder="••••••••••">
+    </label>
+    <button id="go" class="btn btn--primary btn--block" type="submit">Save &amp; sign in</button>
+    <div class="form-error" id="err"></div>
+  </form>
 </div>
 
 <script>
@@ -42,6 +34,7 @@ async function load() {
   const r = await fetch("/auth/setup/check?t=" + encodeURIComponent(t));
   if (!r.ok) { fail("This link is invalid or already used."); return; }
   document.getElementById("who").textContent = (await r.json()).email;
+  document.getElementById("p1").focus();
 }
 
 async function submitPw() {
@@ -61,7 +54,8 @@ async function submitPw() {
 }
 
 function fail(m) {
-  document.getElementById("box").innerHTML = '<h1>Can’t set password</h1><p class="muted">' + m + '</p>';
+  document.getElementById("box").innerHTML =
+    '<span class="wordmark">poligon</span><h1>Can’t set password</h1><p class="sub">' + m + '</p>';
 }
 
 document.getElementById("p2").addEventListener("keydown", e => { if (e.key === "Enter") submitPw(); });
