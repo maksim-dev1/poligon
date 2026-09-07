@@ -63,6 +63,17 @@ func (c *Controller) Set(deviceID string, ep Endpoint) {
 	delete(c.proxies, deviceID)
 }
 
+// Unset drops a device's endpoint — call when its WebDriverAgent has gone away,
+// so the screen reports "down" instead of serving a stale (possibly wrong)
+// endpoint.
+func (c *Controller) Unset(deviceID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.endpoints, deviceID)
+	delete(c.sessions, deviceID)
+	delete(c.proxies, deviceID)
+}
+
 // endpoint returns a copy of a device's endpoint under the lock.
 func (c *Controller) endpoint(deviceID string) (Endpoint, bool) {
 	c.mu.Lock()

@@ -144,11 +144,15 @@ func (m *Manager) startWDA(j *Job, udid string) (iosscreen.Endpoint, *wdaProc, e
 	}
 	xctestName := xctestConfigName(app)
 
-	// iOS 17+ needs the go-ios tunnel agent; fail fast with a clear message
-	// instead of hanging 90s on a runwda that can never connect.
-	if m.iosMajor(udid) >= 17 && !tunnelReady() {
-		return iosscreen.Endpoint{}, nil, fmt.Errorf(
-			"go-ios tunnel is not running — needed for iOS 17+ (start com.pancir.go-ios-tunnel)")
+	// iOS 17+ needs the go-ios tunnel agent + a mounted Developer Disk Image.
+	if m.iosMajor(udid) >= 17 {
+		if !tunnelReady() {
+			return iosscreen.Endpoint{}, nil, fmt.Errorf(
+				"go-ios tunnel is not running — needed for iOS 17+ (start com.pancir.go-ios-tunnel)")
+		}
+		if err := m.mountDDI(j, udid); err != nil {
+			return iosscreen.Endpoint{}, nil, err
+		}
 	}
 
 	m.step(j, "installing WebDriverAgent")
@@ -230,10 +234,11 @@ func (m *Manager) Resume(ctx context.Context) {
 		return
 	}
 	for _, r := range rows {
-		// ReapOrphans ran first, so nothing from a previous poligon is alive —
-		// rebuild every screen from scratch. Register the last-known endpoint so
-		// the device shows as "configured" while its runner comes back up.
-		m.iosCtl.Set(r.DeviceID, iosscreen.Endpoint{WDA: r.WDA, MJPEG: r.MJPEG})
+		// ReapOrphans ran first, so nothing from a previous poligon is alive.
+		// Don't seed the stale endpoint — after a restart the ports get
+		// reassigned, and a stale endpoint can point at another device's WDA.
+		// The screen stays "down" until startWDA succeeds and Sets the new one.
+		m.iosCtl.Unset(r.DeviceID)
 		d, err := m.st.Device(r.DeviceID)
 		if err != nil || d.UDID == "" {
 			m.log.Warn("provision resume: cannot respawn WDA", "device", r.DeviceID)
@@ -308,6 +313,7 @@ func (m *Manager) restartIOS(d model.Device, j *Job) error {
 		return fmt.Errorf("device has no udid")
 	}
 	m.step(j, "stopping WebDriverAgent")
+	m.iosCtl.Unset(d.ID) // don't serve the old endpoint while rebuilding
 	m.stopWDA(d.ID, d.UDID)
 	time.Sleep(2 * time.Second)
 

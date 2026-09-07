@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -94,6 +95,25 @@ func freePortRange(base, n int) {
 			_ = exec.Command("kill", "-9", pid).Run()
 		}
 	}
+}
+
+// mountDDI makes sure the Developer Disk Image is mounted (iOS 17+ needs it for
+// testmanagerd). `ios image auto` is idempotent — a no-op once mounted — and
+// reuses a previously downloaded image from ddiDir/devimages.
+func (m *Manager) mountDDI(j *Job, udid string) error {
+	dir := expandHome(m.cfg.IOSWDA.DDIDir)
+	if dir == "" {
+		dir = expandHome("~/.cache/poligon/ddi")
+	}
+	_ = os.MkdirAll(dir, 0o755)
+	m.step(j, "mounting Developer Disk Image")
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	out, err := run(ctx, "ios", "image", "auto", "--basedir", dir, "--udid="+udid)
+	if err != nil {
+		return fmt.Errorf("mount Developer Disk Image (ios image auto): %w — %s", err, oneLine(out))
+	}
+	return nil
 }
 
 // tunnelReady reports whether the go-ios tunnel agent (com.pancir.go-ios-tunnel)

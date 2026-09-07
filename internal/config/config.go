@@ -67,6 +67,7 @@ type IOSWDAConfig struct {
 	Src           string `yaml:"src"`             // WebDriverAgent checkout dir (default ~/WebDriverAgent)
 	DerivedData   string `yaml:"derived_data"`    // xcodebuild -derivedDataPath — must persist across reboots (default ~/Library/Caches/poligon/wda-dd)
 	BundleID      string `yaml:"bundle_id"`       // WDA runner bundle id
+	DDIDir        string `yaml:"ddi_dir"`         // Developer Disk Image cache for `ios image auto` (iOS 17+); default ~/.cache/poligon/ddi
 	WDAPortBase   int    `yaml:"wda_port_base"`   // first host port for WDA http (default 18100)
 	MJPEGPortBase int    `yaml:"mjpeg_port_base"` // first host port for WDA mjpeg (default 19100)
 }
@@ -101,6 +102,7 @@ func Default() Config {
 			Src:           "~/WebDriverAgent",
 			DerivedData:   "~/Library/Caches/poligon/wda-dd",
 			BundleID:      "com.poligon.WebDriverAgentRunner",
+			DDIDir:        "~/.cache/poligon/ddi",
 			WDAPortBase:   18100,
 			MJPEGPortBase: 19100,
 		},
