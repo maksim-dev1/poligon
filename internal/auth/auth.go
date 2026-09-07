@@ -369,6 +369,13 @@ func (a *Auth) fromBearer(r *http.Request) (model.User, bool) {
 		return model.User{}, false
 	}
 	sum := hash(tok)
+
+	// personal API tokens (the supported path for scripted / CI callers)
+	if u, err := a.st.APITokenUser(sum); err == nil {
+		return u, true
+	}
+
+	// legacy per-user bearer token (users.token_hash) — predates the session flow
 	users, err := a.st.Users()
 	if err != nil {
 		return model.User{}, false

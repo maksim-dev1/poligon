@@ -127,7 +127,8 @@ type Run struct {
 type RunSpec struct {
 	Artifacts    map[Platform]string `json:"artifacts,omitempty"` // platform -> stored filename
 	WatchSeconds int                 `json:"watch_seconds,omitempty"`
-	FlowPath     string              `json:"flow_path,omitempty"` // maestro, later
+	FlowPath     string              `json:"flow_path,omitempty"`    // maestro
+	CallbackURL  string              `json:"callback_url,omitempty"` // POSTed the run JSON on finish
 }
 
 // RunDevice is one device's slice of a run.

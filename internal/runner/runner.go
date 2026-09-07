@@ -287,6 +287,12 @@ func (r *Runner) execute(parent context.Context, id string) {
 		_ = r.res.ReleaseBatch(run.Batch, run.User, true)
 	}
 	r.log.Info("run finished", "run", id, "status", status)
+
+	if run.Spec.CallbackURL != "" {
+		if done, e := r.st.Run(id); e == nil {
+			go r.fireCallback(run.Spec.CallbackURL, done)
+		}
+	}
 }
 
 func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevice) {

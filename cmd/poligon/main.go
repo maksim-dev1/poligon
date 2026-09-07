@@ -59,6 +59,11 @@ func main() {
 			log.Error("user", "err", err)
 			os.Exit(1)
 		}
+	case "token":
+		if err := tokenCmd(cfgPath, os.Args[2:]); err != nil {
+			log.Error("token", "err", err)
+			os.Exit(1)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -303,6 +308,9 @@ usage:
   poligon user disable <email>       block an account and kill its sessions
   poligon user enable <email>        unblock an account
   poligon user reset-password <email> clear the password, issue a new link
+  poligon token create <email> [name] mint a personal API token (shown once)
+  poligon token list <email>          list a user's API tokens
+  poligon token revoke <email> <pfx>  revoke a token by hash prefix
 
 Registration is open: anyone who can reach the dashboard signs up with an
 email + password. The CLI is for moderation (disable / reset) from the host.

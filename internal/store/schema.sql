@@ -116,3 +116,14 @@ CREATE TABLE IF NOT EXISTS run_devices (
     PRIMARY KEY (run_id, device_id)
 );
 CREATE INDEX IF NOT EXISTS idx_run_devices_run ON run_devices(run_id);
+
+-- personal API tokens for scripted / CI callers. token_hash = sha256(raw); the
+-- raw token is shown once at creation and never stored.
+CREATE TABLE IF NOT EXISTS api_tokens (
+    token_hash   TEXT PRIMARY KEY,
+    user_name    TEXT NOT NULL REFERENCES users(name),
+    name         TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_name);
