@@ -45,6 +45,34 @@ func (m *Manager) ReapOrphans() {
 	m.log.Info("provision: reaped orphan processes and freed WDA ports")
 }
 
+// reservePorts atomically picks a free WDA+MJPEG port pair for a device and
+// registers a stub proc holding them, so a concurrent startWDA for another
+// device sees them as taken. Replace the stub with the real wdaProc on success;
+// call releaseReservation on failure.
+func (m *Manager) reservePorts(udid string) (wda, mjpeg int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	used := map[int]bool{}
+	for _, p := range m.procs {
+		used[p.wdaPort] = true
+		used[p.mjpegPort] = true
+	}
+	wda = freePort(m.cfg.IOSWDA.WDAPortBase, used)
+	used[wda] = true
+	mjpeg = freePort(m.cfg.IOSWDA.MJPEGPortBase, used)
+	m.procs[udid] = &wdaProc{wdaPort: wda, mjpegPort: mjpeg} // reservation only
+	return wda, mjpeg
+}
+
+// releaseReservation drops a stub reservation (one with no running processes).
+func (m *Manager) releaseReservation(udid string) {
+	m.mu.Lock()
+	if wp := m.procs[udid]; wp != nil && wp.run == nil {
+		delete(m.procs, udid)
+	}
+	m.mu.Unlock()
+}
+
 func (m *Manager) adbBin() string {
 	if m.cfg.ADBPath != "" {
 		return m.cfg.ADBPath

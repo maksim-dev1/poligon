@@ -130,11 +130,6 @@ func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaPro
 			"go-ios tunnel is not running — needed for iOS 17+ (start com.pancir.go-ios-tunnel)")
 	}
 
-	used := m.usedPorts()
-	wdaPort := freePort(m.cfg.IOSWDA.WDAPortBase, used)
-	used[wdaPort] = true
-	mjpegPort := freePort(m.cfg.IOSWDA.MJPEGPortBase, used)
-
 	m.step(j, "installing WebDriverAgent")
 	if out, err := run(context.Background(), "ios", "install", "--path="+app, "--udid="+udid); err != nil {
 		m.logf(j, "%s", oneLine(out))
@@ -143,6 +138,17 @@ func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaPro
 
 	m.step(j, "starting WebDriverAgent on the device")
 	m.stopWDA("", udid) // clear any stale runner/forwards for this udid
+
+	// atomically reserve a distinct port pair — concurrent startWDA calls
+	// (Resume launches one goroutine per device) must not collide on 18100.
+	wdaPort, mjpegPort := m.reservePorts(udid)
+	ready := false
+	defer func() {
+		if !ready {
+			m.releaseReservation(udid)
+		}
+	}()
+
 	runCmd := exec.Command("ios", "runwda",
 		"--bundleid="+runnerID,
 		"--testrunnerbundleid="+runnerID,
@@ -182,6 +188,7 @@ func (m *Manager) startWDA(j *Job, udid, dd string) (iosscreen.Endpoint, *wdaPro
 	m.mu.Lock()
 	m.procs[udid] = wp
 	m.mu.Unlock()
+	ready = true
 	ep := iosscreen.Endpoint{
 		WDA:   fmt.Sprintf("127.0.0.1:%d", wdaPort),
 		MJPEG: fmt.Sprintf("127.0.0.1:%d", mjpegPort),
@@ -342,17 +349,6 @@ func (m *Manager) wdaTeam() string {
 		return v
 	}
 	return m.cfg.IOSWDA.Team
-}
-
-func (m *Manager) usedPorts() map[int]bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	used := map[int]bool{}
-	for _, p := range m.procs {
-		used[p.wdaPort] = true
-		used[p.mjpegPort] = true
-	}
-	return used
 }
 
 // --- process helpers ---
