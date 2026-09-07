@@ -47,8 +47,10 @@
 <div id="grid"></div>
 <script>
 const batch = new URLSearchParams(location.search).get("b");
-const tok = localStorage.getItem("poligon_token") || "";
-const H = { Authorization: "Bearer " + tok };
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+// session cookie rides along automatically; only writes need the CSRF header.
+const H = {};
+const HW = () => ({ "X-Poligon-CSRF": csrf() });
 let devices = [];
 const urls = {};              // device id -> screen url
 const sub = document.getElementById("sub");
@@ -97,7 +99,7 @@ async function installAll(file) {
   const fd = new FormData(); fd.append("artifact", file);
   setSub(`installing ${file.name} on ${devices.length} device(s)…`);
   try {
-    const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: H, body: fd });
+    const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     const bad = (b.results || []).filter(x => x.status !== "ok");
     alert(`installed on ${b.ok}/${b.total}` + (bad.length ? "\n\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""));
@@ -109,7 +111,7 @@ async function restartAll() {
   setSub("restarting screens…");
   await Promise.all(devices.map(async d => {
     try {
-      const r = await fetch(`/api/devices/${d.id}/screen/restart`, { method: "POST", headers: H });
+      const r = await fetch(`/api/devices/${d.id}/screen/restart`, { method: "POST", headers: HW() });
       if (!r.ok) return;
       for (let i = 0; i < 90; i++) {
         await new Promise(res => setTimeout(res, 2000));
@@ -123,14 +125,14 @@ async function restartAll() {
 }
 
 async function releaseOne(id) {
-  try { await fetch(`/api/devices/${id}/release`, { method: "POST", headers: H }); } catch {}
+  try { await fetch(`/api/devices/${id}/release`, { method: "POST", headers: HW() }); } catch {}
   document.getElementById("cell-" + id)?.remove();
   devices = devices.filter(d => d.id !== id);
   setSub();
 }
 
 async function releaseAll() {
-  try { await fetch(`/api/batches/${batch}/release`, { method: "POST", headers: H }); } catch {}
+  try { await fetch(`/api/batches/${batch}/release`, { method: "POST", headers: HW() }); } catch {}
   localStorage.removeItem("poligon_batch");
   location.href = "/";
 }
@@ -148,7 +150,7 @@ async function main() {
     grid.appendChild(cell(d, url));
   }
   setInterval(() => {
-    fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: H }).catch(() => {});
+    fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: HW() }).catch(() => {});
   }, 60000);
 }
 main().catch(e => document.getElementById("err").textContent = e.message);

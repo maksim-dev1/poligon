@@ -43,6 +43,9 @@ func migrate(db *sql.DB) {
 	for _, stmt := range []string{
 		`ALTER TABLE devices ADD COLUMN source TEXT NOT NULL DEFAULT 'config'`,
 		`ALTER TABLE reservations ADD COLUMN batch TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE users ADD COLUMN pass_hash TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN pass_set INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = db.Exec(stmt)
 	}

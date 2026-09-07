@@ -63,7 +63,7 @@ func (s *Server) batchHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) batchRelease(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
-	if err := s.res.ReleaseBatch(r.PathValue("batch"), u.Name, u.IsAdmin); err != nil {
+	if err := s.res.ReleaseBatch(r.PathValue("batch"), u.Name, false); err != nil {
 		fail(w, http.StatusForbidden, err)
 		return
 	}

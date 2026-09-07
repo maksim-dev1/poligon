@@ -30,12 +30,34 @@ type Config struct {
 	// (see internal/iosscreen). Omitted -> iOS live screen disabled.
 	IOSScreen map[string]iosscreen.Endpoint `yaml:"ios_screen"`
 
+	// Auth configures the login layer (sessions + TOTP).
+	Auth AuthConfig `yaml:"auth"`
+
+	// TLS, when both fields are set, makes poligon serve HTTPS directly.
+	// Otherwise it serves plain HTTP (put it behind `tailscale serve` / Caddy).
+	TLS TLSConfig `yaml:"tls"`
+
 	// IOSWDA configures automatic WebDriverAgent provisioning when an iOS
 	// device is adopted (see internal/provision). Omitted -> iOS adopt fails
 	// with a clear message and the manual scripts/ios-wda.sh is still available.
 	IOSWDA IOSWDAConfig `yaml:"ios_wda"`
 
 	Devices []DeviceSpec `yaml:"devices"`
+}
+
+// AuthConfig tunes the login layer.
+type AuthConfig struct {
+	SessionTTL  time.Duration `yaml:"session_ttl"`  // absolute cap on a session
+	SessionIdle time.Duration `yaml:"session_idle"` // sliding inactivity window
+	// PublicURL is the externally reachable base URL (e.g. https://poligon.corp).
+	// Used to build the set-password links printed by `poligon user add`.
+	PublicURL string `yaml:"public_url"`
+}
+
+// TLSConfig points at a certificate + key for direct HTTPS.
+type TLSConfig struct {
+	Cert string `yaml:"cert"`
+	Key  string `yaml:"key"`
 }
 
 // IOSWDAConfig holds the inputs scripts/ios-wda.sh needs, so poligon can run
@@ -71,6 +93,10 @@ func Default() Config {
 		ADBPath:       "adb",
 		AutoDiscover:  true,
 		LiveSidecar:   "http://127.0.0.1:8000",
+		Auth: AuthConfig{
+			SessionTTL:  14 * 24 * time.Hour,
+			SessionIdle: 24 * time.Hour,
+		},
 		IOSWDA: IOSWDAConfig{
 			Src:           "~/WebDriverAgent",
 			DerivedData:   "/tmp/wda-dd",

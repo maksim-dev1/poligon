@@ -36,6 +36,7 @@ type Server struct {
 	live *live.Proxy
 	ios  *iosscreen.Controller
 	prov *provision.Manager
+	auth *auth.Auth
 	log  *slog.Logger
 	web  http.FileSystem
 }
@@ -46,8 +47,19 @@ func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
-func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
+func (s *Server) Handler(a *auth.Auth) http.Handler {
+	s.auth = a
 	mux := http.NewServeMux()
+
+	// unauthenticated login surface
+	mux.HandleFunc("POST /auth/login", s.authLogin)
+	mux.HandleFunc("POST /auth/register", s.authRegister)
+	mux.HandleFunc("POST /auth/logout", s.authLogout)
+	mux.HandleFunc("GET /auth/setup", s.setupPage)
+	mux.HandleFunc("GET /auth/setup/check", s.setupCheck)
+	mux.HandleFunc("POST /auth/setup", s.setupSubmit)
+	mux.HandleFunc("GET /auth/me", s.authMe)
+	mux.Handle("POST /auth/password", a.Middleware(http.HandlerFunc(s.authChangePassword)))
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /devices", s.listDevices)
@@ -61,7 +73,6 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	api.HandleFunc("POST /devices/{id}/adopt", s.adoptDevice)
 	api.HandleFunc("GET /devices/{id}/adopt", s.adoptStatus)
 	api.HandleFunc("GET /devices/{id}/job", s.adoptStatus)
-	api.HandleFunc("POST /session", s.session)
 
 	// multi-device batches: reserve a set, install once to all, one grid of screens
 	api.HandleFunc("POST /batches", s.batchCreate)
@@ -81,10 +92,10 @@ func (s *Server) Handler(a *auth.Auth, devUser string) http.Handler {
 	ios.HandleFunc("GET /ios/{id}/job", s.iosJob)
 	ios.HandleFunc("GET /grid", s.screenGrid)
 
-	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(devUser)(api)))
-	mux.Handle("/live/grid", http.StripPrefix("/live", a.Middleware(devUser)(ios)))
-	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(devUser)(ios)))
-	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(devUser)(s.live.Handler())))
+	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(api)))
+	mux.Handle("/live/grid", http.StripPrefix("/live", a.Middleware(ios)))
+	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(ios)))
+	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(s.live.Handler())))
 	mux.Handle("/", http.FileServer(s.web))
 	return logging(s.log, mux)
 }
@@ -171,7 +182,7 @@ func (s *Server) reserve(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
-	err := s.res.Release(r.PathValue("id"), u.Name, u.IsAdmin)
+	err := s.res.Release(r.PathValue("id"), u.Name, false)
 	if errors.Is(err, reserve.ErrNotHolder) {
 		fail(w, http.StatusForbidden, err)
 		return
@@ -192,18 +203,6 @@ func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// session sets a cookie from the caller's bearer token so that browser
-// navigations to /live/ (iframe, WebSocket) authenticate without a header.
-func (s *Server) session(w http.ResponseWriter, r *http.Request) {
-	tok := r.Header.Get("Authorization")
-	tok = tok[len("Bearer "):]
-	http.SetCookie(w, &http.Cookie{
-		Name: "poligon_token", Value: tok, Path: "/",
-		SameSite: http.SameSiteLaxMode, MaxAge: 12 * 3600,
-	})
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 // --- iOS live screen ---
 
 // iosHolder checks the caller holds the device's reservation and iOS screen is
@@ -215,7 +214,7 @@ func (s *Server) iosHolder(w http.ResponseWriter, r *http.Request) (string, bool
 		fail(w, http.StatusNotImplemented, errors.New("iOS screen not configured for this device"))
 		return "", false
 	}
-	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+	if res, ok, _ := s.res.Holder(id); !ok || res.User != u.Name {
 		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
 		return "", false
 	}
@@ -342,7 +341,7 @@ func (s *Server) iosJob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) restartScreen(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 	id := r.PathValue("id")
-	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+	if res, ok, _ := s.res.Holder(id); !ok || res.User != u.Name {
 		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
 		return
 	}
@@ -363,7 +362,7 @@ func (s *Server) screenLink(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, err)
 		return
 	}
-	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+	if res, ok, _ := s.res.Holder(id); !ok || res.User != u.Name {
 		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
 		return
 	}
@@ -391,7 +390,7 @@ func (s *Server) install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only the holder may install
-	if res, ok, _ := s.res.Holder(id); !ok || (res.User != u.Name && !u.IsAdmin) {
+	if res, ok, _ := s.res.Holder(id); !ok || res.User != u.Name {
 		fail(w, http.StatusForbidden, errors.New("reserve the device first"))
 		return
 	}

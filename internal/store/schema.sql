@@ -25,11 +25,40 @@ CREATE TABLE IF NOT EXISTS ios_screen (
     mjpeg_pid     INTEGER NOT NULL DEFAULT 0  -- iproxy mjpeg
 );
 
+-- Farm accounts. Registration is open (anyone who can reach poligon signs up
+-- with an email + password); every account is equal, there is no admin role.
 CREATE TABLE IF NOT EXISTS users (
-    name        TEXT PRIMARY KEY,
+    name          TEXT PRIMARY KEY,          -- login id (email address)
+    token_hash    TEXT NOT NULL DEFAULT '',  -- legacy bearer token; unused by new logins
+    disabled      INTEGER NOT NULL DEFAULT 0,
+    pass_hash     TEXT NOT NULL DEFAULT '',  -- bcrypt
+    pass_set      INTEGER NOT NULL DEFAULT 0,-- 0 = account created, password not set yet
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- browser login sessions. token_hash = sha256(random 32 bytes); the raw token
+-- is only ever in the client cookie. Looked up by the unique index, not scanned.
+CREATE TABLE IF NOT EXISTS sessions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_name   TEXT NOT NULL REFERENCES users(name),
     token_hash  TEXT NOT NULL,
-    is_admin    INTEGER NOT NULL DEFAULT 0,
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at  TIMESTAMP NOT NULL,
+    ip          TEXT NOT NULL DEFAULT '',
+    user_agent  TEXT NOT NULL DEFAULT '',
+    revoked     INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_name);
+
+-- one-time "set your password" links handed out by "poligon user add".
+CREATE TABLE IF NOT EXISTS enroll_tokens (
+    token_hash  TEXT PRIMARY KEY,
+    user_name   TEXT NOT NULL REFERENCES users(name),
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at  TIMESTAMP NOT NULL,
+    used_at     TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS reservations (

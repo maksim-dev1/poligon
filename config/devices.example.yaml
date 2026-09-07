@@ -9,6 +9,19 @@ idle_timeout: 15m
 max_lease: 4h
 adb_path: "adb"
 
+# Authentication. Open self-service signup (email + password) from the dashboard;
+# no admin role. Host CLI (`poligon user ...`) handles moderation / resets.
+auth:
+  session_ttl: 336h        # absolute session lifetime (14d)
+  session_idle: 24h        # sliding inactivity window
+  # public_url: "https://poligon.corp"   # base for set-password links (defaults to localhost)
+
+# Serve HTTPS directly. Leave unset to serve plain HTTP behind
+# `tailscale serve` / Caddy (recommended for anything past the LAN).
+# tls:
+#   cert: "/etc/poligon/tls/cert.pem"
+#   key:  "/etc/poligon/tls/key.pem"
+
 devices:
   - id: pixel6-01
     platform: android

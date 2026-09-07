@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,7 +41,13 @@ func main() {
 
 	switch os.Args[1] {
 	case "serve":
-		if err := serve(log, cfgPath); err != nil {
+		devFlag := false
+		for _, a := range os.Args[2:] {
+			if a == "--dev" {
+				devFlag = true
+			}
+		}
+		if err := serve(log, cfgPath, devFlag); err != nil {
 			log.Error("serve", "err", err)
 			os.Exit(1)
 		}
@@ -54,7 +62,7 @@ func main() {
 	}
 }
 
-func serve(log *slog.Logger, cfgPath string) error {
+func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
@@ -80,7 +88,14 @@ func serve(log *slog.Logger, cfgPath string) error {
 		ProfileDir:      envOr("POLIGON_PROFILE_DIR", "config/profiles"),
 		WorkDir:         os.TempDir(),
 	})
-	a := auth.New(st.DB())
+	devUser := os.Getenv("POLIGON_DEV_USER")
+	a := auth.New(st, auth.Options{
+		SessionTTL:  cfg.Auth.SessionTTL,
+		SessionIdle: cfg.Auth.SessionIdle,
+		DevUser:     devUser,
+		DevAllow:    devUser != "" && (devFlag || isLoopbackListen(cfg.Listen)),
+		Log:         log,
+	})
 	lp := live.New(cfg.LiveSidecar, st, res, log)
 
 	// iOS screen endpoints: static config plus any persisted by earlier adopts.
@@ -94,13 +109,13 @@ func serve(log *slog.Logger, cfgPath string) error {
 	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
 
 	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, http.FS(webui.FS()), log)
-	handler := srv.Handler(a, os.Getenv("POLIGON_DEV_USER"))
+	handler := srv.Handler(a)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go mgr.Run(ctx)
-	go reapLoop(ctx, res, log)
+	go reapLoop(ctx, res, st, log)
 	go prov.Resume(ctx)
 
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: handler}
@@ -111,16 +126,38 @@ func serve(log *slog.Logger, cfgPath string) error {
 		_ = httpSrv.Shutdown(sh)
 	}()
 
-	log.Info("poligon listening", "addr", cfg.Listen, "devices", len(cfg.Devices))
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	tlsOn := cfg.TLS.Cert != "" && cfg.TLS.Key != ""
+	log.Info("poligon listening", "addr", cfg.Listen, "tls", tlsOn, "devices", len(cfg.Devices))
+	var serveErr error
+	if tlsOn {
+		serveErr = httpSrv.ListenAndServeTLS(cfg.TLS.Cert, cfg.TLS.Key)
+	} else {
+		serveErr = httpSrv.ListenAndServe()
+	}
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		return serveErr
 	}
 	return nil
 }
 
-func reapLoop(ctx context.Context, res *reserve.Manager, log *slog.Logger) {
+// isLoopbackListen reports whether a "host:port" listen address is bound to
+// localhost only — the one place the POLIGON_DEV_USER bypass is safe without --dev.
+func isLoopbackListen(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false // ":8080" binds every interface
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func reapLoop(ctx context.Context, res *reserve.Manager, st *store.Store, log *slog.Logger) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
+	purgeEvery := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,16 +168,21 @@ func reapLoop(ctx context.Context, res *reserve.Manager, log *slog.Logger) {
 			} else if n > 0 {
 				log.Info("reaped stale reservations", "count", n)
 			}
+			// sweep dead sessions roughly hourly
+			if purgeEvery%60 == 0 {
+				if err := st.PurgeExpiredSessions(); err != nil {
+					log.Warn("purge sessions", "err", err)
+				}
+			}
+			purgeEvery++
 		}
 	}
 }
 
 func userCmd(log *slog.Logger, cfgPath string, args []string) error {
-	if len(args) < 2 || args[0] != "add" {
-		return errors.New("usage: poligon user add <name> [--admin]")
+	if len(args) == 0 {
+		return errors.New("usage: poligon user <add|list|disable|enable|reset-password> ...")
 	}
-	name := args[1]
-	admin := len(args) > 2 && args[2] == "--admin"
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -152,19 +194,83 @@ func userCmd(log *slog.Logger, cfgPath string, args []string) error {
 	}
 	defer st.Close()
 
-	tok, err := auth.New(st.DB()).CreateUser(name, admin)
-	if err != nil {
-		return err
+	a := auth.New(st, auth.Options{Log: log})
+
+	switch args[0] {
+	case "add":
+		if len(args) < 2 {
+			return errors.New("usage: poligon user add <email>")
+		}
+		email := args[1]
+		tok, err := a.CreateUser(email)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("user %q created\n\nsend this one-time set-password link (valid 72h):\n  %s\n",
+			email, setupURL(cfg, tok))
+		return nil
+
+	case "reset-password":
+		if len(args) < 2 {
+			return errors.New("usage: poligon user reset-password <email>")
+		}
+		if err := st.ClearPassword(args[1]); err != nil {
+			return err
+		}
+		if err := st.RevokeUserSessions(args[1]); err != nil {
+			return err
+		}
+		tok, err := a.NewSetupToken(args[1])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("password reset for %q. New set-password link (valid 72h):\n  %s\n", args[1], setupURL(cfg, tok))
+		return nil
+
+	case "disable", "enable":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: poligon user %s <email>", args[0])
+		}
+		if err := st.SetUserDisabled(args[1], args[0] == "disable"); err != nil {
+			return err
+		}
+		fmt.Printf("user %q %sd\n", args[1], args[0])
+		return nil
+
+	case "list":
+		users, err := st.Users()
+		if err != nil {
+			return err
+		}
+		for _, u := range users {
+			flags := []string{}
+			if u.Disabled {
+				flags = append(flags, "disabled")
+			}
+			if !u.PassSet {
+				flags = append(flags, "password-pending")
+			}
+			fmt.Printf("%-32s %s\n", u.Name, strings.Join(flags, ", "))
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown user subcommand %q", args[0])
 	}
-	fmt.Printf("user %q created%s\ntoken: %s\n", name, adminSuffix(admin), tok)
-	return nil
 }
 
-func adminSuffix(a bool) string {
-	if a {
-		return " (admin)"
+// setupURL builds the set-password link from PublicURL, falling back to a
+// localhost URL derived from the listen address.
+func setupURL(cfg config.Config, token string) string {
+	base := strings.TrimRight(cfg.Auth.PublicURL, "/")
+	if base == "" {
+		_, port, _ := net.SplitHostPort(cfg.Listen)
+		if port == "" {
+			port = "8080"
+		}
+		base = "http://localhost:" + port
 	}
-	return ""
+	return base + "/auth/setup?t=" + token
 }
 
 func envOr(k, def string) string {
@@ -178,12 +284,20 @@ func usage() {
 	fmt.Fprint(os.Stderr, `poligon — phone farm control plane
 
 usage:
-  poligon serve                     run the API + dashboard + device poller
-  poligon user add <name> [--admin] create a user, print its token
+  poligon serve [--dev]              run the API + dashboard + device poller
+  poligon user add <email>           pre-create an account, print a set-password link
+  poligon user list                  list accounts and their state
+  poligon user disable <email>       block an account and kill its sessions
+  poligon user enable <email>        unblock an account
+  poligon user reset-password <email> clear the password, issue a new link
+
+Registration is open: anyone who can reach the dashboard signs up with an
+email + password. The CLI is for moderation (disable / reset) from the host.
 
 env:
   POLIGON_CONFIG            config path (default config/devices.yaml)
-  POLIGON_DEV_USER          bypass auth, treat every request as this user (dev only)
+  POLIGON_DEV_USER          bypass auth as this user; honored only on a loopback
+                           listen or with "serve --dev"
   POLIGON_BUNDLETOOL        path to bundletool.jar (aab installs)
   POLIGON_SIGNING_IDENTITY  codesign identity for iOS re-signing
   POLIGON_PROFILE_DIR       farm .mobileprovision dir (default config/profiles)

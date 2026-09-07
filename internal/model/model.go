@@ -81,10 +81,27 @@ type Reservation struct {
 	Released  bool      `json:"released"`
 }
 
-// User is a farm account.
+// User is a farm account. Name is the login identifier (an email address);
+// reservations and installs reference it, so it stays the primary key.
+// Registration is open and every account is equal — there is no admin role.
 type User struct {
 	Name      string    `json:"name"`
-	TokenHash string    `json:"-"`
-	IsAdmin   bool      `json:"is_admin"`
+	TokenHash string    `json:"-"` // legacy bearer token; unused by new logins
+	Disabled  bool      `json:"disabled"`
+	PassSet   bool      `json:"pass_set"` // password chosen; can log in
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// Session is a browser login: a server-side record keyed by a random token,
+// revocable and expiring. The token itself lives only in the client cookie;
+// the store keeps its hash.
+type Session struct {
+	ID        int64     `json:"id"`
+	User      string    `json:"user"`
+	CreatedAt time.Time `json:"created_at"`
+	LastSeen  time.Time `json:"last_seen"`
+	ExpiresAt time.Time `json:"expires_at"`
+	IP        string    `json:"ip"`
+	UserAgent string    `json:"user_agent"`
+	Revoked   bool      `json:"revoked"`
 }

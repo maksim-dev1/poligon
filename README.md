@@ -11,7 +11,7 @@ Host: Mac mini (`ssh admin@172.24.17.30`). Single Go binary + SQLite, no Redis/P
 Done:
 - device inventory from `config/devices.yaml`, health poll (adb / libimobiledevice), flap → `degraded`
 - hardware specs per device (model, SoC, RAM, screen, battery, OS)
-- users + bearer tokens (`poligon user add`)
+- auth: open self-service signup (email + password), server-side sessions, no admin role
 - reservations: one holder per device, heartbeat lease, idle + hard-cap auto-release
 - manual install via dashboard / API: apk direct, aab via bundletool, ipa re-signed with farm profiles then `ios-deploy`
 - minimal dashboard at `/`
@@ -25,17 +25,39 @@ Next:
 ```sh
 cp config/devices.example.yaml config/devices.yaml   # edit: real serials / udids
 go build -o poligon ./cmd/poligon
-./poligon user add me --admin                        # prints a token
-POLIGON_DEV_USER=me ./poligon serve                  # dev: skip auth
-# open http://localhost:8080
+POLIGON_DEV_USER=me@company.com ./poligon serve --dev # dev: bypass auth
+# open http://localhost:8080 → "Create account"
 ```
+
+## Authentication
+
+**Open registration.** Anyone who can reach the dashboard clicks *Create account*,
+picks an **email + password**, and is in. There is no admin role and no invite
+step — the network (LAN / VPN) is the perimeter. Passwords are bcrypt hashed.
+
+- Forgot your password? Someone with shell access to the host runs
+  `poligon user reset-password <email>` and hands you the one-time link it prints.
+- `poligon user list | disable <email> | enable <email> | reset-password <email> | add <email>`
+  — host-side moderation. `disable` and `reset-password` kill the user's active
+  sessions immediately. A password change from the dashboard drops the user's
+  other sessions too.
+- Sessions live server-side in SQLite: `HttpOnly` cookie, 14-day cap with a
+  24h sliding idle window, revoked on logout. CSRF is enforced (double-submit)
+  on cookie-authenticated writes.
+- Login and signup are rate-limited (5 failures per email/IP → 15-min lock).
+- Legacy `Authorization: Bearer <token>` still resolves for pre-existing
+  scripted callers; personal API tokens are a separate follow-up.
+
+Put poligon behind TLS for anything past the trusted LAN — either set `tls:` in
+the config (direct HTTPS) or front it with `tailscale serve` / Caddy. Secure
+cookies switch on automatically when the request arrives over HTTPS.
 
 ### Environment
 
 | var | meaning |
 |---|---|
 | `POLIGON_CONFIG` | config path (default `config/devices.yaml`) |
-| `POLIGON_DEV_USER` | bypass auth, treat all requests as this user (dev only) |
+| `POLIGON_DEV_USER` | bypass auth as this user; honored **only** on a loopback `listen` or with `serve --dev` |
 | `POLIGON_BUNDLETOOL` | path to `bundletool.jar` for `.aab` |
 | `POLIGON_SIGNING_IDENTITY` | codesign identity, e.g. `Apple Distribution: Company (TEAMID)` |
 | `POLIGON_PROFILE_DIR` | farm `.mobileprovision` dir (default `config/profiles`) |

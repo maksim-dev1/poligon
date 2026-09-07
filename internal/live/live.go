@@ -99,7 +99,7 @@ func (p *Proxy) mayControl(deviceID string, u model.User) bool {
 	if err != nil || !ok {
 		return false
 	}
-	return res.User == u.Name || u.IsAdmin
+	return res.User == u.Name
 }
 
 // SidecarTargets lists the serial/udid values the sidecar should expose. Used to

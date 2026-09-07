@@ -56,18 +56,25 @@
   <h1>poligon</h1>
   <span class="muted" id="summary">loading…</span>
   <span style="margin-left:auto"></span>
+  <button id="chpw" hidden onclick="changePassword()">change password</button>
   <button id="logout" hidden onclick="logout()">sign out</button>
 </header>
 <div id="err"></div>
 
 <div id="gate" hidden style="max-width:360px;margin:15vh auto;text-align:center">
-  <h2 style="font-weight:600">Sign in</h2>
-  <p class="muted" style="font-size:13px">Paste your poligon token
-    (<code>poligon user add &lt;name&gt;</code> on the host).</p>
-  <input id="token-in" type="password" placeholder="token" autocomplete="off"
+  <h2 style="font-weight:600" id="gate-title">Sign in</h2>
+  <p class="muted" id="gate-sub" style="font-size:13px">Your farm email and password.</p>
+  <input id="email-in" type="email" placeholder="you@example.com" autocomplete="username"
     style="width:100%;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
-  <button style="margin-top:10px;width:100%" onclick="login()">Continue</button>
+  <input id="pw-in" type="password" placeholder="password" autocomplete="current-password"
+    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
+  <input id="pw2-in" type="password" placeholder="repeat password" autocomplete="new-password" hidden
+    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #2a2f3a;background:#1a1d24;color:#e6e8ec">
+  <button id="gate-go" style="margin-top:10px;width:100%" onclick="submitGate()">Continue</button>
   <div id="gate-err" style="color:#f85149;font-size:13px;margin-top:8px"></div>
+  <p class="muted" style="font-size:12px;margin-top:12px">
+    <a id="gate-switch" href="#" onclick="toggleGate();return false" style="color:#8b93a1">No account? Create one</a>
+  </p>
 </div>
 
 <div id="app" hidden>
@@ -79,12 +86,14 @@
 <div id="batchbar" hidden></div>
 
 <script>
-let TOKEN = localStorage.getItem("poligon_token") || "";
-const h = () => TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
+let signedIn = false;
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
 
 async function api(path, opts = {}) {
-  const r = await fetch("/api" + path, { ...opts, headers: { ...h(), ...(opts.headers||{}) } });
-  if (r.status === 401) { showGate(); throw new Error("unauthorized"); }
+  const headers = { ...(opts.headers || {}) };
+  if (opts.method && opts.method !== "GET") headers["X-Poligon-CSRF"] = csrf();
+  const r = await fetch("/api" + path, { ...opts, headers });
+  if (r.status === 401) { signedIn = false; showGate(); throw new Error("unauthorized"); }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || r.statusText);
   return body;
@@ -94,20 +103,67 @@ function showGate() {
   document.getElementById("gate").hidden = false;
   document.getElementById("app").hidden = true;
   document.getElementById("logout").hidden = true;
+  document.getElementById("chpw").hidden = true;
 }
-async function login() {
-  const t = document.getElementById("token-in").value.trim();
-  if (!t) return;
-  const r = await fetch("/api/devices", { headers: { Authorization: "Bearer " + t } });
-  if (!r.ok) { document.getElementById("gate-err").textContent = "invalid token"; return; }
-  TOKEN = t; localStorage.setItem("poligon_token", t);
-  await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + t } });
+function showApp() {
   document.getElementById("gate").hidden = true;
   document.getElementById("app").hidden = false;
   document.getElementById("logout").hidden = false;
+  document.getElementById("chpw").hidden = false;
+}
+let registerMode = false;
+function toggleGate() {
+  registerMode = !registerMode;
+  document.getElementById("gate-title").textContent = registerMode ? "Create account" : "Sign in";
+  document.getElementById("gate-sub").textContent = registerMode
+    ? "Pick an email and a password (at least 10 characters)."
+    : "Your farm email and password.";
+  document.getElementById("pw2-in").hidden = !registerMode;
+  document.getElementById("gate-go").textContent = registerMode ? "Create account & sign in" : "Continue";
+  document.getElementById("gate-switch").textContent = registerMode ? "Already have an account? Sign in" : "No account? Create one";
+  document.getElementById("gate-err").textContent = "";
+}
+
+async function submitGate() {
+  const email = document.getElementById("email-in").value.trim();
+  const password = document.getElementById("pw-in").value;
+  const gerr = document.getElementById("gate-err");
+  if (!email || !password) return;
+  gerr.textContent = "";
+  if (registerMode) {
+    if (password.length < 10) { gerr.textContent = "Password must be at least 10 characters."; return; }
+    if (password !== document.getElementById("pw2-in").value) { gerr.textContent = "Passwords don't match."; return; }
+  }
+  const r = await fetch(registerMode ? "/auth/register" : "/auth/login", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!r.ok) {
+    const b = await r.json().catch(() => ({}));
+    gerr.textContent = r.status === 429 ? "Too many attempts — wait a few minutes." : (b.error || "failed");
+    return;
+  }
+  signedIn = true;
+  showApp();
   refresh();
 }
-function logout() { localStorage.removeItem("poligon_token"); TOKEN = ""; showGate(); }
+async function logout() {
+  try { await fetch("/auth/logout", { method: "POST", headers: { "X-Poligon-CSRF": csrf() } }); } catch {}
+  signedIn = false;
+  showGate();
+}
+async function changePassword() {
+  const current = prompt("Current password:");
+  if (!current) return;
+  const next = prompt("New password (at least 10 characters):");
+  if (!next) return;
+  const r = await fetch("/auth/password", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Poligon-CSRF": csrf() },
+    body: JSON.stringify({ current, new: next }),
+  });
+  const b = await r.json().catch(() => ({}));
+  alert(r.ok ? "Password changed." : (b.error || "Could not change password."));
+}
 
 function badge(s) { return `<span class="badge b-${s}">${s}</span>`; }
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
@@ -300,16 +356,18 @@ async function upload(id, file) {
   refresh();
 }
 
-document.getElementById("token-in")?.addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+for (const id of ["email-in", "pw-in", "pw2-in"])
+  document.getElementById(id)?.addEventListener("keydown", e => { if (e.key === "Enter") submitGate(); });
 
 async function boot() {
-  if (!TOKEN) { showGate(); return; }
-  document.getElementById("app").hidden = false;
-  await fetch("/api/session", { method: "POST", headers: { Authorization: "Bearer " + TOKEN } }).catch(() => {});
+  const r = await fetch("/auth/me").catch(() => null);
+  if (!r || !r.ok) { showGate(); return; }
+  signedIn = true;
+  showApp();
   refresh();
 }
 boot();
-setInterval(() => { if (TOKEN) refresh(); }, 5000);
+setInterval(() => { if (signedIn) refresh(); }, 5000);
 </script>
 </body>
 </html>
