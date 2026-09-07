@@ -40,8 +40,8 @@ UNAUTH=$(adb devices | awk 'NR>1 && $2!="device" && $2!="" {print $1}')
 
 # --- orphans / stale ports ---
 echo "processes"
-RW=$(pgrep -fc "ios runwda" 2>/dev/null || echo 0)
-FW=$(pgrep -fc "ios forward" 2>/dev/null || echo 0)
+RW=$(pgrep -f "ios runwda" 2>/dev/null | wc -l | tr -d " ")
+FW=$(pgrep -f "ios forward" 2>/dev/null | wc -l | tr -d " ")
 echo "  ios runwda: $RW   ios forward: $FW"
 for p in 18100 18101 19100 19101; do
   H2=$(lsof -ti tcp:$p -sTCP:LISTEN 2>/dev/null || true)
