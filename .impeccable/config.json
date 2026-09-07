@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "internal/webui/ios-screen.html"
+        ],
+        "createdAt": "2026-09-07T10:42:09.608Z",
+        "reason": "model: #screen img src is set at runtime by the MJPEG pump() loop"
+      }
+    ]
+  }
+}

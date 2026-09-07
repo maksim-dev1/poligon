@@ -53,8 +53,9 @@ function cell(d, url) {
   c.className = "tile";
   c.id = "cell-" + d.id;
   const noInput = d.specs && d.specs.input_injection === "blocked";
+  const src = url && d.platform === "ios" ? url + (url.includes("?") ? "&" : "?") + "embed=1" : url;
   const body = url
-    ? `<iframe id="if-${d.id}" src="${url}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
+    ? `<iframe id="if-${d.id}" src="${src}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
     : `<div class="tile-blank">screen unavailable</div>`;
   c.innerHTML = `
     <div class="tile-bar">
@@ -70,8 +71,10 @@ function cell(d, url) {
 }
 
 function reopen(id) {
-  const f = document.getElementById("if-" + id), u = urls[id];
-  if (f && u) f.src = u + (u.includes("?") ? "&" : "#") + "r=" + Date.now();
+  const f = document.getElementById("if-" + id);
+  if (!f) return;
+  const u = (f.getAttribute("src") || urls[id] || "").split("#")[0];
+  if (u) f.src = u + (u.includes("?") ? "&" : "#") + "r=" + Date.now();
 }
 function reloadAll() { devices.forEach(d => reopen(d.id)); }
 

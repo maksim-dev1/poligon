@@ -17,7 +17,6 @@
   <button class="btn btn--ghost btn--sm" onclick="location.reload()">Reload</button>
 </div>
 <div class="page-error" id="err"></div>
-<div class="player-hint" id="hint">tap · drag = swipe/scroll · type = text</div>
 <div class="player-stage"><img id="screen" alt="device screen" draggable="false"></div>
 <div id="dot"></div>
 <div class="player-down" id="down">
@@ -27,7 +26,9 @@
 </div>
 
 <script>
-const id = new URLSearchParams(location.search).get("id") || location.pathname.split("/").pop();
+const qs = new URLSearchParams(location.search);
+const id = qs.get("id") || location.pathname.split("/").pop();
+if (qs.get("embed")) document.body.classList.add("embed");
 const base = `/live/ios/${encodeURIComponent(id)}`;
 const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
 const img = document.getElementById("screen");
