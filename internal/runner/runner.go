@@ -27,7 +27,7 @@ import (
 )
 
 // Types is the set of run types the runner understands.
-var Types = map[string]bool{"install_smoke": true}
+var Types = map[string]bool{"install_smoke": true, "maestro": true}
 
 // Runner schedules and executes runs. One run executes at a time; devices within
 // a run run in parallel.
@@ -39,19 +39,24 @@ type Runner struct {
 	adb  *adb.ADB
 	log  *slog.Logger
 
-	dir string // artifact root: <StorageDir>/runs
-	par int    // max parallel devices per run
+	dir     string // artifact root: <StorageDir>/runs
+	maestro string // maestro binary (path or name on PATH)
+	par     int    // max parallel devices per run
 
 	wake    chan struct{}
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc
 }
 
-// New builds a Runner. dir is created on first use.
-func New(st *store.Store, res *reserve.Manager, inst *install.Installer, cap *capture.Capturer, a *adb.ADB, dir string, log *slog.Logger) *Runner {
+// New builds a Runner. dir is created on first use; maestroBin defaults to
+// "maestro" when empty.
+func New(st *store.Store, res *reserve.Manager, inst *install.Installer, cap *capture.Capturer, a *adb.ADB, dir, maestroBin string, log *slog.Logger) *Runner {
+	if maestroBin == "" {
+		maestroBin = resolveMaestro()
+	}
 	return &Runner{
 		st: st, res: res, inst: inst, cap: cap, adb: a, log: log,
-		dir: dir, par: 4,
+		dir: dir, maestro: maestroBin, par: 4,
 		wake:    make(chan struct{}, 1),
 		cancels: map[string]context.CancelFunc{},
 	}
@@ -316,6 +321,8 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 	switch run.Type {
 	case "install_smoke":
 		r.smoke(ctx, run, dev, &rd, devDir)
+	case "maestro":
+		r.runMaestro(ctx, run, dev, &rd, devDir)
 	default:
 		rd.Status, rd.Detail = model.RunSkipped, "unknown run type"
 	}

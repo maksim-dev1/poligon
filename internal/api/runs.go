@@ -42,9 +42,18 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	headers := r.MultipartForm.File["artifact"]
-	if len(headers) == 0 {
-		fail(w, http.StatusBadRequest, errors.New("no artifact uploaded"))
-		return
+	flowHeaders := r.MultipartForm.File["flow"]
+	switch typ {
+	case "install_smoke":
+		if len(headers) == 0 {
+			fail(w, http.StatusBadRequest, errors.New("no artifact uploaded"))
+			return
+		}
+	case "maestro":
+		if len(flowHeaders) != 1 {
+			fail(w, http.StatusBadRequest, errors.New("attach exactly one Maestro flow (.yaml)"))
+			return
+		}
 	}
 	dir := filepath.Join(s.cfg.StorageDir, "uploads",
 		time.Now().Format("20060102-150405")+"-run")
@@ -53,6 +62,14 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spec := model.RunSpec{Artifacts: map[model.Platform]string{}}
+	if len(flowHeaders) == 1 {
+		p, err := saveUpload(flowHeaders[0], dir)
+		if err != nil {
+			fail(w, http.StatusInternalServerError, err)
+			return
+		}
+		spec.FlowPath = p
+	}
 	for _, hdr := range headers {
 		plat := platformForExt(hdr.Filename)
 		if plat == "" {
@@ -129,11 +146,13 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 
 // runArtifact serves one file written by a run, e.g.
 // GET /api/runs/{id}/artifacts/{device}/logcat.txt
+// GET /api/runs/{id}/artifacts/{device}/maestro/recording.mp4
 func (s *Server) runArtifact(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	device := r.PathValue("device")
-	name := r.PathValue("name")
-	if strings.ContainsAny(id+device+name, "/\\") || strings.Contains(name, "..") {
+	rel := r.PathValue("path")
+	if strings.ContainsAny(id, "/\\") || strings.ContainsAny(device, "/\\") ||
+		strings.Contains(rel, "..") || strings.Contains(rel, "\\") {
 		fail(w, http.StatusBadRequest, errors.New("bad path"))
 		return
 	}
@@ -142,8 +161,8 @@ func (s *Server) runArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	root := filepath.Join(s.cfg.StorageDir, "runs")
-	path := filepath.Join(root, id, device, name)
-	if !strings.HasPrefix(path, root+string(filepath.Separator)) {
+	path := filepath.Join(root, id, device, filepath.Clean("/"+rel))
+	if path != root && !strings.HasPrefix(path, root+string(filepath.Separator)) {
 		fail(w, http.StatusBadRequest, errors.New("bad path"))
 		return
 	}

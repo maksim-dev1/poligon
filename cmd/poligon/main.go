@@ -114,7 +114,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 
 	capt := capture.New(adb.New(cfg.ADBPath), iosCtl)
 	run := runner.New(st, res, inst, capt, adb.New(cfg.ADBPath),
-		filepath.Join(cfg.StorageDir, "runs"), log)
+		filepath.Join(cfg.StorageDir, "runs"), os.Getenv("POLIGON_MAESTRO"), log)
 	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, capt, run, http.FS(webui.FS()), log)
 	handler := srv.Handler(a)
 

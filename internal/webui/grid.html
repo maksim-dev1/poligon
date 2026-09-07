@@ -14,6 +14,7 @@
   <span class="spacer"></span>
   <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install build(s)</button>
   <button class="btn btn--sm" onclick="pickSmoke()">Smoke test</button>
+  <button class="btn btn--sm" onclick="pickMaestro()">Maestro run</button>
   <button class="btn btn--ghost btn--sm" onclick="location.href='/runs.html'">Runs</button>
   <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
   <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
@@ -21,6 +22,7 @@
   <button class="btn btn--danger btn--sm" onclick="releaseAll()">Release all</button>
   <input type="file" id="installFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files); this.value=''">
   <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
+  <input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
 </header>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
@@ -157,6 +159,36 @@ async function startSmoke(files) {
   for (const d of devices) fd.append("device", d.id);
   for (const f of files) fd.append("artifact", f);
   toast(`Starting smoke test on ${devices.length} device(s)…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Run ${b.id} queued`, "ok");
+    setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function pickMaestro() { document.getElementById("maestroFile").click(); }
+
+async function startMaestro(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+  const flows = files.filter(f => /\.ya?ml$/i.test(f.name));
+  const builds = files.filter(f => !/\.ya?ml$/i.test(f.name));
+  if (flows.length !== 1) { toast("pick exactly one .yaml flow (plus optional build(s))", "err"); return; }
+  const byPlat = {};
+  for (const f of builds) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: not a build or a .yaml`, "err"); return; }
+    if (byPlat[p]) { toast(`two ${p} builds selected`, "err"); return; }
+    byPlat[p] = f;
+  }
+  const fd = new FormData();
+  fd.append("type", "maestro");
+  fd.append("flow", flows[0]);
+  for (const f of builds) fd.append("artifact", f);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Starting Maestro run on ${devices.length} device(s)…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();

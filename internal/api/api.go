@@ -93,7 +93,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("GET /runs", s.listRuns)
 	api.HandleFunc("GET /runs/{id}", s.getRun)
 	api.HandleFunc("POST /runs/{id}/cancel", s.cancelRun)
-	api.HandleFunc("GET /runs/{id}/artifacts/{device}/{name}", s.runArtifact)
+	api.HandleFunc("GET /runs/{id}/artifacts/{device}/{path...}", s.runArtifact)
 
 	// iOS live screen (WebDriverAgent-backed): player page + MJPEG + input.
 	ios := http.NewServeMux()
