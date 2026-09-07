@@ -604,10 +604,12 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
 /* ---- iOS screen player ------------------------------------------- */
 
 body.ios-player {
+  /* fill the frame/window exactly without relying on vh/dvh (unreliable inside
+     an iframe) so the flex column always has a bounded height */
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;   /* dynamic viewport — don't hide behind mobile toolbars */
   overflow: hidden;
 }
 .player-bar {
@@ -622,11 +624,18 @@ body.ios-player {
 .player-bar .status { font: 500 12px/1 var(--mono); color: var(--text-2); }
 .player-bar .sp { margin-left: auto; }
 .player-hint {
-  padding: 6px 12px;
-  font: 400 12px/1.4 var(--mono);
+  flex: none;
+  padding: 4px 12px;
+  font: 400 11px/1.3 var(--mono);
   color: var(--text-3);
   background: var(--bg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.player-bar { flex: none; }
+.page-error { flex: none; }
+.page-error:empty { display: none; }
 .player-stage {
   flex: 1;
   min-height: 0;   /* let the column shrink below the image's intrinsic height */
