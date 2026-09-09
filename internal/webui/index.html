@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,42 +11,61 @@
 <div id="gate" class="auth-wrap" hidden>
   <form class="auth-card" onsubmit="submitGate();return false">
     <span class="wordmark">poligon</span>
-    <h1 id="gate-title">Sign in</h1>
-    <p class="sub" id="gate-sub">Your farm email and password.</p>
+    <h1 id="gate-title">Вход</h1>
+    <p class="sub" id="gate-sub">Почта и пароль от фермы.</p>
     <label class="field">
-      <span class="field-label">Email</span>
+      <span class="field-label">Почта</span>
       <input id="email-in" class="input" type="email" placeholder="you@example.com" autocomplete="username">
     </label>
     <label class="field">
-      <span class="field-label">Password</span>
+      <span class="field-label">Пароль</span>
       <input id="pw-in" class="input" type="password" placeholder="••••••••••" autocomplete="current-password">
     </label>
     <label class="field" id="pw2-field" hidden>
-      <span class="field-label">Repeat password</span>
+      <span class="field-label">Повторите пароль</span>
       <input id="pw2-in" class="input" type="password" placeholder="••••••••••" autocomplete="new-password">
     </label>
-    <button id="gate-go" class="btn btn--primary btn--block" type="submit">Continue</button>
+    <button id="gate-go" class="btn btn--primary btn--block" type="submit">Войти</button>
     <div class="form-error" id="gate-err"></div>
-    <p class="auth-alt"><a id="gate-switch" href="#" onclick="toggleGate();return false">No account? Create one</a></p>
+    <p class="auth-alt"><a id="gate-switch" href="#" onclick="toggleGate();return false">Нет аккаунта? Создать</a></p>
   </form>
 </div>
 
 <div id="app" hidden>
   <header class="topbar">
     <span class="wordmark">poligon</span>
-    <span class="readout" id="summary">loading…</span>
-    <span class="health" id="health" title="checking system…"></span>
+    <span class="readout" id="summary">загрузка…</span>
+    <span class="health" id="health" title="проверка системы…"></span>
     <span class="spacer"></span>
-    <button id="chpw" class="btn btn--ghost btn--sm" hidden onclick="changePassword()">Password</button>
-    <button id="logout" class="btn btn--ghost btn--sm" hidden onclick="logout()">Sign out</button>
+    <button id="chpw" class="btn btn--ghost btn--sm" hidden onclick="changePassword()">Пароль</button>
+    <button id="logout" class="btn btn--ghost btn--sm" hidden onclick="logout()">Выйти</button>
   </header>
 
   <div class="page-error" id="err"></div>
 
-  <h2 class="section-label" id="cand-title" hidden>Intake<span class="count" id="cand-count"></span></h2>
+  <h1 class="page-title">Мобильные устройства</h1>
+
+  <section class="filterbar">
+    <input id="f-q" class="input filter-search" type="search" placeholder="Бренд, модель, MSISDN, с/н"
+      oninput="onFilterChange()">
+    <label class="checkbox"><input type="checkbox" id="f-android" checked onchange="onFilterChange()"> Android</label>
+    <label class="checkbox"><input type="checkbox" id="f-ios" checked onchange="onFilterChange()"> iOS</label>
+    <select id="f-os" class="select" onchange="onFilterChange()"><option value="">Версия ОС</option></select>
+    <label class="switch"><input type="checkbox" id="f-free" onchange="onFilterChange()"> Только свободные</label>
+    <div class="viewtoggle" role="group" aria-label="Вид">
+      <button type="button" class="icon-btn" id="v-grid" aria-pressed="true" title="Плитки" onclick="setView('grid')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="v-list" aria-pressed="false" title="Список" onclick="setView('list')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.5" y2="6"/><line x1="3.5" y1="12" x2="3.5" y2="12"/><line x1="3.5" y1="18" x2="3.5" y2="18"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <h2 class="section-label" id="cand-title" hidden>Новые устройства<span class="count" id="cand-count"></span></h2>
   <main class="grid" id="candidates"></main>
 
-  <h2 class="section-label" id="farm-title" hidden>Farm</h2>
+  <h2 class="section-label" id="farm-title" hidden>Ферма</h2>
   <main class="grid" id="pool"></main>
 </div>
 
@@ -92,14 +111,14 @@ function showApp() {
 let registerMode = false;
 function toggleGate() {
   registerMode = !registerMode;
-  $("gate-title").textContent = registerMode ? "Create account" : "Sign in";
+  $("gate-title").textContent = registerMode ? "Регистрация" : "Вход";
   $("gate-sub").textContent = registerMode
-    ? "Pick an email and a password (at least 10 characters)."
-    : "Your farm email and password.";
+    ? "Выберите почту и пароль (не короче 10 символов)."
+    : "Почта и пароль от фермы.";
   $("pw2-field").hidden = !registerMode;
   $("pw-in").setAttribute("autocomplete", registerMode ? "new-password" : "current-password");
-  $("gate-go").textContent = registerMode ? "Create account & sign in" : "Continue";
-  $("gate-switch").textContent = registerMode ? "Already have an account? Sign in" : "No account? Create one";
+  $("gate-go").textContent = registerMode ? "Создать и войти" : "Войти";
+  $("gate-switch").textContent = registerMode ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Создать";
   $("gate-err").textContent = "";
 }
 
@@ -110,8 +129,8 @@ async function submitGate() {
   if (!email || !password) return;
   gerr.textContent = "";
   if (registerMode) {
-    if (password.length < 10) { gerr.textContent = "Password must be at least 10 characters."; return; }
-    if (password !== $("pw2-in").value) { gerr.textContent = "Passwords don't match."; return; }
+    if (password.length < 10) { gerr.textContent = "Пароль должен быть не короче 10 символов."; return; }
+    if (password !== $("pw2-in").value) { gerr.textContent = "Пароли не совпадают."; return; }
   }
   $("gate-go").disabled = true;
   try {
@@ -121,7 +140,7 @@ async function submitGate() {
     });
     if (!r.ok) {
       const b = await r.json().catch(() => ({}));
-      gerr.textContent = r.status === 429 ? "Too many attempts — wait a few minutes." : (b.error || "failed");
+      gerr.textContent = r.status === 429 ? "Слишком много попыток — подождите несколько минут." : (b.error || "ошибка");
       return;
     }
     signedIn = true;
@@ -143,15 +162,15 @@ function changePassword() {
   back.className = "modal-backdrop";
   back.innerHTML = `
     <form class="modal" onsubmit="return false">
-      <h2>Change password</h2>
-      <label class="field"><span class="field-label">Current password</span>
+      <h2>Смена пароля</h2>
+      <label class="field"><span class="field-label">Текущий пароль</span>
         <input class="input" type="password" id="cp-cur" autocomplete="current-password"></label>
-      <label class="field"><span class="field-label">New password</span>
-        <input class="input" type="password" id="cp-new" autocomplete="new-password" placeholder="at least 10 characters"></label>
+      <label class="field"><span class="field-label">Новый пароль</span>
+        <input class="input" type="password" id="cp-new" autocomplete="new-password" placeholder="не короче 10 символов"></label>
       <div class="form-error" id="cp-err"></div>
       <div class="modal-actions">
-        <button class="btn" type="button" id="cp-cancel">Cancel</button>
-        <button class="btn btn--primary" type="submit" id="cp-save">Save</button>
+        <button class="btn" type="button" id="cp-cancel">Отмена</button>
+        <button class="btn btn--primary" type="submit" id="cp-save">Сохранить</button>
       </div>
     </form>`;
   document.body.appendChild(back);
@@ -161,7 +180,7 @@ function changePassword() {
   $("cp-cancel").onclick = close;
   back.querySelector(".modal").onsubmit = async () => {
     const cur = $("cp-cur").value, next = $("cp-new").value;
-    if (!cur || next.length < 10) { $("cp-err").textContent = "New password must be at least 10 characters."; return; }
+    if (!cur || next.length < 10) { $("cp-err").textContent = "Новый пароль должен быть не короче 10 символов."; return; }
     $("cp-save").disabled = true;
     try {
       const r = await fetch("/auth/password", {
@@ -169,18 +188,78 @@ function changePassword() {
         body: JSON.stringify({ current: cur, new: next }),
       });
       const b = await r.json().catch(() => ({}));
-      if (r.ok) { close(); toast("Password changed. Other sessions signed out.", "ok"); }
-      else { $("cp-err").textContent = b.error || "Could not change password."; $("cp-save").disabled = false; }
+      if (r.ok) { close(); toast("Пароль изменён. Другие сессии завершены.", "ok"); }
+      else { $("cp-err").textContent = b.error || "Не удалось сменить пароль."; $("cp-save").disabled = false; }
     } catch (e) { $("cp-err").textContent = e.message; $("cp-save").disabled = false; }
   };
   $("cp-cur").focus();
 }
 
-function led(s) { return `<span class="led led--${s}">${s}</span>`; }
+const LED_RU = {
+  free: "свободно", online: "онлайн", reserved: "занято", busy: "занято",
+  running: "работает", offline: "офлайн", degraded: "сбой", maintenance: "обслуж.",
+  unauthorized: "не авторизовано", candidate: "новое", error: "ошибка",
+};
+function led(s) { return `<span class="led led--${s}">${LED_RU[s] || s}</span>`; }
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 function platTag(p) { return `<span class="plat">${esc(p)}</span>`; }
 
 const sel = new Set();
+
+// ---- filters + list/grid view ----
+let lastPool = [];
+const filters = { q: "", android: true, ios: true, os: "", freeOnly: false };
+let view = localStorage.getItem("poligon_view") || "grid";
+
+function onFilterChange() {
+  filters.q = $("f-q").value.trim().toLowerCase();
+  filters.android = $("f-android").checked;
+  filters.ios = $("f-ios").checked;
+  filters.os = $("f-os").value;
+  filters.freeOnly = $("f-free").checked;
+  renderPool();
+}
+
+function setView(v) {
+  view = v;
+  localStorage.setItem("poligon_view", v);
+  $("v-grid").setAttribute("aria-pressed", String(v === "grid"));
+  $("v-list").setAttribute("aria-pressed", String(v === "list"));
+  $("pool").classList.toggle("grid--list", v === "list");
+}
+
+function matchesFilters(d) {
+  const s = d.specs || {};
+  if (!filters.android && d.platform === "android") return false;
+  if (!filters.ios && d.platform === "ios") return false;
+  if (filters.freeOnly && d.status !== "free") return false;
+  if (filters.os && s.os_version !== filters.os) return false;
+  if (filters.q) {
+    const hay = [d.id, s.model, s.soc, s.os_version, d.phone_number, d.msisdn,
+      d.serial, d.udid, d.reservation && d.reservation.user]
+      .filter(Boolean).join(" ").toLowerCase();
+    if (!hay.includes(filters.q)) return false;
+  }
+  return true;
+}
+
+function rebuildOsOptions(pool) {
+  const cur = $("f-os").value;
+  const vers = [...new Set(pool.map(d => d.specs && d.specs.os_version).filter(Boolean))].sort();
+  $("f-os").innerHTML = `<option value="">Версия ОС</option>` +
+    vers.map(v => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(v)}</option>`).join("");
+}
+
+function renderPool() {
+  const farm = lastPool.filter(d => d.adopted);
+  const shown = farm.filter(matchesFilters);
+  $("pool").innerHTML = shown.length
+    ? shown.map(card).join("")
+    : (farm.length
+        ? `<div class="empty"><div class="big">ничего не найдено</div>измените фильтры</div>`
+        : `<div class="empty"><div class="big">на ферме нет устройств</div>подключите телефон — он появится здесь</div>`);
+}
+
 let batch = localStorage.getItem("poligon_batch") || "";
 let batchIds = [];
 let batchDevs = [];
@@ -203,17 +282,17 @@ function card(d) {
       <span class="card-id">${platTag(d.platform)} ${esc(d.id)}</span>
       ${led(d.status)}
     </div>
-    <div class="card-sub">${esc(s.model || "unknown model")} · ${esc(s.os_version || "?")}
+    <div class="card-sub">${esc(s.model || "модель неизвестна")} · ${esc(s.os_version || "?")}
       <span class="tag">${esc(d.source || "config")}</span></div>
-    ${s.input_injection === "blocked" ? `<div class="hint">Screen mirrors but taps/swipes are blocked by the OS.
-      MIUI: Developer options → enable <b>USB debugging (Security settings)</b> (needs a SIM + Mi account on the phone).</div>` : ""}
+    ${s.input_injection === "blocked" ? `<div class="hint">Экран транслируется, но тапы и свайпы блокирует ОС.
+      MIUI: «Для разработчиков» → включить <b>отладку по USB (настройки безопасности)</b> (нужны SIM и Mi-аккаунт на телефоне).</div>` : ""}
     <div class="specs">
       <div class="row"><span class="k">soc</span><span class="v">${esc(s.soc || "—")}</span></div>
       <div class="row"><span class="k">ram</span><span class="v">${esc(s.ram || "—")}</span></div>
       <div class="row"><span class="k">screen</span><span class="v">${esc(s.screen_size || "—")}${s.screen_density ? " @" + esc(s.screen_density) : ""}</span></div>
       <div class="row"><span class="k">battery</span><span class="v">${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
     </div>
-    ${d.reservation ? `<div class="hold">held by <b>${esc(d.reservation.user)}</b></div>` : ""}
+    ${d.reservation ? `<div class="hold">занял <b>${esc(d.reservation.user)}</b></div>` : ""}
   </div>`;
 }
 
@@ -224,8 +303,8 @@ function candidateCard(d) {
   const failed = j && j.state === "failed";
   const idcode = d.serial || d.udid || "";
   let prep = "";
-  if (running) prep = `<div class="prep"><span class="spinner"></span><span>${esc(j.step || "preparing…")}</span></div>`;
-  else if (failed) prep = `<div class="prep prep--failed">✗ ${esc(j.err || "preparation failed")}</div>`;
+  if (running) prep = `<div class="prep"><span class="spinner"></span><span>${esc(j.step || "подготовка…")}</span></div>`;
+  else if (failed) prep = `<div class="prep prep--failed">✗ ${esc(j.err || "подготовка не удалась")}</div>`;
   const logHtml = j && j.log && j.log.length
     ? `<div class="joblog">${esc(j.log.slice(-12).join("\n"))}</div>` : "";
   return `<div class="card">
@@ -234,10 +313,10 @@ function candidateCard(d) {
       ${led(d.status === "unauthorized" ? "unauthorized" : "candidate")}
     </div>
     <div class="card-sub"><code>${esc(idcode)}</code></div>
-    ${d.status === "unauthorized" ? `<div class="hint">On the device: unlock, replug USB, then approve the debugging / Trust prompt.</div>` : ""}
+    ${d.status === "unauthorized" ? `<div class="hint">На устройстве: разблокируйте, переподключите USB и подтвердите запрос отладки / «Доверять».</div>` : ""}
     <div class="card-actions">
       <button class="btn btn--primary" ${running ? "disabled" : ""} onclick="adopt('${d.id}')">
-        ${failed ? "Retry" : running ? "Preparing…" : "Connect to farm"}</button>
+        ${failed ? "Повторить" : running ? "Подготовка…" : "Подключить"}</button>
     </div>
     ${prep}${logHtml}
   </div>`;
@@ -253,19 +332,19 @@ function renderBar() {
   const bar = $("batchbar");
   if (batch) {
     bar.innerHTML = `<div class="tray">
-      <span class="tray-count">${batchIds.length}<span> in batch</span></span>
-      <button class="btn btn--primary" onclick="openGrid()">Open screens</button>
-      <button class="btn" onclick="pickBatchFile()">Install build(s)</button>
-      <button class="btn btn--danger" onclick="releaseBatch()">Release all</button>
+      <span class="tray-count">${batchIds.length}<span> в партии</span></span>
+      <button class="btn btn--primary" onclick="openGrid()">Открыть экраны</button>
+      <button class="btn" onclick="pickBatchFile()">Установить сборку</button>
+      <button class="btn btn--danger" onclick="releaseBatch()">Освободить все</button>
       <input type="file" id="bf" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files); this.value=''">
     </div>`;
     return;
   }
   if (sel.size) {
     bar.innerHTML = `<div class="tray">
-      <span class="tray-count">${sel.size}<span> selected</span></span>
-      <button class="btn btn--primary" onclick="startTesting()">Start testing</button>
-      <button class="btn btn--ghost" onclick="clearSel()">Clear</button>
+      <span class="tray-count">${sel.size}<span> выбрано</span></span>
+      <button class="btn btn--primary" onclick="startTesting()">Начать тест</button>
+      <button class="btn btn--ghost" onclick="clearSel()">Очистить</button>
     </div>`;
     return;
   }
@@ -304,25 +383,25 @@ async function batchUpload(files) {
   const byPlat = {};
   for (const f of files) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
-    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
     byPlat[p] = f;
   }
   const need = [...new Set(batchDevs.map(d => d.platform))];
   const missing = need.filter(p => !byPlat[p]);
   if (missing.length) {
-    toast(`batch has ${missing.join(" + ")} device(s) — add ${missing.map(p => p === "ios" ? "an .ipa" : "an .apk/.aab").join(" + ")}`, "err");
+    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте ${missing.map(p => p === "ios" ? ".ipa" : ".apk/.aab").join(" + ")}`, "err");
     return;
   }
 
   const label = files.map(f => f.name).join(" + ");
-  toast(`Installing ${label} on ${batchIds.length} device(s)…`);
+  toast(`Устанавливаю ${label} на ${batchIds.length} устр.…`);
   const fd = new FormData();
   for (const f of files) fd.append("artifact", f);
   try {
     const res = await api(`/batches/${batch}/install`, { method: "POST", body: fd });
     const bad = (res.results || []).filter(r => r.status !== "ok" && r.status !== "skipped");
-    toast(`Installed on ${res.ok}/${res.total}` + (bad.length ? "\n" + bad.map(r => `${r.device}: ${r.detail}`).join("\n") : ""),
+    toast(`Установлено на ${res.ok}/${res.total}` + (bad.length ? "\n" + bad.map(r => `${r.device}: ${r.detail}`).join("\n") : ""),
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
   refresh();
@@ -351,9 +430,10 @@ async function refresh() {
     const farm  = pool.filter(d => d.adopted);
     for (const id of [...sel]) if (!farm.find(d => d.id === id && d.status === "free")) sel.delete(id);
 
+    lastPool = pool;
+    rebuildOsOptions(pool);
     $("candidates").innerHTML = cands.map(candidateCard).join("");
-    $("pool").innerHTML = farm.length ? farm.map(card).join("")
-      : `<div class="empty"><div class="big">no devices on the farm</div>plug a phone in — it shows up here to connect</div>`;
+    renderPool();
     $("cand-title").hidden = cands.length === 0;
     $("cand-count").textContent = cands.length ? cands.length : "";
     $("farm-title").hidden = false;
@@ -361,8 +441,8 @@ async function refresh() {
     const free = farm.filter(d => d.status === "free").length;
     const online = farm.filter(d => d.status !== "offline").length;
     $("summary").innerHTML =
-      `<b>${online}</b> online<span class="sep">·</span><b>${free}</b> free` +
-      (cands.length ? `<span class="sep">·</span><b>${cands.length}</b> new` : "");
+      `<b>${online}</b> онлайн<span class="sep">·</span><b>${free}</b> свободно` +
+      (cands.length ? `<span class="sep">·</span><b>${cands.length}</b> новых` : "");
 
     const anyJob = cands.some(d => d.job && (d.job.state === "running" || d.job.state === "queued"));
     if (!anyJob && fastPoll) { clearInterval(fastPoll); fastPoll = null; }
@@ -375,6 +455,7 @@ async function refresh() {
 }
 
 async function boot() {
+  setView(view);
   const r = await fetch("/auth/me").catch(() => null);
   if (!r || !r.ok) { showGate(); $("email-in").focus(); return; }
   signedIn = true;
@@ -389,14 +470,14 @@ async function pollHealth() {
   try {
     const h = await (await fetch("/healthz")).json();
     const bad = [];
-    if (!h.ws_scrcpy) bad.push("ws-scrcpy sidecar down");
-    if (!h.go_ios_tunnel) bad.push("go-ios tunnel down");
-    if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS screen(s) down`);
+    if (!h.ws_scrcpy) bad.push("ws-scrcpy sidecar недоступен");
+    if (!h.go_ios_tunnel) bad.push("go-ios tunnel недоступен");
+    if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS-экран(ов) недоступно`);
     el.className = "health " + (bad.length ? "health--warn" : "health--ok");
-    el.title = bad.length ? bad.join(" · ") : `all systems ok · ${h.adb_devices ?? "?"} adb device(s)`;
+    el.title = bad.length ? bad.join(" · ") : `все системы в норме · ${h.adb_devices ?? "?"} adb-устр.`;
   } catch {
     el.className = "health health--warn";
-    el.title = "health check failed";
+    el.title = "проверка системы не удалась";
   }
 }
 pollHealth();

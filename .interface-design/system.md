@@ -62,6 +62,33 @@ Radius scale: `--r-xs 4` (checkbox/tag) · `--r-sm 5` (inputs/buttons) ·
   ok/err/accent. `.modal` — replaces `prompt()`; centered, `scale(.97)` in.
 - `.wall` / `.tile` — screen grid: 8px gutter, 28px mono chrome strip, iframe fills.
 
+## Layout patterns (2026-09-09)
+
+UI language is **Russian**. Keep technical tokens verbatim (device ids,
+`.apk/.ipa`, MSISDN, MIUI, USB, WebDriverAgent, Maestro, logcat, adb).
+
+- **`.page-title`** — real 20px/600 page heading (`Мобильные устройства`),
+  replaces the tiny uppercase section label as the primary heading.
+- **`.filterbar`** — bordered `--surface` panel above the farm grid: search
+  (`.input.filter-search`), `.checkbox` per platform, `.select` OS-version
+  (options built from live `specs.os_version`), `.switch` `Только свободные`,
+  `.viewtoggle` on the right. All filtering is client-side over the last
+  `/api/devices` fetch — no extra round-trip. State in `filters` + localStorage
+  (`poligon_view`).
+- **`.checkbox` / `.switch` / `.select`** — form controls matching `.input`
+  metrics; switch turns `--ok` green when on, knob is a pseudo-element.
+- **`.icon-btn`** — shared 28px square icon button (rail, pill, viewtoggle,
+  tile-bar). Icons are inline `<svg stroke="currentColor">`, 16px, no files.
+- **`.grid--list`** — list view for the device grid; pure CSS over the same
+  card DOM (horizontal row, `.specs` collapses to an inline strip).
+- **`.wall-pill`** — screen wall's single floating control bar, top-center:
+  zoom −/%/+ (`--tile-scale` on `.wall`, persisted in `poligon_zoom`),
+  `Запуск ▾` menu (`.wall-menu-pop`) holding the run actions, health dot,
+  `Ферма`, `Завершить работу`. The old text-button topbar is gone.
+- **`.tile-rail`** — per-tile vertical icon column (screenshot / logcat /
+  pop-out), hidden until tile hover. **`.tile-info`** — spec popover toggled
+  by the `i` button in the slim `.tile-bar` (`×` · id · `⇄` reopen · `i`).
+
 ## Motion
 
 < 200ms, `--ease = cubic-bezier(0.23,1,0.32,1)`. No entrance animation on the

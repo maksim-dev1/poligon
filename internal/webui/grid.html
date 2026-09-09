@@ -1,30 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — screens</title>
+<title>poligon — экраны</title>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<header class="topbar">
-  <span class="wordmark">poligon</span>
+<div class="wall-pill" id="pill">
+  <div class="zoom">
+    <button class="icon-btn" title="Уменьшить" onclick="setZoom(-10)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <span class="pct" id="zoom">100%</span>
+    <button class="icon-btn" title="Увеличить" onclick="setZoom(10)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+  <span class="divider"></span>
+  <div class="wall-menu">
+    <button class="btn btn--sm" onclick="toggleMenu()">Запуск
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="wall-menu-pop" id="menu" hidden>
+      <button class="btn" onclick="pickInstall();closeMenu()">Установить сборку</button>
+      <button class="btn" onclick="pickSmoke();closeMenu()">Смоук-тест</button>
+      <button class="btn" onclick="pickMaestro();closeMenu()">Maestro</button>
+      <button class="btn" onclick="commandRun();closeMenu()">Команда</button>
+      <button class="btn" onclick="location.href='/runs.html'">Прогоны</button>
+      <button class="btn" onclick="restartAll();closeMenu()">Перезапустить экраны</button>
+      <button class="btn" onclick="reloadAll();closeMenu()">Обновить</button>
+    </div>
+  </div>
+  <span class="health" id="health" title="проверка системы…"></span>
   <span class="readout" id="sub"></span>
-  <span class="health" id="health" title="checking system…"></span>
-  <span class="spacer"></span>
-  <button class="btn btn--primary btn--sm" onclick="pickInstall()">Install build(s)</button>
-  <button class="btn btn--sm" onclick="pickSmoke()">Smoke test</button>
-  <button class="btn btn--sm" onclick="pickMaestro()">Maestro run</button>
-  <button class="btn btn--sm" onclick="commandRun()">Command run</button>
-  <button class="btn btn--ghost btn--sm" onclick="location.href='/runs.html'">Runs</button>
-  <button class="btn btn--sm" onclick="restartAll()">Restart screens</button>
-  <button class="btn btn--sm" onclick="reloadAll()">Reload</button>
-  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
-  <button class="btn btn--danger btn--sm" onclick="releaseAll()">Release all</button>
+  <span class="divider"></span>
+  <a class="btn btn--ghost btn--sm" href="/">Ферма</a>
+  <button class="btn btn--danger btn--sm" onclick="releaseAll()">Завершить работу</button>
   <input type="file" id="installFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files); this.value=''">
   <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
   <input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
-</header>
+</div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
 <div class="toasts" id="toasts"></div>
@@ -42,9 +58,10 @@ function defaultSub() {
   const by = {};
   for (const d of devices) by[d.platform] = (by[d.platform] || 0) + 1;
   const parts = Object.entries(by).map(([p, n]) => `${n} ${p}`);
-  return parts.join(" · ") || `${devices.length} device(s)`;
+  return parts.join(" · ") || `${devices.length} устр.`;
 }
 function setSub(t) { sub.textContent = t || defaultSub(); }
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
 function toast(msg, kind) {
   const el = document.createElement("div");
@@ -54,12 +71,43 @@ function toast(msg, kind) {
   setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
 }
 
+// ---- zoom ----
+let zoom = +(localStorage.getItem("poligon_zoom") || 100);
+function applyZoom() {
+  zoom = Math.max(50, Math.min(200, Math.round(zoom / 10) * 10));
+  document.getElementById("grid").style.setProperty("--tile-scale", (zoom / 100).toFixed(2));
+  document.getElementById("zoom").textContent = zoom + "%";
+  localStorage.setItem("poligon_zoom", zoom);
+}
+function setZoom(d) { zoom += d; applyZoom(); }
+
+// ---- run menu ----
+function toggleMenu() { const m = document.getElementById("menu"); m.hidden = !m.hidden; }
+function closeMenu() { document.getElementById("menu").hidden = true; }
+document.addEventListener("click", e => { if (!e.target.closest(".wall-menu")) closeMenu(); });
+
+function toggleInfo(id) { const el = document.getElementById("info-" + id); if (el) el.hidden = !el.hidden; }
+
 async function screenURL(id) {
   try {
     const r = await fetch(`/api/devices/${id}/screen`, { headers: H });
     if (!r.ok) return null;
     return (await r.json()).url;
   } catch { return null; }
+}
+
+function specRows(s) {
+  s = s || {};
+  const rows = [
+    ["модель", s.model],
+    ["ОС", s.os_version],
+    ["soc", s.soc],
+    ["ram", s.ram],
+    ["экран", s.screen_size ? s.screen_size + (s.screen_density ? " @" + s.screen_density : "") : ""],
+    ["батарея", s.battery >= 0 ? s.battery + "%" : ""],
+  ].filter(([, v]) => v);
+  return rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`).join("")
+    || `<div class="row"><span class="k">нет данных</span><span class="v">—</span></div>`;
 }
 
 function cell(d, url) {
@@ -70,17 +118,29 @@ function cell(d, url) {
   const src = url && d.platform === "ios" ? url + (url.includes("?") ? "&" : "?") + "embed=1" : url;
   const body = url
     ? `<iframe id="if-${d.id}" src="${src}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
-    : `<div class="tile-blank">screen unavailable</div>`;
+    : `<div class="tile-blank">экран недоступен</div>`;
+  const icon = {
+    x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>`,
+    swap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+    info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12" y2="8"/></svg>`,
+    cam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+    doc: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`,
+    ext: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+  };
   c.innerHTML = `
     <div class="tile-bar">
-      <span class="id">${d.id}</span><span class="plat">${d.platform}</span>
-      ${noInput ? `<span class="noinput" title="taps blocked by the OS — enable MIUI USB debugging (Security settings)">no input</span>` : ""}
+      <button class="icon-btn is-danger" title="Освободить устройство" onclick="releaseOne('${d.id}')">${icon.x}</button>
+      <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
+      ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
       <span class="sp"></span>
-      <button class="btn" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')" title="open a screenshot">Shot</button>
-      ${d.platform === "android" ? `<button class="btn" onclick="window.open('/api/devices/${d.id}/logcat','_blank')" title="download logcat since last grab">Log</button>` : ""}
-      <button class="btn" onclick="reopen('${d.id}')">Reopen</button>
-      <button class="btn" onclick="window.open(urls['${d.id}'],'w-${d.id}')">Pop out</button>
-      <button class="btn btn--danger" onclick="releaseOne('${d.id}')">Release</button>
+      <button class="icon-btn" title="Переоткрыть экран" onclick="reopen('${d.id}')">${icon.swap}</button>
+      <button class="icon-btn" title="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
+    </div>
+    <div class="tile-info" id="info-${d.id}" hidden><div class="specs">${specRows(d.specs)}</div></div>
+    <div class="tile-rail">
+      <button class="icon-btn" title="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
+      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
+      <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
     </div>
     ${body}`;
   return c;
@@ -106,25 +166,24 @@ async function installAll(files) {
   files = [...(files || [])];
   if (!files.length) return;
 
-  // classify + reject unknown / duplicate-platform uploads client-side
   const byPlat = {};
   for (const f of files) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
-    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
     byPlat[p] = f;
   }
 
   const need = batchPlatforms();
   const missing = need.filter(p => !byPlat[p]);
   if (missing.length) {
-    toast(`batch has ${missing.join(" + ")} device(s) — add ${missing.map(p => p === "ios" ? "an .ipa" : "an .apk/.aab").join(" + ")}`, "err");
+    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте ${missing.map(p => p === "ios" ? ".ipa" : ".apk/.aab").join(" + ")}`, "err");
     return;
   }
 
   const label = files.map(f => f.name).join(" + ");
-  toast(`Installing ${label} on ${devices.length} device(s)…`);
-  setSub(`installing ${label}…`);
+  toast(`Устанавливаю ${label} на ${devices.length} устр.…`);
+  setSub(`установка ${label}…`);
   const fd = new FormData();
   for (const f of files) fd.append("artifact", f);
   try {
@@ -132,7 +191,7 @@ async function installAll(files) {
     const b = await r.json();
     if (!r.ok && !b.results) throw new Error(b.error || r.statusText);
     const bad = (b.results || []).filter(x => x.status !== "ok" && x.status !== "skipped");
-    toast(`Installed on ${b.ok}/${b.total}` + (bad.length ? "\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""),
+    toast(`Установлено на ${b.ok}/${b.total}` + (bad.length ? "\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""),
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
   setSub();
@@ -146,25 +205,25 @@ async function startSmoke(files) {
   const byPlat = {};
   for (const f of files) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: not an .apk/.aab/.apks or .ipa`, "err"); return; }
-    if (byPlat[p]) { toast(`two ${p} builds selected — pick one`, "err"); return; }
+    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
     byPlat[p] = f;
   }
   const missing = batchPlatforms().filter(p => !byPlat[p]);
   if (missing.length) {
-    toast(`batch has ${missing.join(" + ")} device(s) — add a build for each`, "err");
+    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте сборку для каждой платформы`, "err");
     return;
   }
   const fd = new FormData();
   fd.append("type", "install_smoke");
   for (const d of devices) fd.append("device", d.id);
   for (const f of files) fd.append("artifact", f);
-  toast(`Starting smoke test on ${devices.length} device(s)…`);
+  toast(`Запускаю смоук-тест на ${devices.length} устр.…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Run ${b.id} queued`, "ok");
+    toast(`Прогон ${b.id} в очереди`, "ok");
     setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
   } catch (e) { toast(e.message, "err"); }
 }
@@ -176,12 +235,12 @@ async function startMaestro(files) {
   if (!files.length) return;
   const flows = files.filter(f => /\.ya?ml$/i.test(f.name));
   const builds = files.filter(f => !/\.ya?ml$/i.test(f.name));
-  if (flows.length !== 1) { toast("pick exactly one .yaml flow (plus optional build(s))", "err"); return; }
+  if (flows.length !== 1) { toast("выберите ровно один .yaml-флоу (плюс необязательные сборки)", "err"); return; }
   const byPlat = {};
   for (const f of builds) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: not a build or a .yaml`, "err"); return; }
-    if (byPlat[p]) { toast(`two ${p} builds selected`, "err"); return; }
+    if (!p) { toast(`${f.name}: не сборка и не .yaml`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p}`, "err"); return; }
     byPlat[p] = f;
   }
   const fd = new FormData();
@@ -189,35 +248,35 @@ async function startMaestro(files) {
   fd.append("flow", flows[0]);
   for (const f of builds) fd.append("artifact", f);
   for (const d of devices) fd.append("device", d.id);
-  toast(`Starting Maestro run on ${devices.length} device(s)…`);
+  toast(`Запускаю Maestro на ${devices.length} устр.…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Run ${b.id} queued`, "ok");
+    toast(`Прогон ${b.id} в очереди`, "ok");
     setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
   } catch (e) { toast(e.message, "err"); }
 }
 
 async function commandRun() {
-  const cmd = prompt("Shell command to run on each device.\nEnv: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (cwd).\nFiles written to cwd are collected as artifacts.");
+  const cmd = prompt("Команда, которая выполнится на каждом устройстве.\nОкружение: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (cwd).\nФайлы в cwd собираются как артефакты.");
   if (!cmd) return;
   const fd = new FormData();
   fd.append("type", "command");
   fd.append("command", cmd);
   for (const d of devices) fd.append("device", d.id);
-  toast(`Starting command run on ${devices.length} device(s)…`);
+  toast(`Запускаю команду на ${devices.length} устр.…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Run ${b.id} queued`, "ok");
+    toast(`Прогон ${b.id} в очереди`, "ok");
     setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
   } catch (e) { toast(e.message, "err"); }
 }
 
 async function restartAll() {
-  setSub("restarting screens…");
+  setSub("перезапуск экранов…");
   await Promise.all(devices.map(async d => {
     try {
       const r = await fetch(`/api/devices/${d.id}/screen/restart`, { method: "POST", headers: HW() });
@@ -247,9 +306,10 @@ async function releaseAll() {
 }
 
 async function main() {
-  if (!batch) { document.getElementById("err").textContent = "no batch"; return; }
+  applyZoom();
+  if (!batch) { document.getElementById("err").textContent = "нет партии"; return; }
   const b = await (await fetch(`/api/batches/${batch}`, { headers: H })).json();
-  if (!b.devices) { document.getElementById("err").textContent = b.error || "batch not found"; return; }
+  if (!b.devices) { document.getElementById("err").textContent = b.error || "партия не найдена"; return; }
   devices = b.devices;
   setSub();
   const grid = document.getElementById("grid");
@@ -269,14 +329,14 @@ async function pollHealth() {
   try {
     const h = await (await fetch("/healthz")).json();
     const bad = [];
-    if (!h.ws_scrcpy) bad.push("ws-scrcpy sidecar down");
-    if (!h.go_ios_tunnel) bad.push("go-ios tunnel down");
-    if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS screen(s) down`);
+    if (!h.ws_scrcpy) bad.push("ws-scrcpy sidecar недоступен");
+    if (!h.go_ios_tunnel) bad.push("go-ios tunnel недоступен");
+    if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS-экран(ов) недоступно`);
     el.className = "health " + (bad.length ? "health--warn" : "health--ok");
-    el.title = bad.length ? bad.join(" · ") : "all systems ok";
+    el.title = bad.length ? bad.join(" · ") : "все системы в норме";
   } catch {
     el.className = "health health--warn";
-    el.title = "health check failed";
+    el.title = "проверка системы не удалась";
   }
 }
 pollHealth();

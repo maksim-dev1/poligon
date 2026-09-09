@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — test runs</title>
+<title>poligon — прогоны тестов</title>
 <link rel="stylesheet" href="/app.css">
 <style>
   .runs { padding: 12px 18px 96px; display: grid; gap: 10px; max-width: 900px; }
@@ -53,9 +53,9 @@
 <body>
 <header class="topbar">
   <span class="wordmark">poligon</span>
-  <span class="readout">test runs</span>
+  <span class="readout">прогоны тестов</span>
   <span class="spacer"></span>
-  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Farm</button>
+  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Ферма</button>
 </header>
 <div class="page-error" id="err"></div>
 <div class="runs" id="runs"></div>
@@ -63,6 +63,11 @@
 <script>
 const want = new URLSearchParams(location.search).get("r");
 const open = new Set(want ? [want] : []);
+const ST = {
+  passed: "пройден", failed: "провален", error: "ошибка", running: "выполняется",
+  queued: "в очереди", canceled: "отменён", skipped: "пропущен", pending: "ожидание",
+};
+const stName = s => ST[s] || s;
 const fmt = t => t ? new Date(t).toLocaleString() : "—";
 const dur = (a, b) => {
   if (!a) return "";
@@ -75,7 +80,7 @@ function devRow(runId, d) {
     `<a href="/api/runs/${runId}/artifacts/${d.device_id}/${n}" target="_blank">${n}</a>`).join("");
   return `<div class="run-dev">
     <span class="did">${d.device_id}${d.package ? ` · ${d.package}` : ""}</span>
-    <span class="pill ${d.status}">${d.status}</span>
+    <span class="pill ${d.status}">${stName(d.status)}</span>
     ${d.detail ? `<span class="ddetail">${d.detail}</span>` : ""}
     ${arts ? `<span class="darts">${arts}</span>` : ""}
   </div>`;
@@ -88,14 +93,14 @@ function runCard(r) {
   return `<div class="run" id="run-${r.id}">
     <div class="run-head" onclick="toggle('${r.id}')">
       <span class="run-id">${r.id}</span>
-      <span class="pill ${r.status}">${r.status}</span>
+      <span class="pill ${r.status}">${stName(r.status)}</span>
       <span class="run-type">${r.type}${r.detail ? ` — ${r.detail}` : ""}</span>
       <span class="run-when">${fmt(r.created_at)} · ${dur(r.started_at, r.finished_at)}</span>
       <span class="run-act" onclick="event.stopPropagation()">
         ${["passed","failed","error","canceled"].includes(r.status)
-          ? `<button class="btn" onclick="rerun('${r.id}')">Re-run</button>` : ""}
+          ? `<button class="btn" onclick="rerun('${r.id}')">Повторить</button>` : ""}
         ${["queued","running"].includes(r.status)
-          ? `<button class="btn btn--danger" onclick="cancelRun('${r.id}')">Cancel</button>` : ""}
+          ? `<button class="btn btn--danger" onclick="cancelRun('${r.id}')">Отменить</button>` : ""}
       </span>
     </div>${devs}
   </div>`;
@@ -123,7 +128,7 @@ let LAST = [];
 function render(runs) {
   LAST = runs;
   const el = document.getElementById("runs");
-  if (!runs.length) { el.innerHTML = `<div class="empty2">no runs yet — start one from the screen grid</div>`; return; }
+  if (!runs.length) { el.innerHTML = `<div class="empty2">прогонов пока нет — запустите со стены экранов</div>`; return; }
   el.innerHTML = runs.map(runCard).join("");
 }
 

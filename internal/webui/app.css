@@ -563,16 +563,15 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
 
 .wall {
   display: grid;
-  gap: 8px;
+  gap: 8px 20px;
   padding: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(288px * var(--tile-scale, 1)), 1fr));
 }
 .tile {
   display: flex;
   flex-direction: column;
-  height: 78vh;
-  height: 78dvh;
-  min-height: 420px;
+  height: calc(78dvh * var(--tile-scale, 1));
+  min-height: calc(420px * var(--tile-scale, 1));
   background: #000;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -689,6 +688,276 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
   color: var(--down);
   white-space: pre-wrap;
 }
+
+/* ---- page title + filter bar (device grid) --------------------------- */
+
+.page-title {
+  margin: 22px 18px 12px;
+  font: 600 20px/1.2 var(--sans);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.filterbar {
+  margin: 0 18px 18px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.filterbar .filter-search { flex: 1 1 260px; min-width: 200px; }
+.filterbar .select { flex: 0 0 auto; }
+.filterbar .viewtoggle { margin-left: auto; }
+
+/* checkbox — reuses .card-check visuals with a label */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.checkbox input {
+  appearance: none;
+  width: 16px; height: 16px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  background: var(--inset);
+  cursor: pointer;
+  flex: none;
+  position: relative;
+  transition: background .12s var(--ease), border-color .12s var(--ease);
+}
+.checkbox input:checked { background: var(--accent); border-color: var(--accent); }
+.checkbox input:checked::after {
+  content: "";
+  position: absolute;
+  left: 4.5px; top: 1.5px;
+  width: 4px; height: 8px;
+  border: solid var(--accent-fg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.checkbox input:focus-visible { box-shadow: var(--ring); }
+
+/* toggle switch */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: 500 12.5px/1 var(--sans);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.switch input {
+  appearance: none;
+  width: 34px; height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--inset);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  flex: none;
+  position: relative;
+  transition: background .14s var(--ease), border-color .14s var(--ease);
+}
+.switch input::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: transform .14s var(--ease), background .14s var(--ease);
+}
+.switch input:checked { background: var(--ok); border-color: var(--ok); }
+.switch input:checked::after { transform: translateX(14px); background: #fff; }
+.switch input:focus-visible { box-shadow: var(--ring); }
+
+/* native select styled like .input, offline caret */
+.select {
+  appearance: none;
+  height: 34px;
+  padding: 0 30px 0 11px;
+  font: 400 13px/1 var(--sans);
+  color: var(--text);
+  background: var(--inset)
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%238f96a1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>')
+    no-repeat right 9px center;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color .12s var(--ease), box-shadow .12s var(--ease);
+}
+.select:hover { border-color: var(--line-strong); }
+.select:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.select option { background: var(--surface-2); color: var(--text); }
+
+/* shared square icon button */
+.icon-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  padding: 0;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  flex: none;
+  transition: background .12s var(--ease), color .12s var(--ease), border-color .12s var(--ease);
+}
+.icon-btn:hover { background: var(--surface); color: var(--text); }
+.icon-btn:active { transform: scale(0.94); }
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.icon-btn svg { width: 16px; height: 16px; display: block; }
+.icon-btn.is-danger:hover { color: var(--down); background: rgba(229,84,75,.12); }
+
+/* grid / list segmented toggle */
+.viewtoggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.viewtoggle .icon-btn { width: 26px; height: 24px; }
+.viewtoggle .icon-btn[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line-2);
+}
+
+/* ---- list view for the device grid --------------------------------- */
+
+.grid--list { grid-template-columns: 1fr; gap: 6px; }
+.grid--list .card { padding: 10px 12px; }
+.grid--list .card--free::before { display: none; }
+.grid--list .card-head { flex-wrap: wrap; }
+.grid--list .card-sub { margin-top: 4px; }
+.grid--list .specs {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.grid--list .specs .row { justify-content: flex-start; gap: 6px; }
+.grid--list .hint,
+.grid--list .hold { margin-top: 8px; }
+
+/* ---- screen wall: floating control pill ---------------------------- */
+
+.wall-pill {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 12px 32px -8px rgba(0,0,0,.6);
+  max-width: calc(100vw - 24px);
+  flex-wrap: wrap;
+}
+.wall-pill .zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wall-pill .zoom .pct {
+  min-width: 42px;
+  text-align: center;
+  font: 500 12px/1 var(--mono);
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+.wall-pill .divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line-2);
+  margin: 2px 0;
+}
+.wall-pill .health { margin: 0 2px; }
+
+.wall-menu { position: relative; }
+.wall-menu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 200px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.6);
+  z-index: 45;
+}
+.wall-menu-pop .btn {
+  justify-content: flex-start;
+  height: 30px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+.wall-menu-pop .btn:hover { background: var(--surface); color: var(--text); }
+
+/* ---- screen wall: per-tile rail + info popover -------------------- */
+
+.wall { --tile-scale: 1; padding-top: 64px; }
+.tile { position: relative; }
+.tile-rail {
+  position: absolute;
+  top: 38px;
+  right: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.tile-rail .icon-btn { background: transparent; }
+.tile-rail .icon-btn:hover { background: var(--surface); }
+.tile-rail { opacity: 0; transition: opacity .12s var(--ease); }
+.tile:hover .tile-rail,
+.tile-rail:focus-within { opacity: 1; }
+
+.tile-info {
+  position: absolute;
+  top: 38px;
+  left: 6px;
+  z-index: 6;
+  width: min(240px, calc(100% - 60px));
+  padding: 10px 11px;
+  background: var(--inset);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 28px -10px rgba(0,0,0,.6);
+}
+.tile-info .specs { margin-top: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
