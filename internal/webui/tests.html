@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>тесты</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .head { flex: none; padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
+  .head .sub { font: 400 12px/1.4 var(--sans); color: var(--text-muted); margin-top: 2px; }
+  .cards { flex: 1; overflow: auto; padding: 12px 14px; display: grid; gap: 10px; }
+  .card {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+    font: inherit; color: inherit;
+  }
+  .card:hover { background: var(--surface-2); border-color: var(--line-2); }
+  .card:disabled { opacity: .45; cursor: not-allowed; }
+  .card:disabled:hover { background: var(--surface); border-color: var(--line); }
+  .card .icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
+  .card .icon svg { width: 17px; height: 17px; }
+  .card .body { min-width: 0; }
+  .card .title { font: 600 13px/1.3 var(--sans); color: var(--text); }
+  .card .desc { font: 400 12px/1.5 var(--sans); color: var(--text-muted); margin-top: 2px; }
+  .foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="head">
+  <div id="title">Тесты</div>
+  <div class="sub" id="sub">загрузка партии…</div>
+</div>
+<div class="cards" id="cards">
+  <button class="card" onclick="pickSmoke()">
+    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg></span>
+    <span class="body"><span class="title">Смоук-тест</span><span class="desc">Установить сборку, запустить, проверить что не упала (install_smoke)</span></span>
+  </button>
+  <button class="card" onclick="pickMaestro()">
+    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+    <span class="body"><span class="title">Maestro</span><span class="desc">Прогнать .yaml-флоу, опционально с новой сборкой</span></span>
+  </button>
+  <button class="card" onclick="commandRun()">
+    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+    <span class="body"><span class="title">Команда</span><span class="desc">Любая shell-команда на устройстве — escape hatch для appium и своих скриптов</span></span>
+  </button>
+  <button class="card" id="itCard" onclick="pickIntegrationTest()">
+    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/></svg></span>
+    <span class="body"><span class="title">Integration test <span style="font-weight:400;color:var(--text-muted)">(Android)</span></span><span class="desc">App apk + androidTest apk, запускает am instrument</span></span>
+  </button>
+</div>
+<div class="foot"><button class="btn btn--sm" onclick="location.href='/runs.html'">Все прогоны →</button></div>
+<div class="toasts" id="toasts"></div>
+<input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
+<input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
+<input type="file" id="itAppFile" hidden accept=".apk" onchange="onITAppPicked(this.files[0]); this.value=''">
+<input type="file" id="itTestFile" hidden accept=".apk" onchange="onITTestPicked(this.files[0]); this.value=''">
+<script>
+const batch = new URLSearchParams(location.search).get("b");
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+const HW = () => ({ "X-Poligon-CSRF": csrf() });
+const platExt = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
+let devices = [];
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
+}
+function batchPlatforms() { return [...new Set(devices.map(d => d.platform))]; }
+function platformOf(name) {
+  const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+  for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
+  return null;
+}
+// leaving this tab's job done — hand the run off to runs.html, right here in
+// the same side panel, instead of yanking the whole dashboard away
+function goToRun(id) { location.href = "/runs.html?r=" + id; }
+
+function pickSmoke() { document.getElementById("smokeFile").click(); }
+async function startSmoke(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+  const byPlat = {};
+  for (const f of files) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
+    byPlat[p] = f;
+  }
+  const missing = batchPlatforms().filter(p => !byPlat[p]);
+  if (missing.length) {
+    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте сборку для каждой платформы`, "err");
+    return;
+  }
+  const fd = new FormData();
+  fd.append("type", "install_smoke");
+  for (const d of devices) fd.append("device", d.id);
+  for (const f of files) fd.append("artifact", f);
+  toast(`Запускаю смоук-тест на ${devices.length} устр.…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Прогон ${b.id} в очереди`, "ok");
+    setTimeout(() => goToRun(b.id), 500);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function pickMaestro() { document.getElementById("maestroFile").click(); }
+async function startMaestro(files) {
+  files = [...(files || [])];
+  if (!files.length) return;
+  const flows = files.filter(f => /\.ya?ml$/i.test(f.name));
+  const builds = files.filter(f => !/\.ya?ml$/i.test(f.name));
+  if (flows.length !== 1) { toast("выберите ровно один .yaml-флоу (плюс необязательные сборки)", "err"); return; }
+  const byPlat = {};
+  for (const f of builds) {
+    const p = platformOf(f.name);
+    if (!p) { toast(`${f.name}: не сборка и не .yaml`, "err"); return; }
+    if (byPlat[p]) { toast(`выбрано две сборки ${p}`, "err"); return; }
+    byPlat[p] = f;
+  }
+  const fd = new FormData();
+  fd.append("type", "maestro");
+  fd.append("flow", flows[0]);
+  for (const f of builds) fd.append("artifact", f);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Запускаю Maestro на ${devices.length} устр.…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Прогон ${b.id} в очереди`, "ok");
+    setTimeout(() => goToRun(b.id), 500);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function commandRun() {
+  const cmd = prompt("Команда, которая выполнится на каждом устройстве.\nОкружение: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (cwd).\nФайлы в cwd собираются как артефакты.");
+  if (!cmd) return;
+  const fd = new FormData();
+  fd.append("type", "command");
+  fd.append("command", cmd);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Запускаю команду на ${devices.length} устр.…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Прогон ${b.id} в очереди`, "ok");
+    setTimeout(() => goToRun(b.id), 500);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// integration_test: two apks, asked one at a time — same extension, no way
+// to tell app vs androidTest apart by filename alone
+let itAppFile = null;
+function pickIntegrationTest() {
+  if (!batchPlatforms().includes("android")) {
+    toast("integration_test пока только для Android — в партии нет android-устройств", "err");
+    return;
+  }
+  itAppFile = null;
+  toast("Выберите APK приложения…");
+  document.getElementById("itAppFile").click();
+}
+function onITAppPicked(file) {
+  if (!file) return;
+  itAppFile = file;
+  toast("Теперь выберите androidTest APK…");
+  document.getElementById("itTestFile").click();
+}
+async function onITTestPicked(file) {
+  if (!file || !itAppFile) return;
+  const appFile = itAppFile;
+  itAppFile = null;
+  const fd = new FormData();
+  fd.append("type", "integration_test");
+  fd.append("artifact", appFile);
+  fd.append("test_artifact", file);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Запускаю integration_test на ${devices.length} устр.…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Прогон ${b.id} в очереди`, "ok");
+    setTimeout(() => goToRun(b.id), 500);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function main() {
+  if (!batch) { document.getElementById("sub").textContent = "нет партии"; return; }
+  try {
+    const b = await (await fetch(`/api/batches/${batch}`, { credentials: "same-origin" })).json();
+    if (!b.devices) { document.getElementById("sub").textContent = b.error || "партия не найдена"; return; }
+    devices = b.devices;
+    const by = {};
+    for (const d of devices) by[d.platform] = (by[d.platform] || 0) + 1;
+    document.getElementById("sub").textContent =
+      Object.entries(by).map(([p, n]) => `${n} ${p}`).join(" · ") || "0 устройств";
+    if (!batchPlatforms().includes("android")) {
+      document.getElementById("itCard").disabled = true;
+      document.getElementById("itCard").title = "в партии нет android-устройств";
+    }
+  } catch (e) {
+    document.getElementById("sub").textContent = e.message;
+  }
+}
+main();
+</script>
+</body>
+</html>
