@@ -953,6 +953,8 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
 .tile-rail .icon-btn { width: 26px; height: 26px; }
 .tile-rail-sep { height: 1px; background: var(--line-2); margin: 3px 2px; }
 .tile-rail .icon-btn:hover { background: var(--surface); }
+.tile-rail .icon-btn.is-recording { color: var(--down); animation: rec-pulse 1.4s ease-in-out infinite; }
+@keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
 .tile-info {
   position: absolute;

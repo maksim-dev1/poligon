@@ -162,6 +162,22 @@ func (c *Capturer) LaunchApp(ctx context.Context, dev model.Device, pkg string) 
 	return c.adb.Launch(ctx, dev.Serial, pkg)
 }
 
+// StartRecording starts a screen recording (Android only).
+func (c *Capturer) StartRecording(dev model.Device) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("screen recording unsupported on %s", dev.Platform)
+	}
+	return c.adb.StartScreenRecord(dev.Serial)
+}
+
+// StopRecording ends the active screen recording so its file can be pulled.
+func (c *Capturer) StopRecording(ctx context.Context, dev model.Device) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("screen recording unsupported on %s", dev.Platform)
+	}
+	return c.adb.StopScreenRecord(ctx, dev.Serial)
+}
+
 // UIDump captures the current screen's view hierarchy as XML.
 func (c *Capturer) UIDump(ctx context.Context, dev model.Device) (string, error) {
 	if dev.Platform != model.Android {

@@ -327,6 +327,36 @@ func (a *ADB) Uninstall(ctx context.Context, serial, pkg string) (string, error)
 	return a.run(ctx, "-s", serial, "uninstall", pkg)
 }
 
+// RecordPath is the fixed on-device path a recording is written to and
+// pulled from — one active recording per device at a time, same as the
+// farm's "one run at a time" model elsewhere.
+const RecordPath = "/sdcard/poligon-record.mp4"
+
+// StartScreenRecord starts `screenrecord` in the background. It is
+// fire-and-forget: the local adb process is intentionally not tied to the
+// caller's context (a request context dies with the HTTP response, which
+// would kill the recording instantly) and is reaped quietly whenever it
+// exits — either the caller's StopScreenRecord signals it, or Android's own
+// ~3 min hard cap on `screenrecord` ends it first.
+func (a *ADB) StartScreenRecord(serial string) error {
+	cmd := exec.Command(a.bin, "-s", serial, "shell", "screenrecord", "--time-limit", "180", RecordPath)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
+}
+
+// StopScreenRecord sends SIGINT to the remote `screenrecord` process so it
+// finalizes the mp4 container properly (killing the connection instead
+// leaves a file most players can't open).
+func (a *ADB) StopScreenRecord(ctx context.Context, serial string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "pkill", "-INT", "screenrecord")
+	return err
+}
+
 // UIDump captures the current screen's view hierarchy as XML
 // (`uiautomator dump`) — element ids/text/bounds, handy for locating a
 // selector for a test or bug report.
