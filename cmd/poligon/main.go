@@ -117,7 +117,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	iosCtl := iosscreen.New(iosEndpoints)
 	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
 
-	capt := capture.New(adb.New(cfg.ADBPath), iosCtl)
+	capt := capture.New(adb.New(cfg.ADBPath), iosCtl, ios.Default())
 	run := runner.New(st, res, inst, capt, adb.New(cfg.ADBPath), iosCtl,
 		filepath.Join(cfg.StorageDir, "runs"), os.Getenv("POLIGON_MAESTRO"), log)
 	srv := api.New(cfg, st, res, inst, lp, iosCtl, prov, capt, run, http.FS(webui.FS()), log)
@@ -139,6 +139,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	go func() {
 		<-ctx.Done()
 		prov.Shutdown() // kill WebDriverAgent runners + forwards — no orphans
+		capt.Shutdown() // kill any background idevicesyslog captures
 		sh, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(sh)

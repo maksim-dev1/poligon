@@ -5,8 +5,9 @@
 // Run types:
 //   - install_smoke: install the build, launch it, wait, then assert it's
 //     still running — Android checks pidof + scans logcat for a crash; iOS
-//     (no root, no syslog capture yet) checks it's still the foreground app
-//     via WDA instead. Saves a screenshot + whatever log is available.
+//     (no root, so no pidof/crash-signal equivalent) checks it's still the
+//     foreground app via WDA instead. Saves a screenshot + the log (Android:
+//     logcat; iOS: idevicesyslog, captured since the run started).
 package runner
 
 import (
@@ -353,10 +354,10 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 }
 
 // smoke: install → launch → settle → assert alive + no crash.
-// Android checks pidof + scans the logcat window for a crash; iOS has neither
-// (no root, no syslog capture yet) so it checks WDA's activeAppInfo instead —
-// the app must still be the foreground process (not bounced back to the
-// springboard) with a live pid.
+// Android checks pidof + scans the logcat window for a crash; iOS has no
+// pidof and nothing crash-scans idevicesyslog yet, so it checks WDA's
+// activeAppInfo instead — the app must still be the foreground process (not
+// bounced back to the springboard) with a live pid.
 func (r *Runner) smoke(ctx context.Context, run model.Run, dev model.Device, rd *model.RunDevice, devDir string) {
 	if dev.Platform == model.IOS && r.ios == nil {
 		rd.Status, rd.Detail = model.RunSkipped, "no iOS screen controller configured"

@@ -6,22 +6,75 @@ package capture
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/pancir/poligon/internal/adb"
+	"github.com/pancir/poligon/internal/ios"
 	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/model"
 )
 
 // Capturer grabs diagnostics from a device.
 type Capturer struct {
-	adb *adb.ADB
-	ios *iosscreen.Controller
+	adb      *adb.ADB
+	ios      *iosscreen.Controller
+	iosTools ios.Tools
+
+	mu     sync.Mutex
+	syslog map[string]*syslogCapture // device id -> its running idevicesyslog
 }
 
-// New builds a Capturer. ios may be nil on an Android-only farm.
-func New(a *adb.ADB, ic *iosscreen.Controller) *Capturer {
-	return &Capturer{adb: a, ios: ic}
+// syslogCapture is one device's continuous idevicesyslog, writing to a local
+// file that Logcat/ClearLogs read and truncate — approximating logcat's own
+// ring-buffer semantics on a platform that has no such buffer to query.
+type syslogCapture struct {
+	cmd  *exec.Cmd
+	path string
+}
+
+// New builds a Capturer. ic may be nil on an Android-only farm.
+func New(a *adb.ADB, ic *iosscreen.Controller, it ios.Tools) *Capturer {
+	return &Capturer{adb: a, ios: ic, iosTools: it, syslog: map[string]*syslogCapture{}}
+}
+
+// Shutdown kills every background idevicesyslog process. Call it once, on
+// poligon exit — otherwise they'd outlive the parent and leak.
+func (c *Capturer) Shutdown() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, sc := range c.syslog {
+		_ = sc.cmd.Process.Kill()
+		_ = os.Remove(sc.path)
+		delete(c.syslog, id)
+	}
+}
+
+// ensureSyslog returns the device's running syslog capture, starting one if
+// none is active yet (or the previous one has died).
+func (c *Capturer) ensureSyslog(dev model.Device) (*syslogCapture, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if sc, ok := c.syslog[dev.ID]; ok && sc.cmd.ProcessState == nil {
+		return sc, nil
+	}
+	f, err := os.CreateTemp("", "poligon-ios-syslog-*.log")
+	if err != nil {
+		return nil, err
+	}
+	path := f.Name()
+	cmd := c.iosTools.SyslogCommand(dev.UDID)
+	cmd.Stdout, cmd.Stderr = f, f
+	if err := cmd.Start(); err != nil {
+		f.Close()
+		os.Remove(path)
+		return nil, err
+	}
+	go func() { _ = cmd.Wait(); f.Close() }()
+	sc := &syslogCapture{cmd: cmd, path: path}
+	c.syslog[dev.ID] = sc
+	return sc, nil
 }
 
 // Screenshot returns image bytes and their MIME type. Android grabs the
@@ -44,13 +97,24 @@ func (c *Capturer) Screenshot(ctx context.Context, dev model.Device) ([]byte, st
 }
 
 // Logcat returns the device log buffer since the last call and clears it.
-// iOS syslog capture is not wired yet.
+// iOS has no queryable ring buffer, so poligon keeps a continuous
+// idevicesyslog running per device (started lazily here, or by ClearLogs)
+// and reads + truncates its output file instead.
 func (c *Capturer) Logcat(ctx context.Context, dev model.Device) (string, error) {
 	switch dev.Platform {
 	case model.Android:
 		return c.adb.LogcatDump(ctx, dev.Serial)
 	case model.IOS:
-		return "", fmt.Errorf("iOS syslog capture not implemented yet")
+		sc, err := c.ensureSyslog(dev)
+		if err != nil {
+			return "", fmt.Errorf("idevicesyslog: %w", err)
+		}
+		b, err := os.ReadFile(sc.path)
+		if err != nil {
+			return "", err
+		}
+		_ = os.Truncate(sc.path, 0)
+		return string(b), nil
 	default:
 		return "", fmt.Errorf("logs unsupported on %s", dev.Platform)
 	}
@@ -197,8 +261,15 @@ func (c *Capturer) OpenSettings(ctx context.Context, dev model.Device, screen st
 // ClearLogs empties the device log buffer — call before a test run so a later
 // Logcat is scoped to that run. A no-op (nil) on platforms without support.
 func (c *Capturer) ClearLogs(ctx context.Context, dev model.Device) error {
-	if dev.Platform == model.Android {
+	switch dev.Platform {
+	case model.Android:
 		return c.adb.LogcatClear(ctx, dev.Serial)
+	case model.IOS:
+		sc, err := c.ensureSyslog(dev)
+		if err != nil {
+			return fmt.Errorf("idevicesyslog: %w", err)
+		}
+		return os.Truncate(sc.path, 0)
 	}
 	return nil
 }

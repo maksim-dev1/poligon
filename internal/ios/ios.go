@@ -19,14 +19,18 @@ import (
 
 // Tools bundles the external binaries used on the iOS side.
 type Tools struct {
-	IDeviceID   string // "idevice_id"
-	IDeviceInfo string // "ideviceinfo"
-	IOSDeploy   string // "ios-deploy"
+	IDeviceID     string // "idevice_id"
+	IDeviceInfo   string // "ideviceinfo"
+	IOSDeploy     string // "ios-deploy"
+	IDeviceSyslog string // "idevicesyslog"
 }
 
 // Default returns Tools pointing at the standard binary names on PATH.
 func Default() Tools {
-	return Tools{IDeviceID: "idevice_id", IDeviceInfo: "ideviceinfo", IOSDeploy: "ios-deploy"}
+	return Tools{
+		IDeviceID: "idevice_id", IDeviceInfo: "ideviceinfo", IOSDeploy: "ios-deploy",
+		IDeviceSyslog: "idevicesyslog",
+	}
 }
 
 func run(ctx context.Context, bin string, args ...string) (string, error) {
@@ -105,6 +109,15 @@ func (t Tools) Specs(ctx context.Context, udid string) (model.Specs, error) {
 // Install deploys a (re-signed) .app bundle to the device and launches it.
 func (t Tools) Install(ctx context.Context, udid, appBundlePath string) (string, error) {
 	return run(ctx, t.IOSDeploy, "--id", udid, "--bundle", appBundlePath, "--justlaunch", "--no-wifi")
+}
+
+// SyslogCommand builds (but does not start) a continuous `idevicesyslog`.
+// Unlike Android's logcat, iOS has no queryable historical ring buffer — this
+// is the only way to see device logs, so the caller runs it continuously in
+// the background and reads/truncates its output file to approximate logcat's
+// "dump since last clear" semantics (see capture.Capturer).
+func (t Tools) SyslogCommand(udid string) *exec.Cmd {
+	return exec.Command(t.IDeviceSyslog, "-u", udid)
 }
 
 type hw struct{ name, soc, ram string }
