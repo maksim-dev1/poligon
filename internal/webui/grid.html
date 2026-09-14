@@ -87,9 +87,13 @@ function toggleInfo(id) { const el = document.getElementById("info-" + id); if (
 const tools = new Map(); // key -> { tab, frame }
 let activeTool = null;
 
-function openModal(key, title, src) {
+function openModal(key, title, src, forceReload) {
   document.getElementById("drawer").hidden = false;
-  if (tools.has(key)) { activateTool(key); return; }
+  if (tools.has(key)) {
+    if (forceReload) tools.get(key).frame.src = src; // e.g. jump to a different run id in an already-open "Прогоны" tab
+    activateTool(key);
+    return;
+  }
 
   const frame = document.createElement("iframe");
   frame.src = src;

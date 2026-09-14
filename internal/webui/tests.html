@@ -111,7 +111,7 @@
     </span>
   </button>
 </div>
-<div class="foot"><button class="btn btn--sm" onclick="location.href='/runs.html'">Все прогоны →</button></div>
+<div class="foot"><button class="btn btn--sm" onclick="openRuns('/runs.html')">Все прогоны →</button></div>
 <div class="toasts" id="toasts"></div>
 <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
 <input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
@@ -137,9 +137,17 @@ function platformOf(name) {
   for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
   return null;
 }
-// leaving this tab's job done — hand the run off to runs.html, right here in
-// the same side panel, instead of yanking the whole dashboard away
-function goToRun(id) { location.href = "/runs.html?r=" + id; }
+// hand the run off to its own "Прогоны" drawer tab (this page lives in an
+// iframe itself, so it asks the parent panel to open one) instead of
+// replacing this tab's own content — keeps "Тесты" around to start another run
+function openRuns(src) {
+  if (window.parent && window.parent.openModal) {
+    window.parent.openModal("runs", "Прогоны", src, true);
+  } else {
+    location.href = src; // opened standalone (no parent panel) — just navigate
+  }
+}
+function goToRun(id) { openRuns("/runs.html?r=" + id); }
 
 function pickSmoke() { document.getElementById("smokeFile").click(); }
 async function startSmoke(files) {
