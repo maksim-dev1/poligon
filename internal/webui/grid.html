@@ -26,6 +26,7 @@
       <button class="btn" onclick="pickSmoke();closeMenu()">Смоук-тест</button>
       <button class="btn" onclick="pickMaestro();closeMenu()">Maestro</button>
       <button class="btn" onclick="commandRun();closeMenu()">Команда</button>
+      <button class="btn" onclick="pickIntegrationTest();closeMenu()">Integration test</button>
       <button class="btn" onclick="location.href='/runs.html'">Прогоны</button>
     </div>
   </div>
@@ -37,6 +38,8 @@
   <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
   <input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
   <input type="file" id="deviceInstallFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installOne(pendingInstallId, this.files[0]); this.value=''">
+  <input type="file" id="itAppFile" hidden accept=".apk" onchange="onITAppPicked(this.files[0]); this.value=''">
+  <input type="file" id="itTestFile" hidden accept=".apk" onchange="onITTestPicked(this.files[0]); this.value=''">
 </div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
@@ -415,6 +418,43 @@ async function commandRun() {
   fd.append("command", cmd);
   for (const d of devices) fd.append("device", d.id);
   toast(`Запускаю команду на ${devices.length} устр.…`);
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`Прогон ${b.id} в очереди`, "ok");
+    setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ---- integration_test (Android): two apks, asked for one at a time so they
+// can't be mixed up — same extension, no way to tell them apart by filename ----
+let itAppFile = null;
+function pickIntegrationTest() {
+  if (!batchPlatforms().includes("android")) {
+    toast("integration_test пока только для Android — в партии нет android-устройств", "err");
+    return;
+  }
+  itAppFile = null;
+  toast("Выберите APK приложения…");
+  document.getElementById("itAppFile").click();
+}
+function onITAppPicked(file) {
+  if (!file) return;
+  itAppFile = file;
+  toast("Теперь выберите androidTest APK…");
+  document.getElementById("itTestFile").click();
+}
+async function onITTestPicked(file) {
+  if (!file || !itAppFile) return;
+  const appFile = itAppFile;
+  itAppFile = null;
+  const fd = new FormData();
+  fd.append("type", "integration_test");
+  fd.append("artifact", appFile);
+  fd.append("test_artifact", file);
+  for (const d of devices) fd.append("device", d.id);
+  toast(`Запускаю integration_test на ${devices.length} устр.…`);
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
