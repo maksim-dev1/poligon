@@ -22,9 +22,16 @@
   .card:disabled:hover { background: var(--surface); border-color: var(--line); }
   .card .icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
   .card .icon svg { width: 17px; height: 17px; }
-  .card .body { min-width: 0; }
+  .card .body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .card .title { font: 600 13px/1.3 var(--sans); color: var(--text); }
   .card .desc { font: 400 12px/1.5 var(--sans); color: var(--text-muted); margin-top: 2px; }
+  .card .flow { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+  .card .flow .step { font: 500 10px/1 var(--mono); padding: 4px 7px; border: 1px solid var(--line-2); border-radius: var(--r-xs); background: var(--inset); color: var(--text-2); }
+  .card .flow .arrow { color: var(--text-muted); font-size: 11px; }
+  .card .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .card .meta .group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .card .meta .label { font: 600 9px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+  .card .meta .val { font: 400 11px/1.4 var(--mono); color: var(--text-2); }
   .foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -36,19 +43,69 @@
 <div class="cards" id="cards">
   <button class="card" onclick="pickSmoke()">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg></span>
-    <span class="body"><span class="title">Смоук-тест</span><span class="desc">Установить сборку, запустить, проверить что не упала (install_smoke)</span></span>
+    <span class="body">
+      <span class="title">Смоук-тест</span>
+      <span class="desc">Установить сборку, запустить, проверить что не упала (install_smoke)</span>
+      <span class="flow">
+        <span class="step">установить</span><span class="arrow">→</span>
+        <span class="step">запустить</span><span class="arrow">→</span>
+        <span class="step">ждать ~8с</span><span class="arrow">→</span>
+        <span class="step">жива?</span>
+      </span>
+      <span class="meta">
+        <span class="group"><span class="label">нужно</span><span class="val">.apk/.aab/.apks или .ipa — по одной на платформу</span></span>
+        <span class="group"><span class="label">результат</span><span class="val">скриншот, лог (logcat / syslog)</span></span>
+      </span>
+    </span>
   </button>
   <button class="card" onclick="pickMaestro()">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
-    <span class="body"><span class="title">Maestro</span><span class="desc">Прогнать .yaml-флоу, опционально с новой сборкой</span></span>
+    <span class="body">
+      <span class="title">Maestro</span>
+      <span class="desc">Прогнать .yaml-флоу, опционально с новой сборкой</span>
+      <span class="flow">
+        <span class="step">(установить)</span><span class="arrow">→</span>
+        <span class="step">maestro test flow.yaml</span><span class="arrow">→</span>
+        <span class="step">отчёт</span>
+      </span>
+      <span class="meta">
+        <span class="group"><span class="label">нужно</span><span class="val">.yaml-флоу (обязателен) + сборка (опционально)</span></span>
+        <span class="group"><span class="label">результат</span><span class="val">report.xml, maestro.log, скриншот, лог</span></span>
+      </span>
+    </span>
   </button>
   <button class="card" onclick="commandRun()">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
-    <span class="body"><span class="title">Команда</span><span class="desc">Любая shell-команда на устройстве — escape hatch для appium и своих скриптов</span></span>
+    <span class="body">
+      <span class="title">Команда</span>
+      <span class="desc">Любая shell-команда на устройстве — escape hatch для appium и своих скриптов</span>
+      <span class="flow">
+        <span class="step">(установить)</span><span class="arrow">→</span>
+        <span class="step">sh -c "команда"</span><span class="arrow">→</span>
+        <span class="step">файлы из cwd</span>
+      </span>
+      <span class="meta">
+        <span class="group"><span class="label">env</span><span class="val">POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR</span></span>
+        <span class="group"><span class="label">результат</span><span class="val">command.log + всё, что команда запишет, скриншот, лог</span></span>
+      </span>
+    </span>
   </button>
   <button class="card" id="itCard" onclick="pickIntegrationTest()">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/></svg></span>
-    <span class="body"><span class="title">Integration test <span style="font-weight:400;color:var(--text-muted)">(Android)</span></span><span class="desc">App apk + androidTest apk, запускает am instrument</span></span>
+    <span class="body">
+      <span class="title">Integration test <span style="font-weight:400;color:var(--text-muted)">(Android)</span></span>
+      <span class="desc">App apk + androidTest apk, запускает am instrument</span>
+      <span class="flow">
+        <span class="step">установить app</span><span class="arrow">→</span>
+        <span class="step">установить test apk</span><span class="arrow">→</span>
+        <span class="step">am instrument -w</span><span class="arrow">→</span>
+        <span class="step">OK / FAILURES</span>
+      </span>
+      <span class="meta">
+        <span class="group"><span class="label">нужно</span><span class="val">app .apk + androidTest .apk (2 файла)</span></span>
+        <span class="group"><span class="label">результат</span><span class="val">instrument.log, скриншот, logcat</span></span>
+      </span>
+    </span>
   </button>
 </div>
 <div class="foot"><button class="btn btn--sm" onclick="location.href='/runs.html'">Все прогоны →</button></div>
