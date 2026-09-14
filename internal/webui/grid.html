@@ -192,6 +192,19 @@ function cell(d, url) {
   return c;
 }
 
+// ws-scrcpy draws its own on-screen control bar (power/volume/back/home/…)
+// inside the player it serves — same-origin under /live/, so hide it there.
+function hideScrcpyToolbar(ifr) {
+  try {
+    const doc = ifr.contentDocument;
+    if (!doc || doc.getElementById("poligon-hide-toolbar")) return;
+    const style = doc.createElement("style");
+    style.id = "poligon-hide-toolbar";
+    style.textContent = ".control-buttons-list{display:none!important}";
+    (doc.head || doc.documentElement).appendChild(style);
+  } catch {}
+}
+
 function reopen(id) {
   const f = document.getElementById("if-" + id);
   if (!f) return;
@@ -307,6 +320,10 @@ async function main() {
     const url = await screenURL(d.id);
     urls[d.id] = url || "";
     grid.appendChild(cell(d, url));
+    if (d.platform === "android") {
+      const ifr = document.getElementById("if-" + d.id);
+      if (ifr) ifr.addEventListener("load", () => hideScrcpyToolbar(ifr));
+    }
   }
   setInterval(() => {
     fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: HW() }).catch(() => {});
