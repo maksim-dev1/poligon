@@ -153,7 +153,7 @@ function specRows(s) {
 
 function cell(d, url) {
   const c = document.createElement("div");
-  c.className = "tile";
+  c.className = "cell";
   c.id = "cell-" + d.id;
   const noInput = d.specs && d.specs.input_injection === "blocked";
   const src = url && d.platform === "ios" ? url + (url.includes("?") ? "&" : "?") + "embed=1" : url;
@@ -171,12 +171,6 @@ function cell(d, url) {
     restart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
   };
   c.innerHTML = `
-    <div class="tile-bar">
-      <button class="icon-btn is-danger" title="Освободить устройство" onclick="releaseOne('${d.id}')">${icon.x}</button>
-      <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
-      ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
-    </div>
-    <div class="tile-info" id="info-${d.id}" hidden><div class="specs">${specRows(d.specs)}</div></div>
     <div class="tile-rail">
       <button class="icon-btn" title="Установить сборку" onclick="pickInstallFor('${d.id}')">${icon.install}</button>
       <button class="icon-btn" title="Перезапустить экран" onclick="restartOne('${d.id}')">${icon.restart}</button>
@@ -186,7 +180,15 @@ function cell(d, url) {
       <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
       <button class="icon-btn" title="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
     </div>
-    ${body}`;
+    <div class="tile">
+      <div class="tile-bar">
+        <button class="icon-btn is-danger" title="Освободить устройство" onclick="releaseOne('${d.id}')">${icon.x}</button>
+        <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
+        ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
+      </div>
+      <div class="tile-info" id="info-${d.id}" hidden><div class="specs">${specRows(d.specs)}</div></div>
+      ${body}
+    </div>`;
   return c;
 }
 

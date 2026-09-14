@@ -565,9 +565,16 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
   display: grid;
   gap: 8px 20px;
   padding: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(calc(288px * var(--tile-scale, 1)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(288px * var(--tile-scale, 1) + 42px), 1fr));
+}
+.cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .tile {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: calc(78dvh * var(--tile-scale, 1));
@@ -922,16 +929,14 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
 }
 .wall-menu-pop .btn:hover { background: var(--surface); color: var(--text); }
 
-/* ---- screen wall: floating per-tile rail + info popover ----------- */
+/* ---- screen wall: floating per-tile rail (beside, not over) + info -- */
 
 .wall { --tile-scale: 1; padding-top: var(--wall-top, 64px); }
 .tile { position: relative; }
 
 .tile-rail {
-  position: absolute;
-  top: 44px;
-  left: 8px;
-  z-index: 5;
+  flex: none;
+  align-self: center;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -940,7 +945,7 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
   backdrop-filter: blur(6px);
   border: 1px solid var(--line-2);
   border-radius: var(--r-md);
-  box-shadow: 0 10px 24px -8px rgba(0,0,0,.65);
+  box-shadow: 0 10px 24px -8px rgba(0,0,0,.5);
 }
 .tile-rail .icon-btn { width: 26px; height: 26px; }
 .tile-rail .icon-btn:hover { background: var(--surface); }
@@ -948,7 +953,7 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
 .tile-info {
   position: absolute;
   top: 38px;
-  right: 6px;
+  left: 6px;
   z-index: 6;
   width: min(240px, calc(100% - 60px));
   padding: 10px 11px;
