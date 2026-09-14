@@ -118,12 +118,21 @@ function openModal(key, title, src) {
   titleSpan.className = "drawer-tab-title";
   titleSpan.textContent = title;
   titleSpan.title = title;
+  const popBtn = document.createElement("button");
+  popBtn.className = "drawer-tab-pop";
+  popBtn.textContent = "⤢";
+  popBtn.title = "Открыть отдельным окном";
+  popBtn.onclick = e => {
+    e.stopPropagation();
+    window.open(src, "poligon-" + key, "width=980,height=720,noopener");
+    closeTool(key);
+  };
   const closeBtn = document.createElement("button");
   closeBtn.className = "drawer-tab-close";
   closeBtn.textContent = "✕";
   closeBtn.title = "Закрыть";
   closeBtn.onclick = e => { e.stopPropagation(); closeTool(key); };
-  tab.append(titleSpan, closeBtn);
+  tab.append(titleSpan, popBtn, closeBtn);
   tab.onclick = () => activateTool(key);
 
   document.getElementById("drawerTabs").appendChild(tab);
