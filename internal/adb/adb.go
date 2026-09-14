@@ -442,6 +442,15 @@ func (a *ADB) Launch(ctx context.Context, serial, pkg string) error {
 	return err
 }
 
+// Instrument runs an androidx.test instrumentation (`am instrument -w`) and
+// returns its raw output for the caller to interpret: a clean run ends
+// "OK (N tests)"; a failure prints "FAILURES!!!" plus a stack trace. No
+// timeout shorter than the caller's ctx — an integration_test suite can
+// legitimately run for minutes.
+func (a *ADB) Instrument(ctx context.Context, serial, testPackage, runnerClass string) (string, error) {
+	return a.shell(ctx, serial, "am", "instrument", "-w", testPackage+"/"+runnerClass)
+}
+
 // Screenshot grabs the current framebuffer as PNG bytes (raw, no adb newline
 // translation — `exec-out` keeps the stream binary-clean).
 func (a *ADB) Screenshot(ctx context.Context, serial string) ([]byte, error) {

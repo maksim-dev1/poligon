@@ -8,6 +8,10 @@
 //     (no root, so no pidof/crash-signal equivalent) checks it's still the
 //     foreground app via WDA instead. Saves a screenshot + the log (Android:
 //     logcat; iOS: idevicesyslog, captured since the run started).
+//   - integration_test: Android only — install the app apk + its separately
+//     built androidTest apk, run `am instrument -w` against the runner class
+//     read from the test apk's manifest. Not yet on iOS (needs a .xctestrun
+//     bundle + xcodebuild test-without-building, and Xcode on the host).
 package runner
 
 import (
@@ -31,7 +35,7 @@ import (
 )
 
 // Types is the set of run types the runner understands.
-var Types = map[string]bool{"install_smoke": true, "maestro": true, "command": true}
+var Types = map[string]bool{"install_smoke": true, "maestro": true, "command": true, "integration_test": true}
 
 // Runner schedules and executes runs. One run executes at a time; devices within
 // a run run in parallel.
@@ -344,6 +348,8 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 		r.runMaestro(dctx, run, dev, &rd, devDir)
 	case "command":
 		r.runCommand(dctx, run, dev, &rd, devDir)
+	case "integration_test":
+		r.runIntegrationTest(dctx, run, dev, &rd, devDir)
 	default:
 		rd.Status, rd.Detail = model.RunSkipped, "unknown run type"
 	}

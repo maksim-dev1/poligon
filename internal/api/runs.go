@@ -122,6 +122,51 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		spec.Artifacts[plat] = p
 	}
 
+	// --- test artifact(s) (integration_test): uploaded files or test_artifact_url.
+	// Same shape as the app artifact above but a separate map — an
+	// androidTest apk installs alongside the app, it doesn't replace it.
+	spec.TestArtifacts = map[model.Platform]string{}
+	if multipart {
+		for _, hdr := range r.MultipartForm.File["test_artifact"] {
+			plat := platformForExt(hdr.Filename)
+			if plat == "" {
+				fail(w, http.StatusBadRequest, errors.New("unsupported test artifact "+hdr.Filename))
+				return
+			}
+			if _, dup := spec.TestArtifacts[plat]; dup {
+				fail(w, http.StatusBadRequest, errors.New("more than one "+string(plat)+" test artifact"))
+				return
+			}
+			p, err := saveUpload(hdr, dir)
+			if err != nil {
+				fail(w, http.StatusInternalServerError, err)
+				return
+			}
+			spec.TestArtifacts[plat] = p
+		}
+	}
+	if url := r.FormValue("test_artifact_url"); url != "" {
+		base := filepath.Base(url)
+		if q := strings.IndexAny(base, "?#"); q >= 0 {
+			base = base[:q]
+		}
+		plat := platformForExt(base)
+		if plat == "" {
+			fail(w, http.StatusBadRequest, errors.New("test_artifact_url must end in .apk/.aab/.apks/.ipa"))
+			return
+		}
+		if _, dup := spec.TestArtifacts[plat]; dup {
+			fail(w, http.StatusBadRequest, errors.New("more than one "+string(plat)+" test artifact"))
+			return
+		}
+		p, err := s.downloadArtifact(r.Context(), url, dir, base)
+		if err != nil {
+			fail(w, http.StatusBadGateway, err)
+			return
+		}
+		spec.TestArtifacts[plat] = p
+	}
+
 	spec.Command = r.FormValue("command")
 
 	switch typ {
@@ -138,6 +183,15 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	case "command":
 		if spec.Command == "" {
 			fail(w, http.StatusBadRequest, errors.New("command run needs command="))
+			return
+		}
+	case "integration_test":
+		if len(spec.Artifacts) == 0 {
+			fail(w, http.StatusBadRequest, errors.New("integration_test needs the app build (artifact or artifact_url)"))
+			return
+		}
+		if len(spec.TestArtifacts) == 0 {
+			fail(w, http.StatusBadRequest, errors.New("integration_test needs the androidTest build (test_artifact or test_artifact_url)"))
 			return
 		}
 	}
@@ -263,6 +317,13 @@ func redact(run model.Run) model.Run {
 		}
 		run.Spec.Artifacts = a
 	}
+	if len(run.Spec.TestArtifacts) > 0 {
+		a := make(map[model.Platform]string, len(run.Spec.TestArtifacts))
+		for p, v := range run.Spec.TestArtifacts {
+			a[p] = filepath.Base(v)
+		}
+		run.Spec.TestArtifacts = a
+	}
 	return run
 }
 
@@ -314,6 +375,12 @@ func (s *Server) rerunRun(w http.ResponseWriter, r *http.Request) {
 	for _, p := range old.Spec.Artifacts {
 		if _, err := os.Stat(p); err != nil {
 			fail(w, http.StatusGone, errors.New("original artifact no longer on disk — start a fresh run"))
+			return
+		}
+	}
+	for _, p := range old.Spec.TestArtifacts {
+		if _, err := os.Stat(p); err != nil {
+			fail(w, http.StatusGone, errors.New("original test artifact no longer on disk — start a fresh run"))
 			return
 		}
 	}

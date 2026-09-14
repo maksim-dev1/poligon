@@ -16,11 +16,10 @@ Done:
 - manual install via dashboard / API: apk direct, aab via bundletool, ipa re-signed with farm profiles then `ios-deploy`; mixed Android+iOS batches take one artifact per platform
 - live screens: ws-scrcpy for Android, WebDriverAgent for iOS, one grid for a batch
 - per-device diagnostics: screenshot + logcat from the grid (`internal/capture`)
-- **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash) and `maestro` (run a `.yaml` flow, collect report + recording). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html`
+- **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash), `maestro` (run a `.yaml` flow, collect report + recording), `command` (generic escape hatch — appium etc.), `integration_test` (Android: install the app + its androidTest apk, run the instrumentation). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html` (status/type filters, paged)
 
 Next:
-- more run types — Flutter `integration_test`, generic `appium` / command
-- run history filters, status badge
+- iOS `integration_test` — needs a `.xctestrun` bundle + `xcodebuild test-without-building`, and Xcode on the host
 
 ### Test-run API
 
@@ -47,10 +46,18 @@ curl -sX POST https://farm/api/runs -H "Authorization: Bearer plgn_…" \
   --data-urlencode type=command --data-urlencode device=pixel6-01 \
   --data-urlencode 'command=appium ... || exit 1'
 
+# Flutter integration_test (Android): the app apk + its separately built
+# androidTest apk (flutter build apk --debug; cd android && ./gradlew
+# app:assembleDebugAndroidTest), am instrument reads the runner class off the
+# test apk's own manifest
+curl -sX POST https://farm/api/runs -H "Authorization: Bearer plgn_…" \
+  -F type=integration_test -F platform=android -F count=1 \
+  -F artifact=@app-debug.apk -F test_artifact=@app-debug-androidTest.apk
+
 # poll: GET /api/runs/{id} → {status: queued|running|passed|failed|error|canceled, devices:[…]}
 ```
 
-Run types: `install_smoke`, `maestro`, `command`. Device selection is
+Run types: `install_smoke`, `maestro`, `command`, `integration_test`. Device selection is
 `device=<id>` (repeatable) **or** `platform=`/`count=`/`tag=`. Per-device cap
 `timeout_seconds` (default 1200). Artifacts:
 `GET /api/runs/{id}/artifacts/{device}/{path}`. Status SVG for a CI dashboard:
@@ -155,8 +162,8 @@ internal/devices   poll loop, flap detection, specs refresh
 internal/reserve   booking, leases, auto-release
 internal/auth      users + bearer tokens
 internal/install   apk / aab / ipa(re-sign) install pipeline
-internal/capture   screenshot / logcat off a device
-internal/runner    automated test runs (install_smoke, maestro)
+internal/capture   screenshot / logs / shell / files / apps / recording off a device
+internal/runner    automated test runs (install_smoke, maestro, command, integration_test)
 internal/api       JSON API + dashboard
 internal/webui     embedded dashboard assets
 ```
