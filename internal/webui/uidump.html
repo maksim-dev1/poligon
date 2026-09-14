@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI dump</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .toolbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .toolbar .status { flex: 1; min-width: 0; font: 500 11px/1 var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .body { flex: 1; overflow: auto; }
+  pre { margin: 0; padding: 12px 14px; font: 12px/1.5 var(--mono); color: var(--text); white-space: pre-wrap; word-break: break-all; }
+  .empty { padding: 24px; text-align: center; color: var(--text-muted); font: 400 12px/1.4 var(--mono); }
+  .err { color: var(--down); }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span class="status" id="status">снимаю…</span>
+  <button class="btn btn--sm" onclick="load()">Снять заново</button>
+</div>
+<div class="body" id="body"><div class="empty">снимаю…</div></div>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+document.title = "UI dump — " + (id || "?");
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+async function load() {
+  const status = document.getElementById("status");
+  const body = document.getElementById("body");
+  status.textContent = "снимаю…";
+  body.innerHTML = `<div class="empty">снимаю…</div>`;
+  if (!id) { status.textContent = "нет id устройства"; body.innerHTML = `<div class="empty err">нет id устройства</div>`; return; }
+  try {
+    const r = await fetch(`/api/devices/${id}/ui-dump`);
+    const text = await r.text();
+    if (!r.ok) {
+      let msg = text;
+      try { msg = JSON.parse(text).error || text; } catch {}
+      throw new Error(msg);
+    }
+    if (!text.trim()) throw new Error("пустой ответ — устройство не отдало дамп (экран выключен/заблокирован?)");
+    status.textContent = id + " — " + text.length + " байт";
+    body.innerHTML = `<pre>${esc(text)}</pre>`;
+  } catch (e) {
+    status.textContent = "ошибка";
+    body.innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+  }
+}
+load();
+</script>
+</body>
+</html>

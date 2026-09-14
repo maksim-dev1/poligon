@@ -40,15 +40,13 @@
 </div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
-<div class="modal-overlay" id="modalOverlay" hidden onclick="if(event.target===this)closeModal()">
-  <div class="modal-panel">
-    <div class="modal-bar">
-      <span id="modalTitle"></span>
-      <span class="sp"></span>
-      <button class="btn btn--sm" onclick="closeModal()">Закрыть</button>
-    </div>
-    <iframe id="modalFrame"></iframe>
+<div class="drawer" id="modalOverlay" hidden>
+  <div class="drawer-bar">
+    <span id="modalTitle"></span>
+    <span class="sp"></span>
+    <button class="btn btn--sm" onclick="closeModal()">Закрыть</button>
   </div>
+  <iframe id="modalFrame"></iframe>
 </div>
 <div class="toasts" id="toasts"></div>
 <script>
@@ -103,8 +101,10 @@ document.addEventListener("click", e => { if (!e.target.closest(".wall-menu")) c
 
 function toggleInfo(id) { const el = document.getElementById("info-" + id); if (el) el.hidden = !el.hidden; }
 
-// ---- terminal/files modal (in-page, not a new tab — clearing src on close
-// also drops the terminal's WebSocket instead of leaking it in a background tab) ----
+// ---- terminal/files/etc. drawer — docked to the right, not a full-screen
+// modal, so the device wall stays visible and usable while a tool is open.
+// In-page (not a new tab): clearing src on close also drops the terminal's
+// WebSocket instead of leaking it in a background tab. ----
 function openModal(title, src) {
   document.getElementById("modalTitle").textContent = title;
   document.getElementById("modalFrame").src = src;
@@ -226,7 +226,7 @@ function cell(d, url) {
       <button class="icon-btn" title="Файлы" onclick="openModal('Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
       <button class="icon-btn" title="Логи (live)" onclick="openModal('Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
       <button class="icon-btn" title="Приложения" onclick="openModal('Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
-      <button class="icon-btn" title="UI dump" onclick="openModal('UI dump — ${d.id}','/api/devices/${d.id}/ui-dump')">${icon.tree}</button>` : ""}
+      <button class="icon-btn" title="UI dump" onclick="openModal('UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">

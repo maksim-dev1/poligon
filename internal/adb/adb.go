@@ -334,11 +334,22 @@ func (a *ADB) UIDump(ctx context.Context, serial string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	const tmp = "/sdcard/poligon-ui-dump.xml"
-	if _, err := a.shell(ctx, serial, "uiautomator", "dump", tmp); err != nil {
+	// uiautomator often exits 0 even when it fails, printing the reason to
+	// stdout instead (e.g. "ERROR: could not get idle state." when the
+	// screen is off/locked, or a UI is mid-animation) — catch that here
+	// rather than serving a silent empty dump.
+	dumpOut, err := a.shell(ctx, serial, "uiautomator", "dump", tmp)
+	if err != nil {
 		return "", err
+	}
+	if !strings.Contains(dumpOut, "dumped to") {
+		return "", fmt.Errorf("uiautomator dump: %s", strings.TrimSpace(dumpOut))
 	}
 	out, err := a.shell(ctx, serial, "cat", tmp)
 	_, _ = a.shell(ctx, serial, "rm", "-f", tmp)
+	if err == nil && strings.TrimSpace(out) == "" {
+		return "", fmt.Errorf("uiautomator wrote an empty dump")
+	}
 	return out, err
 }
 
