@@ -175,12 +175,15 @@ type FileEntry struct {
 	Size int64  `json:"size"`
 }
 
-// ListDir lists one directory on the device (parsed from `ls -la`, since
+// ListDir lists one directory on the device (parsed from `ls -laL`, since
 // Android's toybox/busybox ls doesn't support machine-readable output).
+// -L follows symlinks so a linked directory (e.g. legacy vendor
+// /sdcard/sdcard compat symlinks) reports as a "d" entry instead of "l" —
+// otherwise it would look like a file and a click would try to download it.
 func (a *ADB) ListDir(ctx context.Context, serial, path string) ([]FileEntry, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	out, err := a.shell(ctx, serial, "ls", "-la", shQuote(path))
+	out, err := a.shell(ctx, serial, "ls", "-laL", shQuote(path))
 	if err != nil {
 		return nil, err
 	}

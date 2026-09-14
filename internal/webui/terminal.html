@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>терминал</title>
+<link rel="stylesheet" href="/vendor/xterm.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: #000; overflow: hidden; }
+  .bar {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; background: #14161b; border-bottom: 1px solid #262a33;
+    font: 500 11px/1 ui-monospace, monospace; color: #8a8f98;
+  }
+  .bar .dot { width: 7px; height: 7px; border-radius: 50%; background: #e5544b; flex: none; }
+  .bar .dot.up { background: #35c46a; }
+  #term { flex: 1; min-height: 0; padding: 8px; }
+</style>
+</head>
+<body>
+<div class="bar"><span class="dot" id="dot"></span><span id="status">подключение…</span></div>
+<div id="term"></div>
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/xterm-addon-fit.js"></script>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+document.title = "терминал — " + (id || "?");
+
+const term = new Terminal({ fontSize: 13, cursorBlink: true, theme: { background: "#000" } });
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.open(document.getElementById("term"));
+fit.fit();
+window.addEventListener("resize", () => fit.fit());
+
+const status = document.getElementById("status");
+const dot = document.getElementById("dot");
+let ws;
+function connect() {
+  if (!id) { status.textContent = "нет id устройства"; return; }
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${scheme}://${location.host}/api/devices/${id}/shell`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { status.textContent = id + " — подключено"; dot.classList.add("up"); term.focus(); };
+  ws.onclose = () => { status.textContent = "сессия завершена"; dot.classList.remove("up"); };
+  ws.onerror = () => { status.textContent = "ошибка соединения"; };
+  ws.onmessage = ev => term.write(ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : ev.data);
+}
+term.onData(d => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(d); });
+connect();
+window.addEventListener("pagehide", () => { try { ws && ws.close(); } catch {} });
+</script>
+</body>
+</html>

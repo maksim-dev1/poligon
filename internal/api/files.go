@@ -13,23 +13,30 @@ import (
 	"time"
 )
 
-// filesRoot is the only tree the file browser is allowed to touch. Android
-// apps write their sandboxed data elsewhere (Play policy locked that down
-// years ago); /sdcard (== /storage/emulated/0) is the shared, world-visible
-// storage a farm user actually wants to poke at — screenshots, downloads,
-// app-exported files. Keeping the API scoped here means a typo in a path
-// can't reach system partitions.
+// filesRoot is where the browser lands by default — the shared, world-visible
+// storage (/sdcard == /storage/emulated/0) most farm work touches. The browser
+// itself isn't fenced to it: `adb shell` already runs as the unprivileged
+// "shell" user, so the OS's own file permissions are the real boundary —
+// most of /data is unreadable to it regardless of what path we ask for.
 const filesRoot = "/sdcard"
 
+// safeDevicePath only rejects a non-absolute path; Clean collapses any "..".
 func safeDevicePath(p string) (string, error) {
 	if p == "" {
 		p = filesRoot
 	}
 	clean := path.Clean(p)
-	if clean != filesRoot && !strings.HasPrefix(clean, filesRoot+"/") {
-		return "", fmt.Errorf("path must be under %s", filesRoot)
+	if !strings.HasPrefix(clean, "/") {
+		return "", fmt.Errorf("path must be absolute")
 	}
 	return clean, nil
+}
+
+// isTopLevel reports whether p is "/" or a direct child of it ("/sdcard",
+// "/data", …) — a mutation guard against wiping an entire top-level tree by
+// accident; everything below that stays fair game.
+func isTopLevel(p string) bool {
+	return p == "/" || strings.Count(strings.Trim(p, "/"), "/") == 0
 }
 
 func (s *Server) deviceFilesList(w http.ResponseWriter, r *http.Request) {
@@ -150,8 +157,8 @@ func (s *Server) deviceFilesDelete(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err)
 		return
 	}
-	if p == filesRoot {
-		fail(w, http.StatusBadRequest, errors.New("refusing to delete "+filesRoot+" itself"))
+	if isTopLevel(p) {
+		fail(w, http.StatusBadRequest, errors.New("refusing to delete a top-level directory"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -181,8 +188,8 @@ func (s *Server) deviceFilesRename(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err)
 		return
 	}
-	if p == filesRoot {
-		fail(w, http.StatusBadRequest, errors.New("refusing to rename "+filesRoot+" itself"))
+	if isTopLevel(p) {
+		fail(w, http.StatusBadRequest, errors.New("refusing to rename a top-level directory"))
 		return
 	}
 	name := strings.TrimSpace(body.Name)
