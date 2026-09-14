@@ -149,6 +149,107 @@ func (a *ADB) Specs(ctx context.Context, serial string) (model.Specs, error) {
 	return sp, nil
 }
 
+// Keyevent sends a hardware/navigation key press (see `adb shell input
+// keyevent --help` / Android's KeyEvent constants) — e.g. 3=HOME, 4=BACK,
+// 26=POWER, 24/25=VOLUME_UP/DOWN, 187=APP_SWITCH.
+func (a *ADB) Keyevent(ctx context.Context, serial string, code int) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "input", "keyevent", fmt.Sprint(code))
+	return err
+}
+
+// shQuote single-quotes s for safe inclusion in a remote shell command line.
+// `adb shell a b c` joins its args with spaces and runs the result through
+// /system/bin/sh on the device, so any argument built from user input (a
+// path, say) must be quoted here — the local exec.Command args are never
+// shell-interpreted, but the remote side's are.
+func shQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// FileEntry describes one entry in a device directory listing.
+type FileEntry struct {
+	Name string `json:"name"`
+	Dir  bool   `json:"dir"`
+	Size int64  `json:"size"`
+}
+
+// ListDir lists one directory on the device (parsed from `ls -la`, since
+// Android's toybox/busybox ls doesn't support machine-readable output).
+func (a *ADB) ListDir(ctx context.Context, serial, path string) ([]FileEntry, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	out, err := a.shell(ctx, serial, "ls", "-la", shQuote(path))
+	if err != nil {
+		return nil, err
+	}
+	var entries []FileEntry
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "total ") {
+			continue
+		}
+		f := strings.Fields(line)
+		if len(f) < 8 {
+			continue
+		}
+		name := strings.Join(f[7:], " ")
+		if name == "." || name == ".." {
+			continue
+		}
+		if strings.HasPrefix(f[0], "l") { // symlink: "name -> target"
+			if i := strings.Index(name, " -> "); i >= 0 {
+				name = name[:i]
+			}
+		}
+		var size int64
+		fmt.Sscan(f[4], &size)
+		entries = append(entries, FileEntry{Name: name, Dir: strings.HasPrefix(f[0], "d"), Size: size})
+	}
+	return entries, nil
+}
+
+// Pull copies a device file to a local path.
+func (a *ADB) Pull(ctx context.Context, serial, remote, local string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	_, err := a.run(ctx, "-s", serial, "pull", remote, local)
+	return err
+}
+
+// Push copies a local file to a device path.
+func (a *ADB) Push(ctx context.Context, serial, local, remote string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	_, err := a.run(ctx, "-s", serial, "push", local, remote)
+	return err
+}
+
+// Remove deletes a file or directory (recursively) on the device.
+func (a *ADB) Remove(ctx context.Context, serial, path string) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "rm", "-rf", "--", shQuote(path))
+	return err
+}
+
+// Rename moves/renames a device path.
+func (a *ADB) Rename(ctx context.Context, serial, from, to string) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "mv", "--", shQuote(from), shQuote(to))
+	return err
+}
+
+// ShellCommand builds (but does not start) an interactive `adb shell` for a
+// caller to wire stdio to — e.g. a WebSocket terminal bridge. `-tt` forces a
+// PTY on the device side regardless of the local process's own stdio, so the
+// remote shell behaves interactively (prompts, job control, colors).
+func (a *ADB) ShellCommand(ctx context.Context, serial string) *exec.Cmd {
+	return exec.CommandContext(ctx, a.bin, "-s", serial, "shell", "-tt")
+}
+
 // Install pushes an APK to a device. reinstall keeps app data; grant gives all
 // runtime permissions up front.
 func (a *ADB) Install(ctx context.Context, serial, apkPath string, reinstall, grant bool) (string, error) {

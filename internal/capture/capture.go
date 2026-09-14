@@ -6,6 +6,7 @@ package capture
 import (
 	"context"
 	"fmt"
+	"os/exec"
 
 	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/iosscreen"
@@ -53,6 +54,64 @@ func (c *Capturer) Logcat(ctx context.Context, dev model.Device) (string, error)
 	default:
 		return "", fmt.Errorf("logs unsupported on %s", dev.Platform)
 	}
+}
+
+// Keyevent presses a hardware/navigation key — the on-screen bar equivalent of
+// power/volume/back/home/recents. Android only.
+func (c *Capturer) Keyevent(ctx context.Context, dev model.Device, code int) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("hardware keys unsupported on %s", dev.Platform)
+	}
+	return c.adb.Keyevent(ctx, dev.Serial, code)
+}
+
+// ListFiles lists one directory on the device (Android only).
+func (c *Capturer) ListFiles(ctx context.Context, dev model.Device, path string) ([]adb.FileEntry, error) {
+	if dev.Platform != model.Android {
+		return nil, fmt.Errorf("file browser unsupported on %s", dev.Platform)
+	}
+	return c.adb.ListDir(ctx, dev.Serial, path)
+}
+
+// PullFile copies a device file to a local path.
+func (c *Capturer) PullFile(ctx context.Context, dev model.Device, remote, local string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("file browser unsupported on %s", dev.Platform)
+	}
+	return c.adb.Pull(ctx, dev.Serial, remote, local)
+}
+
+// PushFile copies a local file to a device path.
+func (c *Capturer) PushFile(ctx context.Context, dev model.Device, local, remote string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("file browser unsupported on %s", dev.Platform)
+	}
+	return c.adb.Push(ctx, dev.Serial, local, remote)
+}
+
+// RemovePath deletes a file or directory on the device.
+func (c *Capturer) RemovePath(ctx context.Context, dev model.Device, path string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("file browser unsupported on %s", dev.Platform)
+	}
+	return c.adb.Remove(ctx, dev.Serial, path)
+}
+
+// RenamePath moves/renames a device path.
+func (c *Capturer) RenamePath(ctx context.Context, dev model.Device, from, to string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("file browser unsupported on %s", dev.Platform)
+	}
+	return c.adb.Rename(ctx, dev.Serial, from, to)
+}
+
+// ShellCommand returns an unstarted interactive shell process for a caller to
+// wire stdio to (Android only — iOS has no equivalent without a jailbreak).
+func (c *Capturer) ShellCommand(ctx context.Context, dev model.Device) (*exec.Cmd, error) {
+	if dev.Platform != model.Android {
+		return nil, fmt.Errorf("shell unsupported on %s", dev.Platform)
+	}
+	return c.adb.ShellCommand(ctx, dev.Serial), nil
 }
 
 // ClearLogs empties the device log buffer — call before a test run so a later

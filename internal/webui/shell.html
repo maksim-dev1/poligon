@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>poligon — терминал</title>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/vendor/xterm.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .shell-bar {
+    flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  }
+  .shell-bar .title { font: 500 12px/1 var(--mono); color: var(--text); letter-spacing: .02em; }
+  .shell-bar .status { font: 500 11px/1 var(--mono); color: var(--text-2); }
+  .shell-bar .sp { margin-left: auto; }
+  .shell-body { flex: 1; min-height: 0; display: flex; }
+  .term-pane { flex: 1.4; min-width: 0; background: #000; padding: 8px; }
+  #term { width: 100%; height: 100%; }
+  .files-pane {
+    flex: 1; min-width: 260px; max-width: 460px; display: flex; flex-direction: column;
+    border-left: 1px solid var(--line); background: var(--surface);
+  }
+  .files-toolbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
+  .files-path { flex: 1; min-width: 0; font: 500 12px/1 var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files-list { flex: 1; overflow: auto; }
+  .file-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font: 400 12px/1.3 var(--mono); }
+  .file-row:hover { background: var(--surface-2); }
+  .file-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--text); }
+  .file-row.is-dir .name::before { content: "📁 "; }
+  .file-row:not(.is-dir) .name::before { content: "📄 "; }
+  .file-row .size { color: var(--text-muted); flex: none; font-size: 11px; }
+  .file-row .rowbtn { flex: none; }
+  .files-empty { padding: 20px; text-align: center; color: var(--text-muted); font: 400 12px/1.4 var(--mono); }
+</style>
+</head>
+<body>
+<div class="shell-bar">
+  <span class="title" id="devTitle">…</span>
+  <span class="status" id="status">подключение…</span>
+  <span class="sp"></span>
+  <button class="btn btn--sm" onclick="window.close()">Закрыть</button>
+</div>
+<div class="shell-body">
+  <div class="term-pane"><div id="term"></div></div>
+  <div class="files-pane">
+    <div class="files-toolbar">
+      <button class="icon-btn" title="Вверх" onclick="goUp()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+      <button class="icon-btn" title="Обновить" onclick="loadDir(curPath)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+      <span class="files-path" id="filesPath">/sdcard</span>
+      <button class="btn btn--sm" onclick="document.getElementById('uploadFile').click()">Загрузить</button>
+      <input type="file" id="uploadFile" hidden onchange="uploadFile(this.files[0]); this.value=''">
+    </div>
+    <div class="files-list" id="filesList"></div>
+  </div>
+</div>
+<div class="toasts" id="toasts"></div>
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/xterm-addon-fit.js"></script>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+const HW = () => ({ "X-Poligon-CSRF": csrf() });
+document.getElementById("devTitle").textContent = id || "?";
+document.title = "poligon — терминал — " + (id || "?");
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
+}
+
+// ---- terminal ----
+const term = new Terminal({ fontSize: 13, fontFamily: "var(--mono, monospace)", cursorBlink: true, theme: { background: "#000" } });
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.open(document.getElementById("term"));
+fit.fit();
+window.addEventListener("resize", () => fit.fit());
+
+const status = document.getElementById("status");
+function connect() {
+  if (!id) { status.textContent = "нет id устройства"; return; }
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${scheme}://${location.host}/api/devices/${id}/shell`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { status.textContent = "подключено"; term.focus(); };
+  ws.onclose = () => { status.textContent = "отключено"; term.writeln("\r\n[сессия завершена]"); };
+  ws.onerror = () => { status.textContent = "ошибка соединения"; };
+  ws.onmessage = ev => {
+    const data = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : ev.data;
+    term.write(typeof data === "string" ? data : data);
+  };
+  term.onData(d => { if (ws.readyState === WebSocket.OPEN) ws.send(d); });
+}
+connect();
+
+// ---- file manager ----
+let curPath = "/sdcard";
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+function humanSize(n) {
+  if (n < 1024) return n + " B";
+  const u = ["KB","MB","GB"]; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(1) + " " + u[i];
+}
+function goUp() {
+  if (curPath === "/sdcard") return;
+  const parts = curPath.split("/"); parts.pop();
+  loadDir(parts.join("/") || "/sdcard");
+}
+async function loadDir(path) {
+  try {
+    const r = await fetch(`/api/devices/${id}/files?path=${encodeURIComponent(path)}`);
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    curPath = b.path;
+    document.getElementById("filesPath").textContent = curPath;
+    document.getElementById("filesPath").title = curPath;
+    renderList(b.entries || []);
+  } catch (e) { toast(e.message, "err"); }
+}
+function renderList(entries) {
+  entries.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name));
+  const list = document.getElementById("filesList");
+  if (!entries.length) { list.innerHTML = `<div class="files-empty">пусто</div>`; return; }
+  list.innerHTML = entries.map(e => `
+    <div class="file-row ${e.dir ? "is-dir" : ""}">
+      <span class="name" title="${esc(e.name)}" onclick="${e.dir ? `loadDir('${curPath}/${esc(e.name)}'.replace('//','/'))` : `downloadFile('${esc(e.name)}')`}">${esc(e.name)}</span>
+      ${e.dir ? "" : `<span class="size">${humanSize(e.size)}</span>`}
+      <button class="icon-btn rowbtn" title="Переименовать" onclick="renameFile('${esc(e.name)}')">✎</button>
+      <button class="icon-btn rowbtn is-danger" title="Удалить" onclick="deleteFile('${esc(e.name)}')">✕</button>
+    </div>`).join("");
+}
+function downloadFile(name) {
+  window.open(`/api/devices/${id}/files/download?path=${encodeURIComponent(curPath + "/" + name)}`, "_blank");
+}
+async function uploadFile(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("path", curPath);
+  fd.append("file", file);
+  toast(`Загружаю ${file.name}…`);
+  try {
+    const r = await fetch(`/api/devices/${id}/files/upload`, { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast("Загружено", "ok");
+    loadDir(curPath);
+  } catch (e) { toast(e.message, "err"); }
+}
+async function deleteFile(name) {
+  if (!confirm(`Удалить ${name}?`)) return;
+  try {
+    const r = await fetch(`/api/devices/${id}/files/delete`, { method: "POST", headers: { ...HW(), "Content-Type": "application/json" }, body: JSON.stringify({ path: curPath + "/" + name }) });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    loadDir(curPath);
+  } catch (e) { toast(e.message, "err"); }
+}
+async function renameFile(name) {
+  const next = prompt("Новое имя", name);
+  if (!next || next === name) return;
+  try {
+    const r = await fetch(`/api/devices/${id}/files/rename`, { method: "POST", headers: { ...HW(), "Content-Type": "application/json" }, body: JSON.stringify({ path: curPath + "/" + name, name: next }) });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    loadDir(curPath);
+  } catch (e) { toast(e.message, "err"); }
+}
+loadDir(curPath);
+</script>
+</body>
+</html>

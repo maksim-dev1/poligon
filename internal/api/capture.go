@@ -11,6 +11,19 @@ import (
 	"github.com/pancir/poligon/internal/model"
 )
 
+// keycodes are the Android hardware/navigation keys the webui's per-tile rail
+// offers as buttons — the same set ws-scrcpy's own on-screen bar used to draw
+// before we started hiding it (poligon has its own reservation/CSRF-guarded
+// path to press them instead).
+var keycodes = map[string]int{
+	"power":       26,
+	"volume_up":   24,
+	"volume_down": 25,
+	"back":        4,
+	"home":        3,
+	"recents":     187, // APP_SWITCH
+}
+
 // heldDevice resolves the device and confirms the caller currently holds it
 // (directly or as part of a batch). It writes the error response itself.
 func (s *Server) heldDevice(w http.ResponseWriter, r *http.Request) (model.Device, bool) {
@@ -72,4 +85,25 @@ func (s *Server) deviceLogcat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf("attachment; filename=%q", dev.ID+"-"+time.Now().Format("20060102-150405")+".log"))
 	_, _ = w.Write([]byte(text))
+}
+
+// deviceKeyevent presses one named hardware/navigation key (?key=home etc).
+func (s *Server) deviceKeyevent(w http.ResponseWriter, r *http.Request) {
+	dev, ok := s.heldDevice(w, r)
+	if !ok {
+		return
+	}
+	key := r.URL.Query().Get("key")
+	code, known := keycodes[key]
+	if !known {
+		fail(w, http.StatusBadRequest, fmt.Errorf("unknown key %q", key))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	if err := s.capt.Keyevent(ctx, dev, code); err != nil {
+		fail(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
