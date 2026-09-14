@@ -18,10 +18,6 @@
     </button>
   </div>
   <span class="divider"></span>
-  <button class="btn btn--sm" onclick="pickInstall()">Установить сборку</button>
-  <button class="btn btn--sm" onclick="restartAll()">Перезапустить экраны</button>
-  <button class="btn btn--sm" onclick="reloadAll()">Обновить</button>
-  <span class="divider"></span>
   <div class="wall-menu">
     <button class="btn btn--sm" onclick="toggleMenu()">Тесты
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -38,9 +34,9 @@
   <span class="divider"></span>
   <a class="btn btn--ghost btn--sm" href="/">Ферма</a>
   <button class="btn btn--danger btn--sm" onclick="releaseAll()">Завершить работу</button>
-  <input type="file" id="installFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="installAll(this.files); this.value=''">
   <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
   <input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
+  <input type="file" id="deviceInstallFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installOne(pendingInstallId, this.files[0]); this.value=''">
 </div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
@@ -82,12 +78,67 @@ function applyZoom() {
 }
 function setZoom(d) { zoom += d; applyZoom(); }
 
+// ---- keep the wall clear of the floating pill (it can wrap to 2+ rows) ----
+function fitWallTop() {
+  const h = document.getElementById("pill").offsetHeight;
+  document.getElementById("grid").style.setProperty("--wall-top", (h + 24) + "px");
+}
+new ResizeObserver(fitWallTop).observe(document.getElementById("pill"));
+window.addEventListener("resize", fitWallTop);
+
 // ---- run menu ----
 function toggleMenu() { const m = document.getElementById("menu"); m.hidden = !m.hidden; }
 function closeMenu() { document.getElementById("menu").hidden = true; }
 document.addEventListener("click", e => { if (!e.target.closest(".wall-menu")) closeMenu(); });
 
 function toggleInfo(id) { const el = document.getElementById("info-" + id); if (el) el.hidden = !el.hidden; }
+
+// ---- per-tile "more" popover ----
+function closeAllTileMore() { document.querySelectorAll(".tile-more-pop").forEach(el => el.hidden = true); }
+function toggleTileMore(id) {
+  const el = document.getElementById("more-" + id);
+  const open = el.hidden;
+  closeAllTileMore();
+  if (el) el.hidden = !open;
+}
+function closeTileMore(id) { const el = document.getElementById("more-" + id); if (el) el.hidden = true; }
+document.addEventListener("click", e => { if (!e.target.closest(".tile-more")) closeAllTileMore(); });
+
+// ---- per-device install ----
+let pendingInstallId = null;
+function pickInstallFor(id) { pendingInstallId = id; document.getElementById("deviceInstallFile").click(); }
+
+async function installOne(id, file) {
+  if (!id || !file) return;
+  const dev = devices.find(d => d.id === id);
+  const p = platformOf(file.name);
+  if (!p) { toast(`${file.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
+  if (dev && p !== dev.platform) { toast(`${file.name}: сборка ${p}, устройство ${dev.platform}`, "err"); return; }
+  toast(`Устанавливаю ${file.name} на ${id}…`);
+  const fd = new FormData();
+  fd.append("artifact", file);
+  try {
+    const r = await fetch(`/api/devices/${id}/install`, { method: "POST", headers: HW(), body: fd });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    toast(`${id}: установлено`, "ok");
+  } catch (e) { toast(`${id}: ${e.message}`, "err"); }
+}
+
+// ---- per-device screen restart ----
+async function restartOne(id) {
+  try {
+    const r = await fetch(`/api/devices/${id}/screen/restart`, { method: "POST", headers: HW() });
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || r.statusText); }
+    toast(`${id}: перезапуск экрана…`);
+    for (let i = 0; i < 90; i++) {
+      await new Promise(res => setTimeout(res, 2000));
+      const j = await (await fetch(`/api/devices/${id}/job`, { headers: H })).json();
+      if (j.state === "done" || j.state === "failed") break;
+    }
+    reopen(id);
+  } catch (e) { toast(`${id}: ${e.message}`, "err"); }
+}
 
 async function screenURL(id) {
   try {
@@ -127,6 +178,9 @@ function cell(d, url) {
     cam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
     doc: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`,
     ext: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+    install: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    restart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
+    more: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>`,
   };
   c.innerHTML = `
     <div class="tile-bar">
@@ -134,11 +188,18 @@ function cell(d, url) {
       <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
       ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
       <span class="sp"></span>
-      <button class="icon-btn" title="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
-      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
-      <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
-      <button class="icon-btn" title="Переоткрыть экран" onclick="reopen('${d.id}')">${icon.swap}</button>
-      <button class="icon-btn" title="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
+      <button class="icon-btn" title="Установить сборку" onclick="pickInstallFor('${d.id}')">${icon.install}</button>
+      <button class="icon-btn" title="Перезапустить экран" onclick="restartOne('${d.id}')">${icon.restart}</button>
+      <button class="icon-btn" title="Обновить" onclick="reopen('${d.id}')">${icon.swap}</button>
+      <div class="tile-more">
+        <button class="icon-btn" title="Ещё" onclick="toggleTileMore('${d.id}')">${icon.more}</button>
+        <div class="tile-more-pop" id="more-${d.id}" hidden>
+          <button class="btn" onclick="window.open('/api/devices/${d.id}/screenshot','_blank');closeTileMore('${d.id}')">Скриншот</button>
+          ${d.platform === "android" ? `<button class="btn" onclick="window.open('/api/devices/${d.id}/logcat','_blank');closeTileMore('${d.id}')">Logcat</button>` : ""}
+          <button class="btn" onclick="window.open(urls['${d.id}'],'w-${d.id}');closeTileMore('${d.id}')">Открыть в окне</button>
+          <button class="btn" onclick="toggleInfo('${d.id}');closeTileMore('${d.id}')">Характеристики</button>
+        </div>
+      </div>
     </div>
     <div class="tile-info" id="info-${d.id}" hidden><div class="specs">${specRows(d.specs)}</div></div>
     ${body}`;
@@ -151,49 +212,10 @@ function reopen(id) {
   const u = (f.getAttribute("src") || urls[id] || "").split("#")[0];
   if (u) f.src = u + (u.includes("?") ? "&" : "#") + "r=" + Date.now();
 }
-function reloadAll() { devices.forEach(d => reopen(d.id)); }
-
-function pickInstall() { document.getElementById("installFile").click(); }
-
 function platformOf(name) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
   for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
   return null;
-}
-
-async function installAll(files) {
-  files = [...(files || [])];
-  if (!files.length) return;
-
-  const byPlat = {};
-  for (const f of files) {
-    const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
-    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
-    byPlat[p] = f;
-  }
-
-  const need = batchPlatforms();
-  const missing = need.filter(p => !byPlat[p]);
-  if (missing.length) {
-    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте ${missing.map(p => p === "ios" ? ".ipa" : ".apk/.aab").join(" + ")}`, "err");
-    return;
-  }
-
-  const label = files.map(f => f.name).join(" + ");
-  toast(`Устанавливаю ${label} на ${devices.length} устр.…`);
-  setSub(`установка ${label}…`);
-  const fd = new FormData();
-  for (const f of files) fd.append("artifact", f);
-  try {
-    const r = await fetch(`/api/batches/${batch}/install`, { method: "POST", headers: HW(), body: fd });
-    const b = await r.json();
-    if (!r.ok && !b.results) throw new Error(b.error || r.statusText);
-    const bad = (b.results || []).filter(x => x.status !== "ok" && x.status !== "skipped");
-    toast(`Установлено на ${b.ok}/${b.total}` + (bad.length ? "\n" + bad.map(x => `${x.device}: ${x.detail}`).join("\n") : ""),
-      bad.length ? "err" : "ok");
-  } catch (e) { toast(e.message, "err"); }
-  setSub();
 }
 
 function pickSmoke() { document.getElementById("smokeFile").click(); }
@@ -272,23 +294,6 @@ async function commandRun() {
     toast(`Прогон ${b.id} в очереди`, "ok");
     setTimeout(() => location.href = "/runs.html?r=" + b.id, 600);
   } catch (e) { toast(e.message, "err"); }
-}
-
-async function restartAll() {
-  setSub("перезапуск экранов…");
-  await Promise.all(devices.map(async d => {
-    try {
-      const r = await fetch(`/api/devices/${d.id}/screen/restart`, { method: "POST", headers: HW() });
-      if (!r.ok) return;
-      for (let i = 0; i < 90; i++) {
-        await new Promise(res => setTimeout(res, 2000));
-        const j = await (await fetch(`/api/devices/${d.id}/job`, { headers: H })).json();
-        if (j.state === "done" || j.state === "failed") break;
-      }
-      reopen(d.id);
-    } catch {}
-  }));
-  setSub();
 }
 
 async function releaseOne(id) {
