@@ -42,12 +42,23 @@ func (s *Server) deviceDebugTunnelStart(w http.ResponseWriter, r *http.Request) 
 }
 
 // deviceDebugTunnelPing keeps an already-open tunnel alive; call every ~30s
-// while the developer still wants it open.
+// while the developer still wants it open. Self-healing: it re-opens the
+// tunnel (Start is idempotent — a no-op if already listening) rather than
+// just touching a timestamp, so a poligon restart mid-debug-session (a
+// routine deploy, say) doesn't leave the tab silently pinging a tunnel that
+// no longer exists.
 func (s *Server) deviceDebugTunnelPing(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.heldDevice(w, r); !ok {
 		return
 	}
-	s.adbTunnel.Ping()
+	if s.cfg.ADBTunnelPort <= 0 {
+		fail(w, http.StatusServiceUnavailable, errors.New("debug tunnel disabled (adb_tunnel_port: 0)"))
+		return
+	}
+	if _, err := s.adbTunnel.Start(fmt.Sprintf(":%d", s.cfg.ADBTunnelPort)); err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
