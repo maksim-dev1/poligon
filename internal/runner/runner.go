@@ -3,8 +3,10 @@
 // (parallel, bounded), and writes per-device artifacts under <dir>/<run>/<device>/.
 //
 // Run types:
-//   - install_smoke: install the build, launch it, wait, then assert the process
-//     is alive and no crash landed in the log; saves a screenshot + the log.
+//   - install_smoke: install the build, launch it, wait, then assert it's
+//     still running — Android checks pidof + scans logcat for a crash; iOS
+//     (no root, no syslog capture yet) checks it's still the foreground app
+//     via WDA instead. Saves a screenshot + whatever log is available.
 package runner
 
 import (
@@ -21,6 +23,7 @@ import (
 	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/capture"
 	"github.com/pancir/poligon/internal/install"
+	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/model"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/store"
@@ -37,6 +40,7 @@ type Runner struct {
 	inst *install.Installer
 	cap  *capture.Capturer
 	adb  *adb.ADB
+	ios  *iosscreen.Controller
 	log  *slog.Logger
 
 	dir     string // artifact root: <StorageDir>/runs
@@ -49,13 +53,14 @@ type Runner struct {
 }
 
 // New builds a Runner. dir is created on first use; maestroBin defaults to
-// "maestro" when empty.
-func New(st *store.Store, res *reserve.Manager, inst *install.Installer, cap *capture.Capturer, a *adb.ADB, dir, maestroBin string, log *slog.Logger) *Runner {
+// "maestro" when empty. ios may be nil on an Android-only farm (install_smoke
+// then just skips iOS devices, same as before).
+func New(st *store.Store, res *reserve.Manager, inst *install.Installer, cap *capture.Capturer, a *adb.ADB, ios *iosscreen.Controller, dir, maestroBin string, log *slog.Logger) *Runner {
 	if maestroBin == "" {
 		maestroBin = resolveMaestro()
 	}
 	return &Runner{
-		st: st, res: res, inst: inst, cap: cap, adb: a, log: log,
+		st: st, res: res, inst: inst, cap: cap, adb: a, ios: ios, log: log,
 		dir: dir, maestro: maestroBin, par: 4,
 		wake:    make(chan struct{}, 1),
 		cancels: map[string]context.CancelFunc{},
@@ -348,9 +353,13 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 }
 
 // smoke: install → launch → settle → assert alive + no crash.
+// Android checks pidof + scans the logcat window for a crash; iOS has neither
+// (no root, no syslog capture yet) so it checks WDA's activeAppInfo instead —
+// the app must still be the foreground process (not bounced back to the
+// springboard) with a live pid.
 func (r *Runner) smoke(ctx context.Context, run model.Run, dev model.Device, rd *model.RunDevice, devDir string) {
-	if dev.Platform != model.Android {
-		rd.Status, rd.Detail = model.RunSkipped, "install_smoke supports Android only for now"
+	if dev.Platform == model.IOS && r.ios == nil {
+		rd.Status, rd.Detail = model.RunSkipped, "no iOS screen controller configured"
 		return
 	}
 	art := run.Spec.Artifacts[dev.Platform]
@@ -394,6 +403,11 @@ func (r *Runner) smoke(ctx context.Context, run model.Run, dev model.Device, rd 
 	}
 	logText := r.saveLog(ctx, dev, rd, devDir)
 
+	if dev.Platform == model.IOS {
+		r.smokeVerdictIOS(dev, res, rd, watch)
+		return
+	}
+
 	alive, _ := r.adb.Running(ctx, dev.Serial, res.Package)
 	crash := scanCrash(logText, res.Package)
 	switch {
@@ -401,6 +415,29 @@ func (r *Runner) smoke(ctx context.Context, run model.Run, dev model.Device, rd 
 		rd.Status, rd.Detail = model.RunFailed, "crash in log: "+crash
 	case !alive:
 		rd.Status, rd.Detail = model.RunFailed, fmt.Sprintf("process not running %ds after launch", watch)
+	default:
+		rd.Status, rd.Detail = model.RunPassed, ""
+	}
+}
+
+// smokeVerdictIOS asserts the just-installed app is the foreground process
+// with a live pid, via WDA's activeAppInfo — the closest iOS equivalent of
+// Android's pidof + logcat crash scan available without a jailbreak.
+func (r *Runner) smokeVerdictIOS(dev model.Device, res install.Result, rd *model.RunDevice, watch int) {
+	if res.Package == "" {
+		rd.Status, rd.Detail = model.RunError, "could not read the bundle id from the ipa"
+		return
+	}
+	active, pid, err := r.ios.ActiveApp(dev.ID)
+	switch {
+	case err != nil:
+		rd.Status, rd.Detail = model.RunError, "could not query WDA: "+err.Error()
+	case active != res.Package:
+		rd.Status, rd.Detail = model.RunFailed, fmt.Sprintf(
+			"foreground app is %q, not %q, %ds after launch (crashed back to the springboard?)",
+			active, res.Package, watch)
+	case pid == 0:
+		rd.Status, rd.Detail = model.RunFailed, fmt.Sprintf("%s has no running process %ds after launch", res.Package, watch)
 	default:
 		rd.Status, rd.Detail = model.RunPassed, ""
 	}

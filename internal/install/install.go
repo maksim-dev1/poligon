@@ -81,8 +81,9 @@ func (in *Installer) Run(ctx context.Context, dev model.Device, artifactPath str
 		if err != nil {
 			return Result{}, err
 		}
+		pkg := bundleID(filepath.Join(appBundle, "Info.plist"))
 		out, err := in.ios.Install(ctx, dev.UDID, appBundle)
-		return Result{Output: out}, err
+		return Result{Output: out, Package: pkg}, err
 
 	default:
 		return Result{}, fmt.Errorf("cannot install %s on %s device", ext, dev.Platform)

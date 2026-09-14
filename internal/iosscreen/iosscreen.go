@@ -234,6 +234,32 @@ func (c *Controller) Size(deviceID string) (w, h int, err error) {
 	return out.Value.Width, out.Value.Height, nil
 }
 
+// ActiveApp returns the bundle id and pid of the app currently in the
+// foreground (WDA's own `/wda/activeAppInfo`, no session needed) — used by
+// install_smoke to check a just-launched app is actually running rather than
+// having crashed back to the springboard.
+func (c *Controller) ActiveApp(deviceID string) (bundleID string, pid int, err error) {
+	ep, ok := c.endpoint(deviceID)
+	if !ok || ep.WDA == "" {
+		return "", 0, fmt.Errorf("no ios screen endpoint for %q", deviceID)
+	}
+	resp, err := c.client.Get("http://" + ep.WDA + "/wda/activeAppInfo")
+	if err != nil {
+		return "", 0, err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Value struct {
+			BundleID string `json:"bundleId"`
+			PID      int    `json:"pid"`
+		} `json:"value"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", 0, err
+	}
+	return out.Value.BundleID, out.Value.PID, nil
+}
+
 // session returns a live WDA sessionId for the device, creating one if needed.
 func (c *Controller) session(deviceID, base string) (string, error) {
 	c.mu.Lock()
