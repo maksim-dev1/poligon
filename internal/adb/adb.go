@@ -253,6 +253,124 @@ func (a *ADB) ShellCommand(ctx context.Context, serial string) *exec.Cmd {
 	return exec.CommandContext(ctx, a.bin, "-s", serial, "shell", "-tt")
 }
 
+// LogcatCommand builds (but does not start) a continuous `adb logcat` for a
+// caller to stream — e.g. a WebSocket live-tail. Unlike LogcatDump this never
+// exits on its own; the caller cancels ctx to stop it.
+func (a *ADB) LogcatCommand(ctx context.Context, serial string) *exec.Cmd {
+	return exec.CommandContext(ctx, a.bin, "-s", serial, "logcat", "-v", "threadtime")
+}
+
+// Package describes one installed app.
+type Package struct {
+	Name   string `json:"name"`
+	System bool   `json:"system"`
+}
+
+// ListPackages lists installed apps. Third-party (user-installed) ones are
+// always included; withSystem also includes platform/OEM packages.
+func (a *ADB) ListPackages(ctx context.Context, serial string, withSystem bool) ([]Package, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	parse := func(out string) map[string]bool {
+		set := map[string]bool{}
+		for _, line := range strings.Split(out, "\n") {
+			if name, ok := strings.CutPrefix(strings.TrimSpace(line), "package:"); ok && name != "" {
+				set[name] = true
+			}
+		}
+		return set
+	}
+	user, err := a.shell(ctx, serial, "pm", "list", "packages", "-3")
+	if err != nil {
+		return nil, err
+	}
+	userSet := parse(user)
+	pkgs := make([]Package, 0, len(userSet))
+	for name := range userSet {
+		pkgs = append(pkgs, Package{Name: name})
+	}
+	if withSystem {
+		all, err := a.shell(ctx, serial, "pm", "list", "packages")
+		if err != nil {
+			return nil, err
+		}
+		for name := range parse(all) {
+			if !userSet[name] {
+				pkgs = append(pkgs, Package{Name: name, System: true})
+			}
+		}
+	}
+	return pkgs, nil
+}
+
+// ForceStop kills every process of a package.
+func (a *ADB) ForceStop(ctx context.Context, serial, pkg string) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "am", "force-stop", shQuote(pkg))
+	return err
+}
+
+// ClearData wipes a package's data and cache (like Settings > Storage > Clear
+// data) without uninstalling it.
+func (a *ADB) ClearData(ctx context.Context, serial, pkg string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "pm", "clear", shQuote(pkg))
+	return err
+}
+
+// Uninstall removes a package.
+func (a *ADB) Uninstall(ctx context.Context, serial, pkg string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	return a.run(ctx, "-s", serial, "uninstall", pkg)
+}
+
+// UIDump captures the current screen's view hierarchy as XML
+// (`uiautomator dump`) — element ids/text/bounds, handy for locating a
+// selector for a test or bug report.
+func (a *ADB) UIDump(ctx context.Context, serial string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	const tmp = "/sdcard/poligon-ui-dump.xml"
+	if _, err := a.shell(ctx, serial, "uiautomator", "dump", tmp); err != nil {
+		return "", err
+	}
+	out, err := a.shell(ctx, serial, "cat", tmp)
+	_, _ = a.shell(ctx, serial, "rm", "-f", tmp)
+	return out, err
+}
+
+// settingsScreens whitelists the `android.settings.*` intent actions the
+// webui can jump to — free-text intent actions aren't accepted since they'd
+// otherwise let a caller launch an arbitrary activity.
+var settingsScreens = map[string]string{
+	"wifi":      "android.settings.WIFI_SETTINGS",
+	"bluetooth": "android.settings.BLUETOOTH_SETTINGS",
+	"display":   "android.settings.DISPLAY_SETTINGS",
+	"battery":   "android.settings.BATTERY_SAVER_SETTINGS",
+	"datetime":  "android.settings.DATE_SETTINGS",
+	"location":  "android.settings.LOCATION_SOURCE_SETTINGS",
+	"apps":      "android.settings.APPLICATION_SETTINGS",
+	"developer": "android.settings.APPLICATION_DEVELOPMENT_SETTINGS",
+}
+
+// SettingsScreens lists the screen keys OpenSettings accepts.
+func SettingsScreens() map[string]string { return settingsScreens }
+
+// OpenSettings jumps the device to one whitelisted system settings screen.
+func (a *ADB) OpenSettings(ctx context.Context, serial, screen string) error {
+	action, ok := settingsScreens[screen]
+	if !ok {
+		return fmt.Errorf("unknown settings screen %q", screen)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := a.shell(ctx, serial, "am", "start", "-a", action)
+	return err
+}
+
 // Install pushes an APK to a device. reinstall keeps app data; grant gives all
 // runtime permissions up front.
 func (a *ADB) Install(ctx context.Context, serial, apkPath string, reinstall, grant bool) (string, error) {

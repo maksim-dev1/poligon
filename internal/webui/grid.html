@@ -200,6 +200,9 @@ function cell(d, url) {
     recents: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`,
     term: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
     folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+    logs: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+    apps: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+    tree: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="21"/><path d="M6 8h6"/><path d="M6 15h10"/></svg>`,
   };
   c.innerHTML = `
     <div class="tile-rail">
@@ -220,7 +223,10 @@ function cell(d, url) {
       <button class="icon-btn" title="Последние приложения" onclick="keyEvent('${d.id}','recents')">${icon.recents}</button>
       <span class="tile-rail-sep"></span>
       <button class="icon-btn" title="Терминал" onclick="openModal('Терминал — ${d.id}','/terminal.html?id=${d.id}')">${icon.term}</button>
-      <button class="icon-btn" title="Файлы" onclick="openModal('Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>` : ""}
+      <button class="icon-btn" title="Файлы" onclick="openModal('Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
+      <button class="icon-btn" title="Логи (live)" onclick="openModal('Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
+      <button class="icon-btn" title="Приложения" onclick="openModal('Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
+      <button class="icon-btn" title="UI dump" onclick="openModal('UI dump — ${d.id}','/api/devices/${d.id}/ui-dump')">${icon.tree}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">

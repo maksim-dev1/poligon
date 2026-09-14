@@ -114,6 +114,70 @@ func (c *Capturer) ShellCommand(ctx context.Context, dev model.Device) (*exec.Cm
 	return c.adb.ShellCommand(ctx, dev.Serial), nil
 }
 
+// LogcatCommand returns an unstarted continuous log stream process.
+func (c *Capturer) LogcatCommand(ctx context.Context, dev model.Device) (*exec.Cmd, error) {
+	if dev.Platform != model.Android {
+		return nil, fmt.Errorf("logcat unsupported on %s", dev.Platform)
+	}
+	return c.adb.LogcatCommand(ctx, dev.Serial), nil
+}
+
+// ListPackages lists installed apps.
+func (c *Capturer) ListPackages(ctx context.Context, dev model.Device, withSystem bool) ([]adb.Package, error) {
+	if dev.Platform != model.Android {
+		return nil, fmt.Errorf("app manager unsupported on %s", dev.Platform)
+	}
+	return c.adb.ListPackages(ctx, dev.Serial, withSystem)
+}
+
+// ForceStopApp kills every process of a package.
+func (c *Capturer) ForceStopApp(ctx context.Context, dev model.Device, pkg string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("app manager unsupported on %s", dev.Platform)
+	}
+	return c.adb.ForceStop(ctx, dev.Serial, pkg)
+}
+
+// ClearAppData wipes a package's data and cache.
+func (c *Capturer) ClearAppData(ctx context.Context, dev model.Device, pkg string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("app manager unsupported on %s", dev.Platform)
+	}
+	return c.adb.ClearData(ctx, dev.Serial, pkg)
+}
+
+// UninstallApp removes a package.
+func (c *Capturer) UninstallApp(ctx context.Context, dev model.Device, pkg string) (string, error) {
+	if dev.Platform != model.Android {
+		return "", fmt.Errorf("app manager unsupported on %s", dev.Platform)
+	}
+	return c.adb.Uninstall(ctx, dev.Serial, pkg)
+}
+
+// LaunchApp starts a package's launcher activity.
+func (c *Capturer) LaunchApp(ctx context.Context, dev model.Device, pkg string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("app manager unsupported on %s", dev.Platform)
+	}
+	return c.adb.Launch(ctx, dev.Serial, pkg)
+}
+
+// UIDump captures the current screen's view hierarchy as XML.
+func (c *Capturer) UIDump(ctx context.Context, dev model.Device) (string, error) {
+	if dev.Platform != model.Android {
+		return "", fmt.Errorf("UI dump unsupported on %s", dev.Platform)
+	}
+	return c.adb.UIDump(ctx, dev.Serial)
+}
+
+// OpenSettings jumps the device to one whitelisted system settings screen.
+func (c *Capturer) OpenSettings(ctx context.Context, dev model.Device, screen string) error {
+	if dev.Platform != model.Android {
+		return fmt.Errorf("settings shortcuts unsupported on %s", dev.Platform)
+	}
+	return c.adb.OpenSettings(ctx, dev.Serial, screen)
+}
+
 // ClearLogs empties the device log buffer — call before a test run so a later
 // Logcat is scoped to that run. A no-op (nil) on platforms without support.
 func (c *Capturer) ClearLogs(ctx context.Context, dev model.Device) error {

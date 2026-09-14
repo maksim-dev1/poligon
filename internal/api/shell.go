@@ -99,3 +99,49 @@ func (s *Server) deviceShell(w http.ResponseWriter, r *http.Request) {
 
 	<-done
 }
+
+// deviceLogcatStream bridges a WebSocket to a continuous `adb logcat` —
+// a live tail rather than the one-shot dump /logcat returns. One-way: the
+// device has nothing to read from the browser, so incoming messages are
+// ignored (the read loop only exists to notice the socket closing).
+func (s *Server) deviceLogcatStream(w http.ResponseWriter, r *http.Request) {
+	dev, ok := s.heldDevice(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cmd, err := s.capt.LogcatCommand(ctx, dev)
+	if err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+
+	conn, err := shellUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	cmd.Stdout = &wsWriter{conn: conn}
+	if err := cmd.Start(); err != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("["+err.Error()+"]"))
+		return
+	}
+
+	done := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(done) }()
+
+	go func() {
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	<-done
+}
