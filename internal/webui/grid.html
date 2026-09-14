@@ -18,18 +18,19 @@
     </button>
   </div>
   <span class="divider"></span>
+  <button class="btn btn--sm" onclick="pickInstall()">Установить сборку</button>
+  <button class="btn btn--sm" onclick="restartAll()">Перезапустить экраны</button>
+  <button class="btn btn--sm" onclick="reloadAll()">Обновить</button>
+  <span class="divider"></span>
   <div class="wall-menu">
-    <button class="btn btn--sm" onclick="toggleMenu()">Запуск
+    <button class="btn btn--sm" onclick="toggleMenu()">Тесты
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
     <div class="wall-menu-pop" id="menu" hidden>
-      <button class="btn" onclick="pickInstall();closeMenu()">Установить сборку</button>
       <button class="btn" onclick="pickSmoke();closeMenu()">Смоук-тест</button>
       <button class="btn" onclick="pickMaestro();closeMenu()">Maestro</button>
       <button class="btn" onclick="commandRun();closeMenu()">Команда</button>
       <button class="btn" onclick="location.href='/runs.html'">Прогоны</button>
-      <button class="btn" onclick="restartAll();closeMenu()">Перезапустить экраны</button>
-      <button class="btn" onclick="reloadAll();closeMenu()">Обновить</button>
     </div>
   </div>
   <span class="health" id="health" title="проверка системы…"></span>
@@ -133,15 +134,13 @@ function cell(d, url) {
       <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
       ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
       <span class="sp"></span>
+      <button class="icon-btn" title="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
+      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
+      <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
       <button class="icon-btn" title="Переоткрыть экран" onclick="reopen('${d.id}')">${icon.swap}</button>
       <button class="icon-btn" title="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
     </div>
     <div class="tile-info" id="info-${d.id}" hidden><div class="specs">${specRows(d.specs)}</div></div>
-    <div class="tile-rail">
-      <button class="icon-btn" title="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
-      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
-      <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
-    </div>
     ${body}`;
   return c;
 }
