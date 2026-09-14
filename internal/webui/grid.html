@@ -40,13 +40,9 @@
 </div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
-<div class="drawer" id="modalOverlay" hidden>
-  <div class="drawer-bar">
-    <span id="modalTitle"></span>
-    <span class="sp"></span>
-    <button class="btn btn--sm" onclick="closeModal()">Закрыть</button>
-  </div>
-  <iframe id="modalFrame"></iframe>
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-tabs" id="drawerTabs"></div>
+  <div class="drawer-frames" id="drawerFrames"></div>
 </div>
 <div class="toasts" id="toasts"></div>
 <script>
@@ -103,18 +99,57 @@ function toggleInfo(id) { const el = document.getElementById("info-" + id); if (
 
 // ---- terminal/files/etc. drawer — docked to the right, not a full-screen
 // modal, so the device wall stays visible and usable while a tool is open.
-// In-page (not a new tab): clearing src on close also drops the terminal's
-// WebSocket instead of leaking it in a background tab. ----
-function openModal(title, src) {
-  document.getElementById("modalTitle").textContent = title;
-  document.getElementById("modalFrame").src = src;
-  document.getElementById("modalOverlay").hidden = false;
+// Tabbed: opening a second tool no longer kills the first one's state (a
+// running WebSocket, an unsaved filter) — each tool is a real iframe kept
+// alive in the background until its tab is explicitly closed.
+const tools = new Map(); // key -> { tab, frame }
+let activeTool = null;
+
+function openModal(key, title, src) {
+  document.getElementById("drawer").hidden = false;
+  if (tools.has(key)) { activateTool(key); return; }
+
+  const frame = document.createElement("iframe");
+  frame.src = src;
+
+  const tab = document.createElement("div");
+  tab.className = "drawer-tab";
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "drawer-tab-title";
+  titleSpan.textContent = title;
+  titleSpan.title = title;
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "drawer-tab-close";
+  closeBtn.textContent = "✕";
+  closeBtn.title = "Закрыть";
+  closeBtn.onclick = e => { e.stopPropagation(); closeTool(key); };
+  tab.append(titleSpan, closeBtn);
+  tab.onclick = () => activateTool(key);
+
+  document.getElementById("drawerTabs").appendChild(tab);
+  document.getElementById("drawerFrames").appendChild(frame);
+  tools.set(key, { tab, frame });
+  activateTool(key);
 }
-function closeModal() {
-  document.getElementById("modalOverlay").hidden = true;
-  document.getElementById("modalFrame").src = "about:blank";
+function activateTool(key) {
+  activeTool = key;
+  for (const [k, v] of tools) {
+    v.tab.classList.toggle("active", k === key);
+    v.frame.style.display = k === key ? "block" : "none";
+  }
 }
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+function closeTool(key) {
+  const t = tools.get(key);
+  if (!t) return;
+  t.tab.remove();
+  t.frame.remove();
+  tools.delete(key);
+  if (activeTool !== key) return;
+  const next = [...tools.keys()].pop();
+  if (next) activateTool(next);
+  else { document.getElementById("drawer").hidden = true; activeTool = null; }
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape" && activeTool) closeTool(activeTool); });
 
 // ---- per-device install ----
 let pendingInstallId = null;
@@ -222,11 +257,11 @@ function cell(d, url) {
       <button class="icon-btn" title="Домой" onclick="keyEvent('${d.id}','home')">${icon.home}</button>
       <button class="icon-btn" title="Последние приложения" onclick="keyEvent('${d.id}','recents')">${icon.recents}</button>
       <span class="tile-rail-sep"></span>
-      <button class="icon-btn" title="Терминал" onclick="openModal('Терминал — ${d.id}','/terminal.html?id=${d.id}')">${icon.term}</button>
-      <button class="icon-btn" title="Файлы" onclick="openModal('Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
-      <button class="icon-btn" title="Логи (live)" onclick="openModal('Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
-      <button class="icon-btn" title="Приложения" onclick="openModal('Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
-      <button class="icon-btn" title="UI dump" onclick="openModal('UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>` : ""}
+      <button class="icon-btn" title="Терминал" onclick="openModal('term-${d.id}','Терминал — ${d.id}','/terminal.html?id=${d.id}')">${icon.term}</button>
+      <button class="icon-btn" title="Файлы" onclick="openModal('files-${d.id}','Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
+      <button class="icon-btn" title="Логи (live)" onclick="openModal('logcat-${d.id}','Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
+      <button class="icon-btn" title="Приложения" onclick="openModal('apps-${d.id}','Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
+      <button class="icon-btn" title="UI dump" onclick="openModal('uidump-${d.id}','UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">

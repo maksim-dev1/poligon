@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-09-07T10:42:09.608Z",
         "reason": "model: #screen img src is set at runtime by the MJPEG pump() loop"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "internal/webui/apps.html"
+        ],
+        "createdAt": "2026-09-14T08:13:09.088Z",
+        "reason": "matches existing app-wide dense dev-tool pattern: app.css already uses 10-11px for .tag/.tile-bar .btn/hint labels throughout (lines 134,303,347,608) — consistent, not a one-off"
       }
     ]
   }
