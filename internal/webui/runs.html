@@ -3,51 +3,64 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>poligon — прогоны тестов</title>
+<title>прогоны</title>
 <link rel="stylesheet" href="/app.css">
 <style>
-  .page-head { padding: 14px 18px 4px; max-width: 900px; }
-  .page-head h1 { margin: 0; font: 600 16px/1.3 var(--sans); color: var(--text); }
-  .page-head .sub { margin-top: 4px; font: 400 12.5px/1.5 var(--sans); color: var(--text-muted); max-width: 640px; }
-  .runs { padding: 12px 18px 96px; display: grid; gap: 10px; max-width: 900px; }
-  .run {
-    background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--r-md); overflow: hidden;
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+  .head { flex: none; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .head h1 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
+  .head .sub { margin-top: 3px; font: 400 12px/1.4 var(--sans); color: var(--text-muted); }
+
+  .toolbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .toolbar .select { min-width: 0; flex: 1 1 140px; }
+  .pager { flex: none; display: flex; align-items: center; gap: 6px; font: 400 11px/1 var(--mono); color: var(--text-2); }
+  .pager .btn { height: 24px; padding: 0 8px; font-size: 11px; }
+
+  .list { flex: 1; overflow: auto; padding: 10px 14px 40px; display: grid; gap: 8px; align-content: start; }
+
+  .run { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+  .run.is-open { border-color: var(--line-2); }
+
+  .run-summary {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+    width: 100%; padding: 10px 12px; cursor: pointer;
+    background: none; border: 0; text-align: left; font: inherit; color: inherit;
   }
-  .run-head {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px; cursor: pointer;
-    font: 500 12px/1.3 var(--mono);
-  }
-  .run-head:hover { background: var(--surface-2); }
-  .run-head .chevron { flex: none; color: var(--text-muted); transition: transform .12s var(--ease); }
-  .run-head .chevron.open { transform: rotate(90deg); }
-  .run-head .type-icon { flex: none; width: 22px; height: 22px; border-radius: var(--r-xs); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
-  .run-head .type-icon svg { width: 12px; height: 12px; }
-  .run-type { color: var(--text); font-weight: 600; }
-  .run-id { color: var(--text-muted); font-weight: 400; }
-  .run-when { color: var(--text-muted); margin-left: auto; font-size: 11px; text-align: right; white-space: nowrap; }
-  .run-act { display: flex; gap: 6px; }
-  .run-act .btn { height: 22px; padding: 0 8px; font-size: 11px; }
-  .run-devs { border-top: 1px solid var(--line); padding: 4px 0; }
-  .run-devs-head { padding: 6px 12px; font: 500 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-  .run-dev {
-    display: grid; grid-template-columns: 1fr auto;
-    gap: 4px 12px; padding: 8px 12px;
-    font: 400 12px/1.4 var(--mono);
-    border-top: 1px solid var(--line);
-  }
-  .run-dev:first-child { border-top: 0; }
-  .run-dev .did { color: var(--text-2); }
-  .run-dev .ddetail { color: var(--text-muted); grid-column: 1 / -1; white-space: pre-wrap; }
-  .run-dev .darts { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+  .run-summary:hover { background: var(--surface-2); }
+  .chevron { flex: none; color: var(--text-muted); transition: transform .12s var(--ease); }
+  .chevron.open { transform: rotate(90deg); }
+  .type-icon { flex: none; width: 22px; height: 22px; border-radius: var(--r-xs); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
+  .type-icon svg { width: 12px; height: 12px; }
+  .type-name { font: 600 12.5px/1.3 var(--sans); color: var(--text); white-space: nowrap; }
+  .counts { display: flex; gap: 6px; font: 600 11px/1 var(--mono); }
+  .counts .n-pass { color: var(--ok); }
+  .counts .n-fail { color: var(--down); }
+  .counts .n-run { color: var(--warn); }
+  .sp { flex: 1 1 auto; min-width: 8px; }
+  .run-when { flex: none; font: 400 11px/1.4 var(--mono); color: var(--text-muted); text-align: right; }
+  .run-sub { flex-basis: 100%; font: 400 11px/1.4 var(--mono); color: var(--text-muted); padding-left: 32px; margin-top: -2px; }
+
+  .run-body { border-top: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 10px; }
+  .run-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .devices-label { font: 600 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+  .device { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; display: grid; gap: 6px; }
+  .device-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 500 12px/1.3 var(--mono); }
+  .device-head .did { color: var(--text); }
+  .device-head .pkg { color: var(--text-muted); font-weight: 400; }
+  .device-detail { font: 400 11.5px/1.5 var(--mono); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+  .device-artifacts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .device-artifacts a { font: 500 11px/1 var(--mono); color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
+  .device-artifacts a:hover { color: var(--text); }
+
   .pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 5px; flex: none;
+    font: 600 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
     padding: 3px 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2);
     color: var(--text-2); white-space: nowrap;
   }
-  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex: none; }
   .pill.passed  { color: var(--ok); border-color: rgba(63,185,138,.35); }
   .pill.passed::before { background: var(--ok); }
   .pill.failed, .pill.error { color: var(--down); border-color: rgba(229,84,75,.35); }
@@ -55,32 +68,17 @@
   .pill.running, .pill.queued { color: var(--warn); border-color: rgba(217,154,43,.35); }
   .pill.running::before, .pill.queued::before { background: var(--warn); }
   .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
-  .empty2 { padding: 40px 18px; text-align: center; color: var(--text-3); max-width: 420px; margin: 0 auto; }
-  .empty2 .big { font: 500 13px/1.4 var(--sans); color: var(--text-2); margin-bottom: 6px; }
-  .runs-filterbar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    padding: 10px 18px; max-width: 900px;
-  }
-  .runs-filterbar .sp { margin-left: auto; }
-  .runs-pager { display: flex; align-items: center; gap: 8px; font: 400 12px/1 var(--mono); color: var(--text-2); }
-  .runs-pager .btn { height: 24px; padding: 0 10px; font-size: 11px; }
+
+  .empty { padding: 32px 20px; text-align: center; color: var(--text-muted); font: 400 12.5px/1.6 var(--sans); }
+  .empty .big { font: 600 13px/1.4 var(--sans); color: var(--text-2); margin-bottom: 6px; }
 </style>
 </head>
 <body>
-<header class="topbar">
-  <span class="wordmark">poligon</span>
-  <span class="readout">прогоны тестов</span>
-  <span class="spacer"></span>
-  <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Ферма</button>
-</header>
-<div class="page-head">
-  <h1>История прогонов</h1>
-  <div class="sub">Каждая проверка, запущенная со стены экранов или по API — смоук-тест,
-    Maestro-флоу, команда, integration_test. Клик по строке разворачивает результат
-    по каждому устройству: статус, лог, скачиваемые файлы.</div>
+<div class="head">
+  <h1>Прогоны</h1>
+  <div class="sub">История всех тестов, запущенных со стены экранов. Клик по строке — результат по каждому устройству.</div>
 </div>
-<div class="page-error" id="err"></div>
-<div class="runs-filterbar">
+<div class="toolbar">
   <select class="select" id="fStatus" onchange="setFilter('status', this.value)">
     <option value="">Все статусы</option>
     <option value="queued">В очереди</option>
@@ -97,22 +95,24 @@
     <option value="command">Команда</option>
     <option value="integration_test">Integration test</option>
   </select>
-  <span class="sp"></span>
-  <div class="runs-pager" id="pager"></div>
 </div>
-<div class="runs" id="runs"></div>
+<div class="page-error" id="err"></div>
+<div class="list" id="list"></div>
+<div class="toolbar" style="border-top:1px solid var(--line);border-bottom:0">
+  <div class="pager" id="pager"></div>
+</div>
 
 <script>
 const want = new URLSearchParams(location.search).get("r");
 const open = new Set(want ? [want] : []);
+
 const ST = {
   passed: "пройден", failed: "провален", error: "ошибка", running: "выполняется",
   queued: "в очереди", canceled: "отменён", skipped: "пропущен", pending: "ожидание",
 };
 const stName = s => ST[s] || s;
 
-// same vocabulary as tests.html's cards — a raw run.type slug means nothing
-// to someone reading this list cold
+// same vocabulary + icons as tests.html's cards
 const TYPE = {
   install_smoke:    { name: "Смоук-тест",      icon: `<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>` },
   maestro:           { name: "Maestro",          icon: `<polygon points="5 3 19 12 5 21 5 3"/>` },
@@ -121,21 +121,37 @@ const TYPE = {
 };
 const typeInfo = t => TYPE[t] || { name: t, icon: `<circle cx="12" cy="12" r="8"/>` };
 
-const fmt = t => t ? new Date(t).toLocaleString() : "—";
+const fmt = t => t ? new Date(t).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 const dur = (a, b) => {
   if (!a) return "";
   const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000);
   return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
 };
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
-function devRow(runId, d) {
+// count devices by status so the collapsed row already answers "did it pass?"
+function counts(devices) {
+  const c = {};
+  for (const d of devices || []) c[d.status] = (c[d.status] || 0) + 1;
+  const parts = [];
+  if (c.passed) parts.push(`<span class="n-pass">✓ ${c.passed}</span>`);
+  if (c.failed || c.error) parts.push(`<span class="n-fail">✕ ${(c.failed || 0) + (c.error || 0)}</span>`);
+  if (c.running || c.pending) parts.push(`<span class="n-run">… ${(c.running || 0) + (c.pending || 0)}</span>`);
+  return parts.join("");
+}
+
+function deviceCard(runId, d) {
   const arts = (d.artifacts || []).map(n =>
-    `<a href="/api/runs/${runId}/artifacts/${d.device_id}/${n}" target="_blank">${n}</a>`).join("");
-  return `<div class="run-dev">
-    <span class="did">${d.device_id}${d.package ? ` · ${d.package}` : ""}</span>
-    <span class="pill ${d.status}">${stName(d.status)}</span>
-    ${d.detail ? `<span class="ddetail">${d.detail}</span>` : ""}
-    ${arts ? `<span class="darts">${arts}</span>` : ""}
+    `<a href="/api/runs/${runId}/artifacts/${d.device_id}/${n}" target="_blank">${esc(n)}</a>`).join("");
+  return `<div class="device">
+    <div class="device-head">
+      <span class="did">${esc(d.device_id)}</span>
+      ${d.package ? `<span class="pkg">${esc(d.package)}</span>` : ""}
+      <span class="sp"></span>
+      <span class="pill ${d.status}">${stName(d.status)}</span>
+    </div>
+    ${d.detail ? `<div class="device-detail">${esc(d.detail)}</div>` : ""}
+    ${arts ? `<div class="device-artifacts">${arts}</div>` : ""}
   </div>`;
 }
 
@@ -143,28 +159,30 @@ function runCard(r) {
   const isOpen = open.has(r.id);
   const info = typeInfo(r.type);
   const n = (r.devices || []).length;
-  const devs = isOpen
-    ? `<div class="run-devs">
-        <div class="run-devs-head">${n} устройств${n === 1 ? "о" : n < 5 ? "а" : ""}</div>
-        ${(r.devices || []).map(d => devRow(r.id, d)).join("")}
-      </div>`
-    : "";
-  return `<div class="run" id="run-${r.id}">
-    <div class="run-head" onclick="toggle('${r.id}')">
+  const body = isOpen ? `
+    <div class="run-body">
+      <div class="run-actions">
+        ${["passed","failed","error","canceled"].includes(r.status)
+          ? `<button class="btn btn--sm" title="Запустить снова с теми же файлами" onclick="rerun('${r.id}')">Повторить</button>` : ""}
+        ${["queued","running"].includes(r.status)
+          ? `<button class="btn btn--sm btn--danger" onclick="cancelRun('${r.id}')">Отменить</button>` : ""}
+      </div>
+      <div>
+        <div class="devices-label">${n} устройств${n === 1 ? "о" : n < 5 ? "а" : ""}</div>
+        <div style="display:grid;gap:6px;margin-top:6px">${(r.devices || []).map(d => deviceCard(r.id, d)).join("")}</div>
+      </div>
+    </div>` : "";
+  return `<div class="run ${isOpen ? "is-open" : ""}" id="run-${r.id}">
+    <button class="run-summary" onclick="toggle('${r.id}')">
       <svg class="chevron ${isOpen ? "open" : ""}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
       <span class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${info.icon}</svg></span>
-      <span class="run-type">${info.name}</span>
-      <span class="run-id">#${r.id}</span>
+      <span class="type-name">${info.name}</span>
       <span class="pill ${r.status}">${stName(r.status)}</span>
-      ${r.detail ? `<span class="run-type" style="font-weight:400;color:var(--text-muted)">— ${r.detail}</span>` : ""}
-      <span class="run-when">${fmt(r.created_at)}<br>${dur(r.started_at, r.finished_at)}</span>
-      <span class="run-act" onclick="event.stopPropagation()">
-        ${["passed","failed","error","canceled"].includes(r.status)
-          ? `<button class="btn" title="Запустить снова с теми же файлами" onclick="rerun('${r.id}')">Повторить</button>` : ""}
-        ${["queued","running"].includes(r.status)
-          ? `<button class="btn btn--danger" onclick="cancelRun('${r.id}')">Отменить</button>` : ""}
-      </span>
-    </div>${devs}
+      <span class="counts">${counts(r.devices)}</span>
+      <span class="sp"></span>
+      <span class="run-when">${fmt(r.created_at)}</span>
+      <span class="run-sub">#${esc(r.id)} · ${n} устр. · ${dur(r.started_at, r.finished_at) || "—"}${r.detail ? " · " + esc(r.detail) : ""}</span>
+    </button>${body}
   </div>`;
 }
 
@@ -189,12 +207,11 @@ async function cancelRun(id) { if (await post(`/api/runs/${id}/cancel`)) load();
 let LAST = [];
 function render(runs) {
   LAST = runs;
-  const el = document.getElementById("runs");
+  const el = document.getElementById("list");
   if (!runs.length) {
     el.innerHTML = filters.status || filters.type
-      ? `<div class="empty2">ничего не найдено под этот фильтр</div>`
-      : `<div class="empty2"><div class="big">прогонов пока нет</div>здесь появится история после первого запуска —
-         откройте партию устройств на стене экранов и нажмите «Тесты»</div>`;
+      ? `<div class="empty">ничего не найдено под этот фильтр</div>`
+      : `<div class="empty"><div class="big">прогонов пока нет</div>откройте партию устройств на стене экранов и нажмите «Тесты», чтобы запустить первый</div>`;
     return;
   }
   el.innerHTML = runs.map(runCard).join("");
