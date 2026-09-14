@@ -48,19 +48,30 @@ function toast(msg, kind) {
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
 function render(info) {
-  const cmd = `export ANDROID_ADB_SERVER_ADDRESS=${info.host}
+  const cli = `export ANDROID_ADB_SERVER_ADDRESS=${info.host}
 export ANDROID_ADB_SERVER_PORT=${info.port}
-adb devices                 # должен показать ${info.serial}
-flutter run -d ${info.serial}   # обычный debug-запуск с hot reload`;
+flutter run -d ${info.serial}   # прямо из терминала, без VS Code`;
+  const vscode = `export ANDROID_ADB_SERVER_ADDRESS=${info.host}
+export ANDROID_ADB_SERVER_PORT=${info.port}
+code .   # запускать VS Code из ЭТОГО терминала — расширение Flutter
+         # наследует переменные и увидит ${info.serial} в обычном списке
+         # устройств (статус-бар / Flutter: Select Device), как локальный`;
   document.getElementById("body").innerHTML = `
     <h2>Debug из VS Code</h2>
     <div class="status"><span class="dot up"></span>туннель открыт — держите вкладку открытой, пока отлаживаетесь</div>
     <div>
-      <div class="empty" style="margin-bottom:6px">Выполните в терминале на своей машине (не на ферме):</div>
-      <pre>${esc(cmd)}</pre>
+      <div class="empty" style="margin-bottom:6px">Чтобы устройство появилось в списке устройств VS Code (не отдельным экраном — прямо в обычном picker'е):</div>
+      <pre>${esc(vscode)}</pre>
     </div>
-    <div class="warn"><b>Важно:</b> это общий туннель к adb-серверу фермы, не изолированный на одно устройство —
-      пока он открыт, через него виден любой сейчас подключённый к ферме телефон, а не только ${esc(info.serial)}.
+    <div>
+      <div class="empty" style="margin-bottom:6px">Или просто из терминала, без VS Code:</div>
+      <pre>${esc(cli)}</pre>
+    </div>
+    <div class="warn"><b>Важно:</b> пока переменные выставлены в окне/терминале — локальные эмуляторы и устройства
+      в нём пропадают из вида (adb-клиент целиком переключается на ферму). Откройте отдельное окно VS Code
+      без этих переменных, если нужны и локальные, и ферма одновременно.<br><br>
+      Это общий туннель к adb-серверу фермы, не изолированный на одно устройство — пока он открыт,
+      через него виден любой сейчас подключённый к ферме телефон, а не только ${esc(info.serial)}.
       Закрывайте вкладку, когда закончили.</div>
     <div class="actions"><button class="btn btn--sm btn--danger" onclick="stopTunnel()">Закрыть туннель</button></div>
   `;
