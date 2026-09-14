@@ -6,23 +6,31 @@
 <title>poligon — прогоны тестов</title>
 <link rel="stylesheet" href="/app.css">
 <style>
+  .page-head { padding: 14px 18px 4px; max-width: 900px; }
+  .page-head h1 { margin: 0; font: 600 16px/1.3 var(--sans); color: var(--text); }
+  .page-head .sub { margin-top: 4px; font: 400 12.5px/1.5 var(--sans); color: var(--text-muted); max-width: 640px; }
   .runs { padding: 12px 18px 96px; display: grid; gap: 10px; max-width: 900px; }
   .run {
     background: var(--surface); border: 1px solid var(--line);
     border-radius: var(--r-md); overflow: hidden;
   }
   .run-head {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; cursor: pointer;
     font: 500 12px/1.3 var(--mono);
   }
   .run-head:hover { background: var(--surface-2); }
-  .run-id { color: var(--text); letter-spacing: 0.03em; }
-  .run-type { color: var(--text-3); }
-  .run-when { color: var(--text-muted); margin-left: auto; font-size: 11px; }
+  .run-head .chevron { flex: none; color: var(--text-muted); transition: transform .12s var(--ease); }
+  .run-head .chevron.open { transform: rotate(90deg); }
+  .run-head .type-icon { flex: none; width: 22px; height: 22px; border-radius: var(--r-xs); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
+  .run-head .type-icon svg { width: 12px; height: 12px; }
+  .run-type { color: var(--text); font-weight: 600; }
+  .run-id { color: var(--text-muted); font-weight: 400; }
+  .run-when { color: var(--text-muted); margin-left: auto; font-size: 11px; text-align: right; white-space: nowrap; }
   .run-act { display: flex; gap: 6px; }
   .run-act .btn { height: 22px; padding: 0 8px; font-size: 11px; }
   .run-devs { border-top: 1px solid var(--line); padding: 4px 0; }
+  .run-devs-head { padding: 6px 12px; font: 500 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
   .run-dev {
     display: grid; grid-template-columns: 1fr auto;
     gap: 4px 12px; padding: 8px 12px;
@@ -35,7 +43,7 @@
   .run-dev .darts { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
   .pill {
     display: inline-flex; align-items: center; gap: 6px;
-    font: 600 10px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+    font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
     padding: 3px 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2);
     color: var(--text-2); white-space: nowrap;
   }
@@ -47,7 +55,8 @@
   .pill.running, .pill.queued { color: var(--warn); border-color: rgba(217,154,43,.35); }
   .pill.running::before, .pill.queued::before { background: var(--warn); }
   .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
-  .empty2 { padding: 40px 18px; text-align: center; color: var(--text-3); }
+  .empty2 { padding: 40px 18px; text-align: center; color: var(--text-3); max-width: 420px; margin: 0 auto; }
+  .empty2 .big { font: 500 13px/1.4 var(--sans); color: var(--text-2); margin-bottom: 6px; }
   .runs-filterbar {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     padding: 10px 18px; max-width: 900px;
@@ -64,6 +73,12 @@
   <span class="spacer"></span>
   <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Ферма</button>
 </header>
+<div class="page-head">
+  <h1>История прогонов</h1>
+  <div class="sub">Каждая проверка, запущенная со стены экранов или по API — смоук-тест,
+    Maestro-флоу, команда, integration_test. Клик по строке разворачивает результат
+    по каждому устройству: статус, лог, скачиваемые файлы.</div>
+</div>
 <div class="page-error" id="err"></div>
 <div class="runs-filterbar">
   <select class="select" id="fStatus" onchange="setFilter('status', this.value)">
@@ -77,9 +92,10 @@
   </select>
   <select class="select" id="fType" onchange="setFilter('type', this.value)">
     <option value="">Все типы</option>
-    <option value="install_smoke">install_smoke</option>
-    <option value="maestro">maestro</option>
-    <option value="command">command</option>
+    <option value="install_smoke">Смоук-тест</option>
+    <option value="maestro">Maestro</option>
+    <option value="command">Команда</option>
+    <option value="integration_test">Integration test</option>
   </select>
   <span class="sp"></span>
   <div class="runs-pager" id="pager"></div>
@@ -94,6 +110,17 @@ const ST = {
   queued: "в очереди", canceled: "отменён", skipped: "пропущен", pending: "ожидание",
 };
 const stName = s => ST[s] || s;
+
+// same vocabulary as tests.html's cards — a raw run.type slug means nothing
+// to someone reading this list cold
+const TYPE = {
+  install_smoke:    { name: "Смоук-тест",      icon: `<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>` },
+  maestro:           { name: "Maestro",          icon: `<polygon points="5 3 19 12 5 21 5 3"/>` },
+  command:           { name: "Команда",          icon: `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>` },
+  integration_test:  { name: "Integration test", icon: `<path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/>` },
+};
+const typeInfo = t => TYPE[t] || { name: t, icon: `<circle cx="12" cy="12" r="8"/>` };
+
 const fmt = t => t ? new Date(t).toLocaleString() : "—";
 const dur = (a, b) => {
   if (!a) return "";
@@ -114,17 +141,26 @@ function devRow(runId, d) {
 
 function runCard(r) {
   const isOpen = open.has(r.id);
+  const info = typeInfo(r.type);
+  const n = (r.devices || []).length;
   const devs = isOpen
-    ? `<div class="run-devs">${(r.devices || []).map(d => devRow(r.id, d)).join("")}</div>` : "";
+    ? `<div class="run-devs">
+        <div class="run-devs-head">${n} устройств${n === 1 ? "о" : n < 5 ? "а" : ""}</div>
+        ${(r.devices || []).map(d => devRow(r.id, d)).join("")}
+      </div>`
+    : "";
   return `<div class="run" id="run-${r.id}">
     <div class="run-head" onclick="toggle('${r.id}')">
-      <span class="run-id">${r.id}</span>
+      <svg class="chevron ${isOpen ? "open" : ""}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+      <span class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${info.icon}</svg></span>
+      <span class="run-type">${info.name}</span>
+      <span class="run-id">#${r.id}</span>
       <span class="pill ${r.status}">${stName(r.status)}</span>
-      <span class="run-type">${r.type}${r.detail ? ` — ${r.detail}` : ""}</span>
-      <span class="run-when">${fmt(r.created_at)} · ${dur(r.started_at, r.finished_at)}</span>
+      ${r.detail ? `<span class="run-type" style="font-weight:400;color:var(--text-muted)">— ${r.detail}</span>` : ""}
+      <span class="run-when">${fmt(r.created_at)}<br>${dur(r.started_at, r.finished_at)}</span>
       <span class="run-act" onclick="event.stopPropagation()">
         ${["passed","failed","error","canceled"].includes(r.status)
-          ? `<button class="btn" onclick="rerun('${r.id}')">Повторить</button>` : ""}
+          ? `<button class="btn" title="Запустить снова с теми же файлами" onclick="rerun('${r.id}')">Повторить</button>` : ""}
         ${["queued","running"].includes(r.status)
           ? `<button class="btn btn--danger" onclick="cancelRun('${r.id}')">Отменить</button>` : ""}
       </span>
@@ -155,7 +191,10 @@ function render(runs) {
   LAST = runs;
   const el = document.getElementById("runs");
   if (!runs.length) {
-    el.innerHTML = `<div class="empty2">${filters.status || filters.type ? "ничего не найдено под этот фильтр" : "прогонов пока нет — запустите со стены экранов"}</div>`;
+    el.innerHTML = filters.status || filters.type
+      ? `<div class="empty2">ничего не найдено под этот фильтр</div>`
+      : `<div class="empty2"><div class="big">прогонов пока нет</div>здесь появится история после первого запуска —
+         откройте партию устройств на стене экранов и нажмите «Тесты»</div>`;
     return;
   }
   el.innerHTML = runs.map(runCard).join("");
