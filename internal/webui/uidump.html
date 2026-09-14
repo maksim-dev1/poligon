@@ -8,24 +8,86 @@
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .toolbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-  .toolbar .status { flex: 1; min-width: 0; font: 500 11px/1 var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .body { flex: 1; overflow: auto; }
-  pre { margin: 0; padding: 12px 14px; font: 12px/1.5 var(--mono); color: var(--text); white-space: pre-wrap; word-break: break-all; }
+  .toolbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .toolbar .search { flex: 1; min-width: 100px; }
+  .toolbar .status { flex: none; font: 500 11px/1 var(--mono); color: var(--text-2); }
+  .body { flex: 1; overflow: auto; padding: 8px 4px; }
   .empty { padding: 24px; text-align: center; color: var(--text-muted); font: 400 12px/1.4 var(--mono); }
   .err { color: var(--down); }
+  .node { font: 12px/1.6 var(--mono); white-space: nowrap; padding: 1px 6px 1px 0; border-radius: 3px; }
+  .node:hover { background: var(--surface-2); }
+  .node.hidden-node { display: none; }
+  .node .indent { display: inline-block; }
+  .node .cls { color: var(--text-muted); }
+  .node .id { color: var(--accent, #6ea8ff); cursor: pointer; }
+  .node .id:hover { text-decoration: underline; }
+  .node .text { color: var(--ok, #6fd88a); }
+  .node .desc { color: var(--text-2); font-style: italic; }
+  .node .bounds { color: var(--text-muted); cursor: pointer; }
+  .node .bounds:hover { text-decoration: underline; }
+  .node .clickable { color: var(--down); font-weight: 600; margin-left: 4px; }
 </style>
 </head>
 <body>
 <div class="toolbar">
+  <input class="select search" id="search" placeholder="поиск по id / тексту / классу…" oninput="applyFilter()">
   <span class="status" id="status">снимаю…</span>
   <button class="btn btn--sm" onclick="load()">Снять заново</button>
 </div>
 <div class="body" id="body"><div class="empty">снимаю…</div></div>
+<div class="toasts" id="toasts"></div>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 document.title = "UI dump — " + (id || "?");
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 2000);
+}
+function copy(text, label) {
+  navigator.clipboard?.writeText(text).then(() => toast(`Скопировано: ${label}`, "ok")).catch(() => {});
+}
+function centerOf(bounds) {
+  const m = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/.exec(bounds);
+  if (!m) return bounds;
+  const [, x1, y1, x2, y2] = m.map(Number);
+  return `${Math.round((x1 + x2) / 2)},${Math.round((y1 + y2) / 2)}`;
+}
+
+function renderNode(el, depth, out) {
+  const a = el.attributes;
+  const get = n => a.getNamedItem(n)?.value || "";
+  const resId = get("resource-id");
+  const text = get("text");
+  const desc = get("content-desc");
+  const cls = get("class");
+  const bounds = get("bounds");
+  const clickable = get("clickable") === "true";
+  const searchable = [resId, text, desc, cls].join(" ").toLowerCase();
+
+  out.push(`<div class="node" data-search="${esc(searchable)}">`);
+  out.push(`<span class="indent">${"&nbsp;&nbsp;".repeat(depth)}</span>`);
+  if (cls) out.push(`<span class="cls">${esc(cls.replace(/^android\.(widget|view)\./, ""))}</span> `);
+  if (resId) out.push(`<span class="id" title="скопировать resource-id" onclick="copy('${esc(resId)}','${esc(resId)}')">#${esc(resId.split("/").pop())}</span> `);
+  if (text) out.push(`<span class="text">"${esc(text)}"</span> `);
+  if (desc) out.push(`<span class="desc">(${esc(desc)})</span> `);
+  if (bounds) out.push(`<span class="bounds" title="скопировать центр (x,y)" onclick="copy('${centerOf(bounds)}','${centerOf(bounds)}')">${esc(bounds)}</span>`);
+  if (clickable) out.push(`<span class="clickable">●тап</span>`);
+  out.push(`</div>`);
+
+  for (const child of el.children) renderNode(child, depth + 1, out);
+}
+
+function applyFilter() {
+  const q = document.getElementById("search").value.toLowerCase();
+  for (const n of document.querySelectorAll(".node")) {
+    n.classList.toggle("hidden-node", q !== "" && !n.dataset.search.includes(q));
+  }
+}
 
 async function load() {
   const status = document.getElementById("status");
@@ -42,8 +104,13 @@ async function load() {
       throw new Error(msg);
     }
     if (!text.trim()) throw new Error("пустой ответ — устройство не отдало дамп (экран выключен/заблокирован?)");
-    status.textContent = id + " — " + text.length + " байт";
-    body.innerHTML = `<pre>${esc(text)}</pre>`;
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.querySelector("parsererror")) throw new Error("не удалось разобрать XML");
+    const root = doc.documentElement;
+    const out = [];
+    for (const child of root.children) renderNode(child, 0, out);
+    body.innerHTML = out.join("") || `<div class="empty">пусто</div>`;
+    status.textContent = id + " — " + document.querySelectorAll(".node").length + " элементов";
   } catch (e) {
     status.textContent = "ошибка";
     body.innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
