@@ -569,7 +569,7 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
 }
 .tile {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: calc(78dvh * var(--tile-scale, 1));
   min-height: calc(420px * var(--tile-scale, 1));
   background: #000;
@@ -577,6 +577,25 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap
   border-radius: var(--r-md);
   overflow: hidden;
 }
+.tile-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tile-side {
+  flex: none;
+  width: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: var(--surface-2);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+.tile-side-sp { flex: 1; }
 .tile-bar {
   display: flex;
   align-items: center;
@@ -898,32 +917,6 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
 .wall-pill .health { margin: 0 2px; }
 
 .wall-menu { position: relative; }
-.tile-more { position: relative; }
-.tile-more-pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 6;
-  min-width: 170px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--surface-2);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  box-shadow: 0 12px 32px -8px rgba(0,0,0,.6);
-}
-.tile-more-pop .btn {
-  justify-content: flex-start;
-  height: 28px;
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-}
-.tile-more-pop .btn:hover { background: var(--surface); color: var(--text); }
-
 .wall-menu-pop {
   position: absolute;
   top: calc(100% + 8px);
@@ -951,7 +944,7 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
 /* ---- screen wall: per-tile info popover --------------------------- */
 
 .wall { --tile-scale: 1; padding-top: var(--wall-top, 64px); }
-.tile { position: relative; }
+.tile-main { position: relative; }
 
 .tile-info {
   position: absolute;
