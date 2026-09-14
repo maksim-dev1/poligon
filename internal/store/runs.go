@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pancir/poligon/internal/model"
@@ -103,35 +104,76 @@ func (s *Store) runDevices(runID string) ([]model.RunDevice, error) {
 }
 
 // Runs lists recent runs (newest first), each with its devices.
-func (s *Store) Runs(limit int) ([]model.Run, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+// RunFilter narrows Runs to a status/type/user, with limit+offset paging.
+// Every field is optional; a zero value means "don't filter on this".
+type RunFilter struct {
+	Status string
+	Type   string
+	User   string
+	Limit  int
+	Offset int
+}
+
+// Runs lists runs matching f, newest first, and the total number of matches
+// (ignoring Limit/Offset) so a caller can page through the full result.
+func (s *Store) Runs(f RunFilter) (runs []model.Run, total int, err error) {
+	if f.Limit <= 0 || f.Limit > 500 {
+		f.Limit = 50
 	}
-	rows, err := s.db.Query(`SELECT id FROM runs ORDER BY created_at DESC LIMIT ?`, limit)
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+
+	var where []string
+	var args []any
+	if f.Status != "" {
+		where = append(where, "status = ?")
+		args = append(args, f.Status)
+	}
+	if f.Type != "" {
+		where = append(where, "type = ?")
+		args = append(args, f.Type)
+	}
+	if f.User != "" {
+		where = append(where, "user = ?")
+		args = append(args, f.User)
+	}
+	clause := ""
+	if len(where) > 0 {
+		clause = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM runs `+clause, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := s.db.Query(
+		`SELECT id FROM runs `+clause+` ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		append(args, f.Limit, f.Offset)...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var ids []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]model.Run, 0, len(ids))
 	for _, id := range ids {
 		r, err := s.Run(id)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, r)
 	}
-	return out, nil
+	return out, total, nil
 }
 
 // QueuedRunIDs returns queued run ids, oldest first — the scheduler's work list.

@@ -48,6 +48,13 @@
   .pill.running::before, .pill.queued::before { background: var(--warn); }
   .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
   .empty2 { padding: 40px 18px; text-align: center; color: var(--text-3); }
+  .runs-filterbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 18px; max-width: 900px;
+  }
+  .runs-filterbar .sp { margin-left: auto; }
+  .runs-pager { display: flex; align-items: center; gap: 8px; font: 400 12px/1 var(--mono); color: var(--text-2); }
+  .runs-pager .btn { height: 24px; padding: 0 10px; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -58,6 +65,25 @@
   <button class="btn btn--ghost btn--sm" onclick="location.href='/'">Ферма</button>
 </header>
 <div class="page-error" id="err"></div>
+<div class="runs-filterbar">
+  <select class="select" id="fStatus" onchange="setFilter('status', this.value)">
+    <option value="">Все статусы</option>
+    <option value="queued">В очереди</option>
+    <option value="running">Выполняется</option>
+    <option value="passed">Пройден</option>
+    <option value="failed">Провален</option>
+    <option value="error">Ошибка</option>
+    <option value="canceled">Отменён</option>
+  </select>
+  <select class="select" id="fType" onchange="setFilter('type', this.value)">
+    <option value="">Все типы</option>
+    <option value="install_smoke">install_smoke</option>
+    <option value="maestro">maestro</option>
+    <option value="command">command</option>
+  </select>
+  <span class="sp"></span>
+  <div class="runs-pager" id="pager"></div>
+</div>
 <div class="runs" id="runs"></div>
 
 <script>
@@ -128,16 +154,43 @@ let LAST = [];
 function render(runs) {
   LAST = runs;
   const el = document.getElementById("runs");
-  if (!runs.length) { el.innerHTML = `<div class="empty2">прогонов пока нет — запустите со стены экранов</div>`; return; }
+  if (!runs.length) {
+    el.innerHTML = `<div class="empty2">${filters.status || filters.type ? "ничего не найдено под этот фильтр" : "прогонов пока нет — запустите со стены экранов"}</div>`;
+    return;
+  }
   el.innerHTML = runs.map(runCard).join("");
+}
+
+// ---- filters + paging ----
+const filters = { status: "", type: "" };
+let page = 0;
+const pageSize = 20;
+let total = 0;
+
+function setFilter(key, val) { filters[key] = val; page = 0; load(); }
+function prevPage() { if (page > 0) { page--; load(); } }
+function nextPage() { if ((page + 1) * pageSize < total) { page++; load(); } }
+function renderPager() {
+  const shown = LAST.length;
+  const from = shown ? page * pageSize + 1 : 0;
+  const to = page * pageSize + shown;
+  document.getElementById("pager").innerHTML = `
+    <span>${from}–${to} из ${total}</span>
+    <button class="btn" ${page === 0 ? "disabled" : ""} onclick="prevPage()">← назад</button>
+    <button class="btn" ${to >= total ? "disabled" : ""} onclick="nextPage()">вперёд →</button>`;
 }
 
 async function load() {
   try {
-    const runs = await (await fetch("/api/runs?limit=100", { credentials: "same-origin" })).json();
+    const params = new URLSearchParams({ limit: pageSize, offset: page * pageSize });
+    if (filters.status) params.set("status", filters.status);
+    if (filters.type) params.set("type", filters.type);
+    const b = await (await fetch(`/api/runs?${params}`, { credentials: "same-origin" })).json();
     document.getElementById("err").textContent = "";
-    render(runs);
-    const active = runs.some(r => r.status === "running" || r.status === "queued");
+    total = b.total || 0;
+    render(b.runs || []);
+    renderPager();
+    const active = (b.runs || []).some(r => r.status === "running" || r.status === "queued");
     clearTimeout(window._t);
     window._t = setTimeout(load, active ? 2500 : 15000);
   } catch (e) {

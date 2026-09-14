@@ -15,6 +15,7 @@ import (
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/model"
 	"github.com/pancir/poligon/internal/runner"
+	"github.com/pancir/poligon/internal/store"
 )
 
 // createRun starts a test run. Multipart form:
@@ -266,13 +267,19 @@ func redact(run model.Run) model.Run {
 }
 
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
-	limit := 100
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			limit = n
-		}
+	q := r.URL.Query()
+	f := store.RunFilter{
+		Status: q.Get("status"),
+		Type:   q.Get("type"),
+		User:   q.Get("user"),
 	}
-	runs, err := s.st.Runs(limit)
+	if v, err := strconv.Atoi(q.Get("limit")); err == nil {
+		f.Limit = v
+	}
+	if v, err := strconv.Atoi(q.Get("offset")); err == nil {
+		f.Offset = v
+	}
+	runs, total, err := s.st.Runs(f)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, err)
 		return
@@ -280,7 +287,10 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	for i := range runs {
 		runs[i] = redact(runs[i])
 	}
-	writeJSON(w, http.StatusOK, runs)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"runs":  runs,
+		"total": total,
+	})
 }
 
 func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
