@@ -6,7 +6,7 @@ import (
 	"io/fs"
 )
 
-//go:embed index.html ios-screen.html grid.html runs.html setup.html terminal.html files.html logcat.html apps.html uidump.html tests.html app.css vendor
+//go:embed index.html ios-screen.html grid.html runs.html setup.html terminal.html files.html logcat.html apps.html uidump.html tests.html debugtunnel.html app.css vendor
 var files embed.FS
 
 // FS returns the embedded dashboard file system (rooted at the asset dir).

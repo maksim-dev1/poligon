@@ -9,6 +9,12 @@ idle_timeout: 15m
 max_lease: 4h
 adb_path: "adb"
 
+# VS Code / flutter run live debugging over the network (see README) —
+# exposes the host's adb server on request, not scoped per-device. 0 disables.
+adb_tunnel_port: 5038
+adb_tunnel_idle: 15m
+adb_server_addr: "127.0.0.1:5037"
+
 # Authentication. Open self-service signup (email + password) from the dashboard;
 # no admin role. Host CLI (`poligon user ...`) handles moderation / resets.
 auth:

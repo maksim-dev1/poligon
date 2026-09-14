@@ -17,6 +17,7 @@ Done:
 - live screens: ws-scrcpy for Android, WebDriverAgent for iOS, one grid for a batch
 - per-device diagnostics: screenshot + logcat from the grid (`internal/capture`)
 - **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash), `maestro` (run a `.yaml` flow, collect report + recording), `command` (generic escape hatch — appium etc.), `integration_test` (Android: install the app + its androidTest apk, run the instrumentation). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html` (status/type filters, paged)
+- **live debugging from VS Code** (`internal/adbtunnel`, Android): exposes the host's adb server on the network on request, so `flutter run -d <serial>` / VS Code attaches to a farm device directly — hot reload, breakpoints, not just install-and-collect. See "VS Code / live debugging" below.
 
 Next:
 - iOS `integration_test` — needs a `.xctestrun` bundle + `xcodebuild test-without-building`, and Xcode on the host
@@ -63,6 +64,36 @@ Run types: `install_smoke`, `maestro`, `command`, `integration_test`. Device sel
 `GET /api/runs/{id}/artifacts/{device}/{path}`. Status SVG for a CI dashboard:
 `GET /runs/{id}/badge.svg` (no auth). Use `--data-urlencode` for urlencoded
 bodies (a raw `;` or space is rejected).
+
+### VS Code / live debugging (Android)
+
+Everything above installs a pre-built artifact and collects results —
+useful for CI, not for iterating on a debug build. The "VS Code debug" button
+on a reserved Android device's rail (screen grid) opens the adb server the
+host is already running to the network, so your own machine's `adb`/`flutter
+run`/VS Code attaches to the farm device directly: hot reload, breakpoints,
+everything works as if the phone were plugged into your own laptop.
+
+```sh
+# the webui shows you this exact block after clicking the button:
+export ANDROID_ADB_SERVER_ADDRESS=<farm-host>
+export ANDROID_ADB_SERVER_PORT=5038
+adb devices                     # should list the farm device's serial
+flutter run -d <serial>         # normal debug run, hot reload included
+```
+
+**Trust model, read before enabling on an untrusted network:** adb's wire
+protocol has no per-device access control. Once the tunnel is open, *every*
+device currently attached to the farm host is reachable through it — not
+just the one you reserved — regardless of who holds what in poligon's own
+reservation system. This matches the project's existing posture (open
+registration, "the network is the perimeter"), not a new class of exposure,
+but it is coarser than everything else poligon does. It is why the tunnel
+stays closed until a held device explicitly requests it and auto-closes
+after `adb_tunnel_idle` (default 15m) with no keepalive from the open tab.
+Set `adb_tunnel_port: 0` in config to disable the feature outright.
+iOS isn't supported yet — there's no equivalent of "adb server over TCP"; a
+USB-over-network proxy (`usbfluxd` or similar) would be needed instead.
 
 ## Run
 

@@ -234,6 +234,7 @@ function cell(d, url) {
     apps: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
     tree: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="21"/><path d="M6 8h6"/><path d="M6 15h10"/></svg>`,
     record: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg>`,
+    vscode: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
   };
   c.innerHTML = `
     <div class="tile-rail">
@@ -258,7 +259,9 @@ function cell(d, url) {
       <button class="icon-btn" title="Логи (live)" onclick="openModal('logcat-${d.id}','Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
       <button class="icon-btn" title="Приложения" onclick="openModal('apps-${d.id}','Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
       <button class="icon-btn" title="UI dump" onclick="openModal('uidump-${d.id}','UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>
-      <button class="icon-btn" id="rec-${d.id}" title="Запись экрана (до 3 мин)" onclick="toggleRecord('${d.id}', this)">${icon.record}</button>` : ""}
+      <button class="icon-btn" id="rec-${d.id}" title="Запись экрана (до 3 мин)" onclick="toggleRecord('${d.id}', this)">${icon.record}</button>
+      <span class="tile-rail-sep"></span>
+      <button class="icon-btn" title="Debug из VS Code (flutter run)" onclick="openModal('debug-${d.id}','VS Code debug — ${d.id}','/debugtunnel.html?id=${d.id}')">${icon.vscode}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pancir/poligon/internal/adbtunnel"
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/capture"
 	"github.com/pancir/poligon/internal/config"
@@ -43,11 +44,16 @@ type Server struct {
 	auth *auth.Auth
 	log  *slog.Logger
 	web  http.FileSystem
+
+	adbTunnel *adbtunnel.Manager
 }
 
 // New builds the API server.
 func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, capt *capture.Capturer, run *runner.Runner, web http.FileSystem, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, run: run, web: web, log: log}
+	return &Server{
+		cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, run: run, web: web, log: log,
+		adbTunnel: adbtunnel.New(cfg.ADBServerAddr, cfg.ADBTunnelIdle),
+	}
 }
 
 // Handler returns the root http.Handler with auth applied to /api.
@@ -92,6 +98,9 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("POST /devices/{id}/apps/launch", s.deviceAppLaunch)
 	api.HandleFunc("GET /devices/{id}/ui-dump", s.deviceUIDump)
 	api.HandleFunc("POST /devices/{id}/settings", s.deviceOpenSettings)
+	api.HandleFunc("POST /devices/{id}/debug-tunnel/start", s.deviceDebugTunnelStart)
+	api.HandleFunc("POST /devices/{id}/debug-tunnel/ping", s.deviceDebugTunnelPing)
+	api.HandleFunc("POST /devices/{id}/debug-tunnel/stop", s.deviceDebugTunnelStop)
 	api.HandleFunc("POST /devices/{id}/record/start", s.deviceRecordStart)
 	api.HandleFunc("POST /devices/{id}/record/stop", s.deviceRecordStop)
 	api.HandleFunc("GET /devices/{id}/record/download", s.deviceRecordDownload)

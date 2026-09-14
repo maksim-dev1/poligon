@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>debug tunnel</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .body { flex: 1; overflow: auto; padding: 14px; display: grid; gap: 14px; align-content: start; }
+  h2 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
+  .status { display: flex; align-items: center; gap: 8px; font: 500 12px/1 var(--mono); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .dot.up { background: var(--ok); }
+  .dot.down { background: var(--down); }
+  pre {
+    margin: 0; padding: 12px 14px; background: var(--inset); border: 1px solid var(--line-2);
+    border-radius: var(--r-md); font: 12px/1.6 var(--mono); color: var(--text); overflow-x: auto;
+    white-space: pre; user-select: all;
+  }
+  .warn {
+    padding: 10px 12px; border-radius: var(--r-md); border: 1px solid rgba(217,154,43,.35);
+    background: rgba(217,154,43,.08); font: 400 12px/1.6 var(--sans); color: var(--text-2);
+  }
+  .warn b { color: var(--warn); }
+  .actions { display: flex; gap: 8px; }
+  .empty { color: var(--text-muted); font: 400 12.5px/1.6 var(--sans); }
+</style>
+</head>
+<body>
+<div class="body" id="body"><div class="empty">открываю туннель…</div></div>
+<div class="toasts" id="toasts"></div>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+document.title = "debug tunnel — " + (id || "?");
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+const HW = () => ({ "X-Poligon-CSRF": csrf() });
+let pingTimer = null;
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " toast--" + kind : "");
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+function render(info) {
+  const cmd = `export ANDROID_ADB_SERVER_ADDRESS=${info.host}
+export ANDROID_ADB_SERVER_PORT=${info.port}
+adb devices                 # должен показать ${info.serial}
+flutter run -d ${info.serial}   # обычный debug-запуск с hot reload`;
+  document.getElementById("body").innerHTML = `
+    <h2>Debug из VS Code</h2>
+    <div class="status"><span class="dot up"></span>туннель открыт — держите вкладку открытой, пока отлаживаетесь</div>
+    <div>
+      <div class="empty" style="margin-bottom:6px">Выполните в терминале на своей машине (не на ферме):</div>
+      <pre>${esc(cmd)}</pre>
+    </div>
+    <div class="warn"><b>Важно:</b> это общий туннель к adb-серверу фермы, не изолированный на одно устройство —
+      пока он открыт, через него виден любой сейчас подключённый к ферме телефон, а не только ${esc(info.serial)}.
+      Закрывайте вкладку, когда закончили.</div>
+    <div class="actions"><button class="btn btn--sm btn--danger" onclick="stopTunnel()">Закрыть туннель</button></div>
+  `;
+}
+
+async function start() {
+  if (!id) { document.getElementById("body").innerHTML = `<div class="empty">нет id устройства</div>`; return; }
+  try {
+    const r = await fetch(`/api/devices/${id}/debug-tunnel/start`, { method: "POST", headers: HW() });
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.error || r.statusText);
+    render(b);
+    pingTimer = setInterval(() => {
+      fetch(`/api/devices/${id}/debug-tunnel/ping`, { method: "POST", headers: HW() }).catch(() => {});
+    }, 30000);
+  } catch (e) {
+    document.getElementById("body").innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+async function stopTunnel() {
+  clearInterval(pingTimer);
+  try { await fetch(`/api/devices/${id}/debug-tunnel/stop`, { method: "POST", headers: HW() }); } catch {}
+  document.getElementById("body").innerHTML = `<div class="empty">туннель закрыт</div>`;
+}
+window.addEventListener("pagehide", () => { clearInterval(pingTimer); });
+start();
+</script>
+</body>
+</html>

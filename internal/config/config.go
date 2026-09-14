@@ -26,6 +26,21 @@ type Config struct {
 	AutoDiscover  bool          `yaml:"auto_discover"` // register unknown devices on connect
 	LiveSidecar   string        `yaml:"live_sidecar"`  // ws-scrcpy base URL, "" disables Android live screen
 
+	// ADBTunnelPort is where poligon exposes the host's local adb server
+	// (ADBServerAddr) on the network, on request, so a developer's own
+	// `flutter run` / VS Code can attach live to a farm device for real
+	// debugging — not just install-and-test. 0 disables the feature.
+	// adb's wire protocol has no per-device ACL: once open, every device
+	// currently attached to the host is reachable through it, regardless of
+	// who holds it in poligon. That matches this project's existing trust
+	// model (open registration, "the network is the perimeter"); it is not a
+	// new class of exposure, but it is coarser than everything else poligon
+	// does, which is why it stays closed until requested and auto-closes
+	// after ADBTunnelIdle with no keepalive.
+	ADBTunnelPort int           `yaml:"adb_tunnel_port"`
+	ADBTunnelIdle time.Duration `yaml:"adb_tunnel_idle"`
+	ADBServerAddr string        `yaml:"adb_server_addr"` // local adb server the tunnel forwards to
+
 	// IOSScreen maps a device id to its running WebDriverAgent endpoints
 	// (see internal/iosscreen). Omitted -> iOS live screen disabled.
 	IOSScreen map[string]iosscreen.Endpoint `yaml:"ios_screen"`
@@ -94,6 +109,9 @@ func Default() Config {
 		ADBPath:       "adb",
 		AutoDiscover:  true,
 		LiveSidecar:   "http://127.0.0.1:8000",
+		ADBTunnelPort: 5038,
+		ADBTunnelIdle: 15 * time.Minute,
+		ADBServerAddr: "127.0.0.1:5037",
 		Auth: AuthConfig{
 			SessionTTL:  14 * 24 * time.Hour,
 			SessionIdle: 24 * time.Hour,
