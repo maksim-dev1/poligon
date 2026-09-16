@@ -248,8 +248,10 @@ func filterTrack(upstream io.Reader, client io.Writer, t *userTunnel) {
 	}
 }
 
-// filterDeviceList keeps only the lines (each "serial\tstate ...") whose
-// serial is in t's allow-list.
+// filterDeviceList keeps only the lines whose serial (the first whitespace-
+// separated field) is in t's allow-list. "host:devices" separates serial and
+// state with a tab; "host:devices-l" pads the serial with spaces instead —
+// strings.Fields handles both.
 func filterDeviceList(payload string, t *userTunnel) string {
 	t.mu.Lock()
 	allowed := t.allowed
@@ -259,8 +261,8 @@ func filterDeviceList(payload string, t *userTunnel) string {
 	sc := bufio.NewScanner(strings.NewReader(payload))
 	for sc.Scan() {
 		line := sc.Text()
-		serial, _, _ := strings.Cut(line, "\t")
-		if allowed[serial] {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && allowed[fields[0]] {
 			out.WriteString(line)
 			out.WriteByte('\n')
 		}

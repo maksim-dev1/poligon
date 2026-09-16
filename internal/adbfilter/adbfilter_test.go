@@ -33,6 +33,10 @@ func fakeADBServer(t *testing.T) string {
 				case msg == "host:devices":
 					_, _ = conn.Write([]byte("OKAY"))
 					_ = writeMsg(conn, "serial-a\tdevice\nserial-b\tdevice\n")
+				case msg == "host:devices-l":
+					_, _ = conn.Write([]byte("OKAY"))
+					_ = writeMsg(conn, "serial-a            device usb:1-1 product:foo model:Bar device:bar transport_id:1\n"+
+						"serial-b            device usb:1-2 product:foo model:Baz device:baz transport_id:2\n")
 				case strings.HasPrefix(msg, "host:transport:"):
 					serial := strings.TrimPrefix(msg, "host:transport:")
 					if serial == "serial-a" || serial == "serial-b" {
@@ -89,6 +93,32 @@ func TestFilterDevicesList(t *testing.T) {
 	}
 	if payload != "serial-a\tdevice\n" {
 		t.Fatalf("payload = %q, want only serial-a", payload)
+	}
+}
+
+// TestFilterDevicesListLongForm guards against the `-l` variant's
+// space-padded serial column being mis-split as one whole line (the tab-only
+// split this once had silently dropped every device from `-l` output).
+func TestFilterDevicesListLongForm(t *testing.T) {
+	upstream := fakeADBServer(t)
+	m := New(upstream)
+	if err := m.Ensure("carol", 0); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	addr := m.tunnels["carol"].ln.Addr().String()
+	m.mu.Unlock()
+	m.SetAllowed("carol", []string{"serial-a"})
+
+	status, payload := dialAndSend(t, addr, "host:devices-l")
+	if status != "OKAY" {
+		t.Fatalf("status = %q", status)
+	}
+	if !strings.HasPrefix(payload, "serial-a") {
+		t.Fatalf("payload = %q, want serial-a line kept", payload)
+	}
+	if strings.Contains(payload, "serial-b") {
+		t.Fatalf("payload = %q, want serial-b filtered out", payload)
 	}
 }
 
