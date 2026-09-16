@@ -17,7 +17,7 @@ Done:
 - live screens: ws-scrcpy for Android, WebDriverAgent for iOS, one grid for a batch
 - per-device diagnostics: screenshot + logcat from the grid (`internal/capture`)
 - **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash), `maestro` (run a `.yaml` flow, collect report + recording), `command` (generic escape hatch — appium etc.), `integration_test` (Android: install the app + its androidTest apk, run the instrumentation). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html` (status/type filters, paged)
-- **live debugging from VS Code** (`internal/adbtunnel`, Android): exposes the host's adb server on the network on request, so `flutter run -d <serial>` / VS Code attaches to a farm device directly — hot reload, breakpoints, not just install-and-collect. See "VS Code / live debugging" below.
+- **live debugging from VS Code** (`internal/adbtunnel`, Android): exposes the host's adb server on the network automatically while any Android device is reserved, so `flutter run -d <serial>` / VS Code attaches to a farm device directly — hot reload, breakpoints, not just install-and-collect. One-time setup, then reserve+open VS Code is all it takes. See "VS Code / live debugging" below.
 
 Next:
 - iOS `integration_test` — needs a `.xctestrun` bundle + `xcodebuild test-without-building`, and Xcode on the host
@@ -68,19 +68,30 @@ bodies (a raw `;` or space is rejected).
 ### VS Code / live debugging (Android)
 
 Everything above installs a pre-built artifact and collects results —
-useful for CI, not for iterating on a debug build. The "VS Code debug" button
-on a reserved Android device's rail (screen grid) opens the adb server the
-host is already running to the network, so your own machine's `adb`/`flutter
-run`/VS Code attaches to the farm device directly: hot reload, breakpoints,
-everything works as if the phone were plugged into your own laptop.
+useful for CI, not for iterating on a debug build. Reserving an Android
+device now opens the host's adb server to the network by itself — no button,
+no per-session commands — so your own machine's `adb`/`flutter run`/VS Code
+attaches to the farm device directly: hot reload, breakpoints, everything
+works as if the phone were plugged into your own laptop.
+
+Farm host and adb-tunnel port are fixed (`adb_tunnel_port` in config,
+default `5038`), so the setup is a **one-time** thing, not per session:
 
 ```sh
-# the webui shows you this exact block after clicking the button:
+# add to ~/.zshrc, or to a dedicated VS Code Profile's
+# terminal.integrated.env.osx so your default profile keeps local emulators
 export ANDROID_ADB_SERVER_ADDRESS=<farm-host>
 export ANDROID_ADB_SERVER_PORT=5038
-adb devices                     # should list the farm device's serial
-flutter run -d <serial>         # normal debug run, hot reload included
 ```
+
+Restart VS Code once (macOS re-sources the shell profile on app launch, not
+just in terminals), then: reserve a device in the dashboard, open VS Code,
+pick it from **Flutter: Select Device** like a local simulator. The "VS Code
+debug" button in the screen grid just shows this block again (real host
+filled in) for whoever hasn't set it up yet.
+
+The tunnel opens on reserve, self-heals on every reservation heartbeat, and
+closes once no Android device is held by anyone.
 
 **Trust model, read before enabling on an untrusted network:** adb's wire
 protocol has no per-device access control. Once the tunnel is open, *every*
@@ -88,9 +99,9 @@ device currently attached to the farm host is reachable through it — not
 just the one you reserved — regardless of who holds what in poligon's own
 reservation system. This matches the project's existing posture (open
 registration, "the network is the perimeter"), not a new class of exposure,
-but it is coarser than everything else poligon does. It is why the tunnel
-stays closed until a held device explicitly requests it and auto-closes
-after `adb_tunnel_idle` (default 15m) with no keepalive from the open tab.
+but it is coarser than everything else poligon does. It also means the
+tunnel can outlive your own session by up to `adb_tunnel_idle` (default 15m)
+if someone else still holds an Android device when you release yours.
 Set `adb_tunnel_port: 0` in config to disable the feature outright.
 iOS isn't supported yet — there's no equivalent of "adb server over TCP"; a
 USB-over-network proxy (`usbfluxd` or similar) would be needed instead.

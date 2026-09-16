@@ -261,7 +261,7 @@ function cell(d, url) {
       <button class="icon-btn" title="UI dump" onclick="openModal('uidump-${d.id}','UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>
       <button class="icon-btn" id="rec-${d.id}" title="Запись экрана (до 3 мин)" onclick="toggleRecord('${d.id}', this)">${icon.record}</button>
       <span class="tile-rail-sep"></span>
-      <button class="icon-btn" title="Debug из VS Code (flutter run)" onclick="openModal('debug-${d.id}','VS Code debug — ${d.id}','/debugtunnel.html?id=${d.id}')">${icon.vscode}</button>` : ""}
+      <button class="icon-btn" title="Debug из VS Code (flutter run)" onclick="openModal('vscode-setup','VS Code debug','/vscode-setup.html')">${icon.vscode}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">

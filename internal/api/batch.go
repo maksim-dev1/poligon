@@ -65,6 +65,9 @@ func (s *Server) batchCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusConflict, err)
 		return
 	}
+	for _, id := range req.Devices {
+		s.reserveTunnel(id)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"batch": batch, "reservations": res})
 }
 
@@ -92,6 +95,11 @@ func (s *Server) batchHeartbeat(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, err)
 		return
 	}
+	if ids, err := s.res.BatchDevices(r.PathValue("batch"), u.Name); err == nil {
+		for _, id := range ids {
+			s.reserveTunnel(id) // self-heals the tunnel if it died since reserve
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -101,6 +109,7 @@ func (s *Server) batchRelease(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, err)
 		return
 	}
+	s.releaseTunnel()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "released"})
 }
 

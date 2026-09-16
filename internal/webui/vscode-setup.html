@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VS Code debug</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .body { flex: 1; overflow: auto; padding: 14px; display: grid; gap: 14px; align-content: start; }
+  h2 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
+  pre {
+    margin: 0; padding: 12px 14px; background: var(--inset); border: 1px solid var(--line-2);
+    border-radius: var(--r-md); font: 12px/1.6 var(--mono); color: var(--text); overflow-x: auto;
+    white-space: pre; user-select: all;
+  }
+  .warn {
+    padding: 10px 12px; border-radius: var(--r-md); border: 1px solid rgba(217,154,43,.35);
+    background: rgba(217,154,43,.08); font: 400 12px/1.6 var(--sans); color: var(--text-2);
+  }
+  .warn b { color: var(--warn); }
+  .empty { color: var(--text-muted); font: 400 12.5px/1.6 var(--sans); }
+  ol { margin: 0; padding-left: 18px; font: 400 12.5px/1.7 var(--sans); color: var(--text-2); }
+  ol li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="body" id="body"><div class="empty">загружаю…</div></div>
+<script>
+const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+
+function render(info) {
+  const rc = `export ANDROID_ADB_SERVER_ADDRESS=${info.host}
+export ANDROID_ADB_SERVER_PORT=${info.port}`;
+  document.getElementById("body").innerHTML = `
+    <h2>Debug из VS Code — разовая настройка</h2>
+    <div class="empty">Туннель к adb фермы теперь открывается сам — как только вы резервируете Android-устройство
+      в дэшборде, оно тут же видно локальному adb. Одно из двух — сделать один раз:</div>
+    <ol>
+      <li><b>Отдельный VS Code Profile "Farm"</b> (рекомендую) — Profiles → Create Profile → в его
+        Settings добавить <code>terminal.integrated.env.osx</code> с этими переменными, переоткрыть
+        интегрированный терминал. Обычный профиль остаётся с локальными эмуляторами.</li>
+      <li><b>Или просто в ~/.zshrc</b> — тогда так будет всегда, локальные эмуляторы/устройства
+        станут невидимы, пока так стоит (см. предупреждение ниже).</li>
+    </ol>
+    <pre>${esc(rc)}</pre>
+    <div class="empty">После — перезапустите VS Code (macOS читает shell-профиль при старте приложения,
+      не только в терминале), зарезервируйте устройство в дэшборде и откройте <b>Flutter: Select Device</b> —
+      устройство фермы в обычном списке, как локальный симулятор.</div>
+    <div class="warn"><b>Важно:</b> это общий туннель к adb-серверу фермы, не изолированный на одно устройство —
+      пока хоть кто-то держит Android-устройство, через него виден любой сейчас подключённый к ферме телефон,
+      не только ваш. Закрывается сам, когда все Android-устройства освобождены.</div>
+  `;
+}
+
+fetch("/api/debug-tunnel/info", { headers: { "X-Poligon-CSRF": csrf() } })
+  .then(async r => { const b = await r.json(); if (!r.ok) throw new Error(b.error || r.statusText); return b; })
+  .then(render)
+  .catch(e => { document.getElementById("body").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>

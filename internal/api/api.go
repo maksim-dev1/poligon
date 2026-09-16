@@ -98,9 +98,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("POST /devices/{id}/apps/launch", s.deviceAppLaunch)
 	api.HandleFunc("GET /devices/{id}/ui-dump", s.deviceUIDump)
 	api.HandleFunc("POST /devices/{id}/settings", s.deviceOpenSettings)
-	api.HandleFunc("POST /devices/{id}/debug-tunnel/start", s.deviceDebugTunnelStart)
-	api.HandleFunc("POST /devices/{id}/debug-tunnel/ping", s.deviceDebugTunnelPing)
-	api.HandleFunc("POST /devices/{id}/debug-tunnel/stop", s.deviceDebugTunnelStop)
+	api.HandleFunc("GET /debug-tunnel/info", s.deviceDebugTunnelInfo)
 	api.HandleFunc("POST /devices/{id}/record/start", s.deviceRecordStart)
 	api.HandleFunc("POST /devices/{id}/record/stop", s.deviceRecordStop)
 	api.HandleFunc("GET /devices/{id}/record/download", s.deviceRecordDownload)
@@ -226,6 +224,7 @@ func (s *Server) reserve(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		fail(w, http.StatusInternalServerError, err)
 	default:
+		s.reserveTunnel(r.PathValue("id"))
 		writeJSON(w, http.StatusOK, res)
 	}
 }
@@ -241,6 +240,7 @@ func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err)
 		return
 	}
+	s.releaseTunnel()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "released"})
 }
 
@@ -250,6 +250,7 @@ func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, err)
 		return
 	}
+	s.reserveTunnel(r.PathValue("id")) // self-heals the tunnel if it died since reserve
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
