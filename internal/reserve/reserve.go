@@ -242,6 +242,25 @@ func (m *Manager) Release(deviceID, user string, admin bool) error {
 	return tx.Commit()
 }
 
+// ActiveUsers returns everyone with at least one active (unreleased)
+// reservation right now.
+func (m *Manager) ActiveUsers() ([]string, error) {
+	rows, err := m.db.Query(`SELECT DISTINCT user FROM reservations WHERE released = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // IsHeld reports whether a device currently has an active reservation.
 func (m *Manager) IsHeld(deviceID string) bool {
 	_, ok, _ := m.Holder(deviceID)

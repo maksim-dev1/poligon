@@ -128,6 +128,10 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 
 	// clear leftovers from a previous poligon before we respawn iOS screens
 	prov.ReapOrphans()
+	// re-open every active reservation's adb tunnel — a restart drops the
+	// in-memory listeners, and nobody's going to reserve/heartbeat again
+	// just to fix that mid-debug-session
+	srv.SyncADBTunnels()
 
 	go mgr.Run(ctx)
 	go reapLoop(ctx, res, st, srv, log)

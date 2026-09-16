@@ -81,12 +81,24 @@ func (s *Server) syncUserTunnel(user string) {
 	s.adbFilter.SetAllowed(user, serials)
 }
 
-// SyncADBTunnels refreshes every user's tunnel allow-list — called
-// periodically so a reservation that expires without an explicit release
-// (see reserve.Manager.ReapExpired) still drops out of that user's `adb
-// devices` promptly instead of only on their next heartbeat.
+// SyncADBTunnels refreshes every relevant user's tunnel. It covers two
+// self-healing cases the per-reservation hooks alone can't: a reservation
+// that expires without an explicit release (see reserve.Manager.ReapExpired)
+// needs its allow-list emptied promptly, not just on the user's next
+// heartbeat; and a poligon restart drops every in-memory listener, so anyone
+// with an active reservation needs their tunnel re-opened even though they
+// won't call reserve/heartbeat again until their next debug session.
 func (s *Server) SyncADBTunnels() {
-	for _, user := range s.adbFilter.Users() {
+	users := map[string]bool{}
+	for _, u := range s.adbFilter.Users() {
+		users[u] = true
+	}
+	if active, err := s.res.ActiveUsers(); err == nil {
+		for _, u := range active {
+			users[u] = true
+		}
+	}
+	for user := range users {
 		s.syncUserTunnel(user)
 	}
 }
