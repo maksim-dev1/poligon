@@ -26,20 +26,18 @@ type Config struct {
 	AutoDiscover  bool          `yaml:"auto_discover"` // register unknown devices on connect
 	LiveSidecar   string        `yaml:"live_sidecar"`  // ws-scrcpy base URL, "" disables Android live screen
 
-	// ADBTunnelPort is where poligon exposes the host's local adb server
-	// (ADBServerAddr) on the network, on request, so a developer's own
-	// `flutter run` / VS Code can attach live to a farm device for real
-	// debugging — not just install-and-test. 0 disables the feature.
-	// adb's wire protocol has no per-device ACL: once open, every device
-	// currently attached to the host is reachable through it, regardless of
-	// who holds it in poligon. That matches this project's existing trust
-	// model (open registration, "the network is the perimeter"); it is not a
-	// new class of exposure, but it is coarser than everything else poligon
-	// does, which is why it stays closed until requested and auto-closes
-	// after ADBTunnelIdle with no keepalive.
-	ADBTunnelPort int           `yaml:"adb_tunnel_port"`
-	ADBTunnelIdle time.Duration `yaml:"adb_tunnel_idle"`
-	ADBServerAddr string        `yaml:"adb_server_addr"` // local adb server the tunnel forwards to
+	// ADBTunnelPort > 0 enables the VS Code live-debug tunnel feature at all;
+	// 0 disables it outright. Each developer gets their OWN listening port
+	// (see ADBTunnelPortRangeStart/End) exposing the host's local adb server
+	// (ADBServerAddr), filtered to just the Android devices they currently
+	// hold — see internal/adbfilter for how the filtering works and why it's
+	// needed: adb's wire protocol itself has no per-device ACL, so without
+	// this filtering layer every device on the farm host would be reachable
+	// through anyone's tunnel, regardless of who holds what in poligon.
+	ADBTunnelPort           int    `yaml:"adb_tunnel_port"`
+	ADBTunnelPortRangeStart int    `yaml:"adb_tunnel_port_range_start"` // first port handed out to a user
+	ADBTunnelPortRangeEnd   int    `yaml:"adb_tunnel_port_range_end"`   // last port handed out to a user
+	ADBServerAddr           string `yaml:"adb_server_addr"`             // local adb server the tunnel forwards to
 
 	// IOSScreen maps a device id to its running WebDriverAgent endpoints
 	// (see internal/iosscreen). Omitted -> iOS live screen disabled.
@@ -109,9 +107,10 @@ func Default() Config {
 		ADBPath:       "adb",
 		AutoDiscover:  true,
 		LiveSidecar:   "http://127.0.0.1:8000",
-		ADBTunnelPort: 5038,
-		ADBTunnelIdle: 15 * time.Minute,
-		ADBServerAddr: "127.0.0.1:5037",
+		ADBTunnelPort:           5038,
+		ADBTunnelPortRangeStart: 5040,
+		ADBTunnelPortRangeEnd:   5090,
+		ADBServerAddr:           "127.0.0.1:5037",
 		Auth: AuthConfig{
 			SessionTTL:  14 * 24 * time.Hour,
 			SessionIdle: 24 * time.Hour,

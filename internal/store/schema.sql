@@ -127,3 +127,12 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     last_used_at TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_name);
+
+-- one adb-tunnel port per user, assigned once from a fixed range and kept
+-- forever so the ANDROID_ADB_SERVER_PORT a developer puts in their shell
+-- profile never changes across restarts.
+CREATE TABLE IF NOT EXISTS adb_tunnel_ports (
+    user_name  TEXT PRIMARY KEY REFERENCES users(name),
+    port       INTEGER NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -130,7 +130,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	prov.ReapOrphans()
 
 	go mgr.Run(ctx)
-	go reapLoop(ctx, res, st, log)
+	go reapLoop(ctx, res, st, srv, log)
 	go prov.Resume(ctx)
 	go depsWatchdog(ctx, cfg, st, prov, log)
 	go run.Run(ctx)
@@ -173,7 +173,7 @@ func isLoopbackListen(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func reapLoop(ctx context.Context, res *reserve.Manager, st *store.Store, log *slog.Logger) {
+func reapLoop(ctx context.Context, res *reserve.Manager, st *store.Store, srv *api.Server, log *slog.Logger) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	purgeEvery := 0
@@ -187,6 +187,7 @@ func reapLoop(ctx context.Context, res *reserve.Manager, st *store.Store, log *s
 			} else if n > 0 {
 				log.Info("reaped stale reservations", "count", n)
 			}
+			srv.SyncADBTunnels()
 			// sweep dead sessions roughly hourly
 			if purgeEvery%60 == 0 {
 				if err := st.PurgeExpiredSessions(); err != nil {

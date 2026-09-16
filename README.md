@@ -69,39 +69,43 @@ bodies (a raw `;` or space is rejected).
 
 Everything above installs a pre-built artifact and collects results —
 useful for CI, not for iterating on a debug build. Reserving an Android
-device now opens the host's adb server to the network by itself — no button,
-no per-session commands — so your own machine's `adb`/`flutter run`/VS Code
+device now opens **your own** adb tunnel to the farm by itself — no button,
+no per-session commands — so your machine's `adb`/`flutter run`/VS Code
 attaches to the farm device directly: hot reload, breakpoints, everything
-works as if the phone were plugged into your own laptop.
+works as if the phone were plugged into your own laptop. The tunnel is
+filtered to only the Android device(s) *you* currently hold — someone else's
+reserved device never shows up in your `adb devices`, even though the raw adb
+protocol itself has no such concept (see "Trust model" below).
 
-Farm host and adb-tunnel port are fixed (`adb_tunnel_port` in config,
-default `5038`), so the setup is a **one-time** thing, not per session:
+Each user gets one fixed port for life (assigned from `adb_tunnel_port_range_start`
+`-adb_tunnel_port_range_end` in config, default `5040-5090`), so the setup is
+a **one-time** thing per person, not per session or per device. Find yours at
+`GET /api/debug-tunnel/info` (also shown by the "VS Code debug" button in the
+screen grid):
 
 ```sh
 # add to ~/.zshrc, or to a dedicated VS Code Profile's
 # terminal.integrated.env.osx so your default profile keeps local emulators
 export ANDROID_ADB_SERVER_ADDRESS=<farm-host>
-export ANDROID_ADB_SERVER_PORT=5038
+export ANDROID_ADB_SERVER_PORT=<your personal port, from /api/debug-tunnel/info>
 ```
 
 Restart VS Code once (macOS re-sources the shell profile on app launch, not
 just in terminals), then: reserve a device in the dashboard, open VS Code,
-pick it from **Flutter: Select Device** like a local simulator. The "VS Code
-debug" button in the screen grid just shows this block again (real host
-filled in) for whoever hasn't set it up yet.
+pick it from **Flutter: Select Device** — only your own reserved devices show
+up, like a local simulator.
 
 The tunnel opens on reserve, self-heals on every reservation heartbeat, and
-closes once no Android device is held by anyone.
+its allow-list empties out (not the port itself) once you hold no Android
+device — a stale reservation drops out within a minute even without an
+explicit release, via the same background sweep that expires reservations.
 
-**Trust model, read before enabling on an untrusted network:** adb's wire
-protocol has no per-device access control. Once the tunnel is open, *every*
-device currently attached to the farm host is reachable through it — not
-just the one you reserved — regardless of who holds what in poligon's own
-reservation system. This matches the project's existing posture (open
-registration, "the network is the perimeter"), not a new class of exposure,
-but it is coarser than everything else poligon does. It also means the
-tunnel can outlive your own session by up to `adb_tunnel_idle` (default 15m)
-if someone else still holds an Android device when you release yours.
+**Trust model:** adb's wire protocol itself has no per-device access control,
+so poligon filters `adb devices`/`adb -s <serial> ...` per user at the proxy
+layer (see `internal/adbfilter`) instead of relying on adb for isolation.
+This matches the project's existing posture (open registration, "the network
+is the perimeter") for who can reach the tunnel at all, but *which* devices
+each tunnel shows is now scoped to that user's own reservations.
 Set `adb_tunnel_port: 0` in config to disable the feature outright.
 iOS isn't supported yet — there's no equivalent of "adb server over TCP"; a
 USB-over-network proxy (`usbfluxd` or similar) would be needed instead.

@@ -10,9 +10,11 @@ max_lease: 4h
 adb_path: "adb"
 
 # VS Code / flutter run live debugging over the network (see README) —
-# exposes the host's adb server on request, not scoped per-device. 0 disables.
+# each developer gets their own port from the range below, filtered to just
+# the Android devices they currently hold. 0 disables the feature.
 adb_tunnel_port: 5038
-adb_tunnel_idle: 15m
+adb_tunnel_port_range_start: 5040
+adb_tunnel_port_range_end: 5090
 adb_server_addr: "127.0.0.1:5037"
 
 # Authentication. Open self-service signup (email + password) from the dashboard;

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pancir/poligon/internal/adbtunnel"
+	"github.com/pancir/poligon/internal/adbfilter"
 	"github.com/pancir/poligon/internal/auth"
 	"github.com/pancir/poligon/internal/capture"
 	"github.com/pancir/poligon/internal/config"
@@ -45,14 +45,14 @@ type Server struct {
 	log  *slog.Logger
 	web  http.FileSystem
 
-	adbTunnel *adbtunnel.Manager
+	adbFilter *adbfilter.Manager
 }
 
 // New builds the API server.
 func New(cfg config.Config, st *store.Store, res *reserve.Manager, inst *install.Installer, lp *live.Proxy, ios *iosscreen.Controller, prov *provision.Manager, capt *capture.Capturer, run *runner.Runner, web http.FileSystem, log *slog.Logger) *Server {
 	return &Server{
 		cfg: cfg, st: st, res: res, inst: inst, live: lp, ios: ios, prov: prov, capt: capt, run: run, web: web, log: log,
-		adbTunnel: adbtunnel.New(cfg.ADBServerAddr, cfg.ADBTunnelIdle),
+		adbFilter: adbfilter.New(cfg.ADBServerAddr),
 	}
 }
 
@@ -224,7 +224,7 @@ func (s *Server) reserve(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		fail(w, http.StatusInternalServerError, err)
 	default:
-		s.reserveTunnel(r.PathValue("id"))
+		s.syncUserTunnel(u.Name)
 		writeJSON(w, http.StatusOK, res)
 	}
 }
@@ -240,7 +240,7 @@ func (s *Server) release(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err)
 		return
 	}
-	s.releaseTunnel()
+	s.syncUserTunnel(u.Name)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "released"})
 }
 
@@ -250,7 +250,7 @@ func (s *Server) heartbeat(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusForbidden, err)
 		return
 	}
-	s.reserveTunnel(r.PathValue("id")) // self-heals the tunnel if it died since reserve
+	s.syncUserTunnel(u.Name) // self-heals the user's tunnel if it died since reserve
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
