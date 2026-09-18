@@ -114,7 +114,8 @@
 <div class="foot"><button class="btn btn--sm" onclick="openRuns('/runs.html')">Все прогоны →</button></div>
 <div class="toasts" id="toasts"></div>
 <input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
-<input type="file" id="maestroFile" hidden multiple accept=".yaml,.yml,.apk,.aab,.apks,.ipa" onchange="startMaestro(this.files); this.value=''">
+<input type="file" id="maestroFlowFile" hidden accept=".yaml,.yml" onchange="onMaestroFlowPicked(this.files[0]); this.value=''">
+<input type="file" id="maestroBuildFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="onMaestroBuildPicked(this.files); this.value=''">
 <input type="file" id="itAppFile" hidden accept=".apk" onchange="onITAppPicked(this.files[0]); this.value=''">
 <input type="file" id="itTestFile" hidden accept=".apk" onchange="onITTestPicked(this.files[0]); this.value=''">
 <script>
@@ -179,23 +180,37 @@ async function startSmoke(files) {
   } catch (e) { toast(e.message, "err"); }
 }
 
-function pickMaestro() { document.getElementById("maestroFile").click(); }
-async function startMaestro(files) {
-  files = [...(files || [])];
-  if (!files.length) return;
-  const flows = files.filter(f => /\.ya?ml$/i.test(f.name));
-  const builds = files.filter(f => !/\.ya?ml$/i.test(f.name));
-  if (flows.length !== 1) { toast("выберите ровно один .yaml-флоу (плюс необязательные сборки)", "err"); return; }
+// maestro: flow and build(s) can live in different directories, so they're
+// picked in two separate dialogs instead of one multi-select
+let maestroFlow = null;
+function pickMaestro() {
+  maestroFlow = null;
+  document.getElementById("maestroFlowFile").click();
+}
+function onMaestroFlowPicked(file) {
+  if (!file) return;
+  maestroFlow = file;
+  if (confirm("Флоу выбран: " + file.name + "\n\nДобавить сборку (.apk/.ipa)? Отмена — запустить без установки, на уже стоящей сборке.")) {
+    document.getElementById("maestroBuildFile").click();
+  } else {
+    startMaestro(maestroFlow, []);
+  }
+}
+function onMaestroBuildPicked(files) {
+  startMaestro(maestroFlow, [...(files || [])]);
+}
+async function startMaestro(flow, builds) {
+  if (!flow) return;
   const byPlat = {};
   for (const f of builds) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: не сборка и не .yaml`, "err"); return; }
+    if (!p) { toast(`${f.name}: не сборка (.apk/.aab/.apks/.ipa)`, "err"); return; }
     if (byPlat[p]) { toast(`выбрано две сборки ${p}`, "err"); return; }
     byPlat[p] = f;
   }
   const fd = new FormData();
   fd.append("type", "maestro");
-  fd.append("flow", flows[0]);
+  fd.append("flow", flow);
   for (const f of builds) fd.append("artifact", f);
   for (const d of devices) fd.append("device", d.id);
   toast(`Запускаю Maestro на ${devices.length} устр.…`);
