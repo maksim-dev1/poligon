@@ -35,6 +35,10 @@
   .card .meta .group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .card .meta .label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
   .card .meta .val { font: 400 11px/1.4 var(--mono); color: var(--text-2); }
+  .card.card--split { cursor: default; }
+  .card.card--split:hover { background: var(--surface); border-color: var(--line); }
+  .card .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .card .actions .status { font: 400 11px/1.4 var(--mono); color: var(--text-muted); flex: 1; min-width: 0; }
   .foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -61,7 +65,7 @@
       </span>
     </span>
   </button>
-  <button class="card" onclick="pickMaestro()">
+  <div class="card card--split">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
     <span class="body">
       <span class="title-row"><span class="title">Maestro</span><span class="plats"><span class="plat">Android</span><span class="plat">iOS</span></span></span>
@@ -75,8 +79,14 @@
         <span class="group"><span class="label">нужно</span><span class="val">.yaml-флоу (обязателен) + сборка (опционально)</span></span>
         <span class="group"><span class="label">результат</span><span class="val">report.xml, maestro.log, скриншот, лог</span></span>
       </span>
+      <span class="actions">
+        <button class="btn btn--sm" onclick="pickMaestroFlow()">Файл теста (.yaml)</button>
+        <button class="btn btn--sm" onclick="pickMaestroBuild()">Сборка (.apk/.ipa)</button>
+        <span class="status" id="maestroStatus">флоу не выбран</span>
+        <button class="btn btn--sm btn--primary" id="maestroStart" onclick="startMaestro()" disabled>Запустить</button>
+      </span>
     </span>
-  </button>
+  </div>
   <button class="card" onclick="commandRun()">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
     <span class="body">
@@ -180,38 +190,40 @@ async function startSmoke(files) {
   } catch (e) { toast(e.message, "err"); }
 }
 
-// maestro: flow and build(s) can live in different directories, so they're
-// picked in two separate dialogs instead of one multi-select
+// maestro: flow and build(s) can live in different directories, so each has
+// its own button/dialog — pick either in any order, "Запустить" fires once
+// a flow is present
 let maestroFlow = null;
-function pickMaestro() {
-  maestroFlow = null;
-  document.getElementById("maestroFlowFile").click();
-}
+let maestroBuilds = {}; // platform -> File
+function pickMaestroFlow() { document.getElementById("maestroFlowFile").click(); }
+function pickMaestroBuild() { document.getElementById("maestroBuildFile").click(); }
 function onMaestroFlowPicked(file) {
   if (!file) return;
   maestroFlow = file;
-  if (confirm("Флоу выбран: " + file.name + "\n\nДобавить сборку (.apk/.ipa)? Отмена — запустить без установки, на уже стоящей сборке.")) {
-    document.getElementById("maestroBuildFile").click();
-  } else {
-    startMaestro(maestroFlow, []);
-  }
+  updateMaestroStatus();
 }
 function onMaestroBuildPicked(files) {
-  startMaestro(maestroFlow, [...(files || [])]);
-}
-async function startMaestro(flow, builds) {
-  if (!flow) return;
-  const byPlat = {};
-  for (const f of builds) {
+  for (const f of [...(files || [])]) {
     const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: не сборка (.apk/.aab/.apks/.ipa)`, "err"); return; }
-    if (byPlat[p]) { toast(`выбрано две сборки ${p}`, "err"); return; }
-    byPlat[p] = f;
+    if (!p) { toast(`${f.name}: не сборка (.apk/.aab/.apks/.ipa)`, "err"); continue; }
+    maestroBuilds[p] = f;
   }
+  updateMaestroStatus();
+}
+function updateMaestroStatus() {
+  const parts = [];
+  parts.push(maestroFlow ? "флоу: " + maestroFlow.name : "флоу не выбран");
+  const builds = Object.values(maestroBuilds).map(f => f.name);
+  parts.push(builds.length ? "сборка: " + builds.join(", ") : "без сборки (используется уже установленная)");
+  document.getElementById("maestroStatus").textContent = parts.join(" · ");
+  document.getElementById("maestroStart").disabled = !maestroFlow;
+}
+async function startMaestro() {
+  if (!maestroFlow) return;
   const fd = new FormData();
   fd.append("type", "maestro");
-  fd.append("flow", flow);
-  for (const f of builds) fd.append("artifact", f);
+  fd.append("flow", maestroFlow);
+  for (const f of Object.values(maestroBuilds)) fd.append("artifact", f);
   for (const d of devices) fd.append("device", d.id);
   toast(`Запускаю Maestro на ${devices.length} устр.…`);
   try {
@@ -219,6 +231,9 @@ async function startMaestro(flow, builds) {
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
     toast(`Прогон ${b.id} в очереди`, "ok");
+    maestroFlow = null;
+    maestroBuilds = {};
+    updateMaestroStatus();
     setTimeout(() => goToRun(b.id), 500);
   } catch (e) { toast(e.message, "err"); }
 }
