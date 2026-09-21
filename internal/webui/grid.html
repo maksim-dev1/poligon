@@ -19,7 +19,6 @@
     </button>
   </div>
   <span class="divider"></span>
-  <button class="btn btn--sm" onclick="openModal('tests','Тесты','/tests.html?b='+batch)">Тесты</button>
   <button type="button" class="health" id="health" title="проверка системы…" aria-label="Состояние сервисов фермы" onclick="showHealth()"></button>
   <span class="readout" id="sub"></span>
   <span class="divider"></span>
@@ -29,6 +28,10 @@
 </div>
 <div class="page-error" id="err"></div>
 <div class="wall" id="grid"></div>
+<!-- the tests panel slides out of the right edge, so its handle lives there:
+     no button competing with the wall controls in the pill -->
+<button class="edge-handle" id="testsHandle" onclick="openTests()"
+  title="Запустить тест на всей партии (T)">Тесты</button>
 <div class="drawer" id="drawer" hidden>
   <div class="drawer-tabs" id="drawerTabs"></div>
   <div class="drawer-frames" id="drawerFrames"></div>
@@ -115,7 +118,15 @@ function openModal(key, title, src, forceReload) {
   document.getElementById("drawerFrames").appendChild(frame);
   tools.set(key, { tab, frame });
   activateTool(key);
+  syncHandle();
 }
+function openTests() { openModal("tests", "Тесты", "/tests.html?b=" + batch); }
+
+// the handle would sit on top of the open panel
+function syncHandle() {
+  document.getElementById("testsHandle").hidden = !document.getElementById("drawer").hidden;
+}
+
 function activateTool(key) {
   activeTool = key;
   for (const [k, v] of tools) {
@@ -133,8 +144,19 @@ function closeTool(key) {
   const next = [...tools.keys()].pop();
   if (next) activateTool(next);
   else { document.getElementById("drawer").hidden = true; activeTool = null; }
+  syncHandle();
 }
-document.addEventListener("keydown", e => { if (e.key === "Escape" && activeTool) closeTool(activeTool); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && activeTool) { closeTool(activeTool); return; }
+  // "t" opens the tests panel — but not while typing into a terminal, a filter
+  // or any other field
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+  if ((e.key === "t" || e.key === "е") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    openTests();
+  }
+});
 
 // ---- per-device install ----
 let pendingInstallId = null;
@@ -340,8 +362,8 @@ function platformOf(name) {
   return null;
 }
 
-// install_smoke/maestro/command/integration_test all moved to tests.html,
-// opened as a drawer tab from the "Тесты" button — see openModal above.
+// install_smoke/maestro/command/integration_test live in tests.html, opened as
+// a drawer tab from the right-edge handle (or "T") — see openTests above.
 
 async function releaseOne(id) {
   const ok = await confirmDialog({
@@ -370,6 +392,7 @@ async function releaseAll() {
 
 async function main() {
   applyZoom();
+  syncHandle();
   if (!batch) { document.getElementById("err").textContent = "нет партии"; return; }
   const b = await (await fetch(`/api/batches/${batch}`, { headers: H })).json();
   if (!b.devices) { document.getElementById("err").textContent = b.error || "партия не найдена"; return; }

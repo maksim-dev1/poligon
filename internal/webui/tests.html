@@ -9,319 +9,538 @@
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .head { flex: none; padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
-  .head .sub { font: 400 12px/1.4 var(--sans); color: var(--text-muted); margin-top: 2px; }
-  .cards { flex: 1; overflow: auto; padding: 12px 14px; display: grid; gap: 10px; }
-  .card {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 12px; text-align: left; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
-    font: inherit; color: inherit;
+
+  .head { flex: none; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .head .h { font: 600 14px/1.3 var(--sans); color: var(--text); }
+  .head .target { margin-top: 3px; font: 400 12px/1.45 var(--sans); color: var(--text-muted); }
+  .head .target b { color: var(--text-2); font-weight: 600; }
+  .head .ids { font-family: var(--mono); font-size: 11px; word-break: break-word; }
+
+  .pane { flex: 1; overflow: auto; padding: 12px 14px 16px; }
+
+  .steplabel {
+    display: flex; align-items: center; gap: 7px;
+    margin: 0 0 8px; font: 600 10px/1 var(--mono);
+    letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted);
   }
-  .card:hover { background: var(--surface-2); border-color: var(--line-2); }
-  .card:disabled { opacity: .45; cursor: not-allowed; }
-  .card:disabled:hover { background: var(--surface); border-color: var(--line); }
-  .card .icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
-  .card .icon svg { width: 17px; height: 17px; }
-  .card .body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-  .card .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .card .title { font: 600 13px/1.3 var(--sans); color: var(--text); }
-  .card .plats { display: flex; gap: 4px; flex: none; }
-  .card .plat { font: 600 11px/1 var(--sans); padding: 3px 8px; border-radius: 999px; background: var(--inset); border: 1px solid var(--line-2); color: var(--text-2); }
-  .card .desc { font: 400 12px/1.5 var(--sans); color: var(--text-muted); margin-top: 2px; }
-  .card .flow { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
-  .card .flow .step { font: 500 11px/1 var(--mono); padding: 4px 7px; border: 1px solid var(--line-2); border-radius: var(--r-xs); background: var(--inset); color: var(--text-2); }
-  .card .flow .arrow { color: var(--text-muted); font-size: 11px; }
-  .card .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-  .card .meta .group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .card .meta .label { font: 600 11px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
-  .card .meta .val { font: 400 11px/1.4 var(--mono); color: var(--text-2); }
-  .card.card--split { cursor: default; }
-  .card.card--split:hover { background: var(--surface); border-color: var(--line); }
-  .card .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-  .card .actions .status { font: 400 11px/1.4 var(--mono); color: var(--text-muted); flex: 1; min-width: 0; }
-  .card--off { opacity: .45; }
-  .foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .steplabel + div + .steplabel { margin-top: 18px; }
+  .steplabel .n {
+    display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--inset); border: 1px solid var(--line-2); color: var(--text-3); font-size: 9px;
+  }
+
+  /* ---- step 1: pick one thing to run ---- */
+  .type {
+    display: flex; align-items: flex-start; gap: 9px;
+    width: 100%; padding: 9px 10px; margin-bottom: 5px;
+    text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  }
+  .type:hover { background: var(--surface-2); border-color: var(--line-2); }
+  .type[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
+  .type[disabled] { opacity: .4; cursor: not-allowed; }
+  .type[disabled]:hover { background: var(--surface); border-color: var(--line); }
+  .type .radio {
+    flex: none; margin-top: 1px; width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid var(--line-strong); background: var(--inset); position: relative;
+  }
+  .type[aria-checked="true"] .radio { border-color: var(--accent); background: var(--accent); }
+  .type[aria-checked="true"] .radio::after {
+    content: ""; position: absolute; inset: 3.5px; border-radius: 50%; background: var(--accent-fg);
+  }
+  .type .tbody { min-width: 0; flex: 1; display: block; }
+  .type .tname { display: block; font: 600 12.5px/1.3 var(--sans); color: var(--text); }
+  .type .tone { display: block; margin-top: 2px; font: 400 11.5px/1.45 var(--sans); color: var(--text-muted); }
+  .type .tplats { display: flex; gap: 4px; margin-top: 6px; }
+  .type .tplat {
+    font: 600 10px/1 var(--mono); padding: 3px 6px; border-radius: 999px;
+    background: var(--inset); border: 1px solid var(--line-2); color: var(--text-3);
+  }
+
+  /* ---- step 2: exactly the inputs this run needs ---- */
+  .slot { padding: 9px 10px; margin-bottom: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .slot.is-missing { border-color: rgba(217,154,43,.4); }
+  .slot.is-filled { border-color: rgba(63,185,138,.35); }
+  .slot-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .slot-label { font: 600 12px/1.3 var(--sans); color: var(--text); }
+  .slot-req { font: 600 9.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--warn); }
+  .slot-opt { font: 600 9.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+  .slot-hint { margin-top: 3px; font: 400 11px/1.45 var(--sans); color: var(--text-muted); }
+  .slot-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+  .slot-file {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font: 400 11.5px/1.4 var(--mono); color: var(--text-muted);
+  }
+  .slot-file.has { color: var(--ok); }
+  .slot .input--area { margin-top: 8px; }
+
+  .how { margin-top: 16px; }
+  .how summary { cursor: pointer; font: 500 11.5px/1.4 var(--sans); color: var(--text-3); list-style: none; }
+  .how summary::-webkit-details-marker { display: none; }
+  .how summary::before { content: "\25B8  "; color: var(--text-muted); }
+  .how[open] summary::before { content: "\25BE  "; }
+  .how summary:hover { color: var(--text-2); }
+  .how .howbody {
+    margin-top: 8px; padding: 10px 11px; background: var(--inset);
+    border: 1px solid var(--line); border-radius: var(--r-md);
+  }
+  .how .howrow { display: flex; gap: 8px; font: 400 11.5px/1.6 var(--sans); color: var(--text-muted); }
+  .how .howrow + .howrow { margin-top: 6px; }
+  .how .howk { flex: none; width: 70px; font: 600 10px/1.85 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+
+  /* ---- footer: one button, and why it is off ---- */
+  .foot { flex: none; padding: 10px 14px 12px; border-top: 1px solid var(--line); background: var(--surface-2); }
+  .foot .why { margin-bottom: 8px; font: 400 11.5px/1.45 var(--sans); color: var(--warn); }
+  .foot .why:empty { display: none; }
+  .foot .more { display: flex; justify-content: center; margin-top: 8px; }
+
+  /* ---- progress, in this same panel ---- */
+  .runhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .runhead .rname { font: 600 13px/1.3 var(--mono); color: var(--text); }
+  .runhead .rwhen { margin-left: auto; font: 400 11px/1.4 var(--mono); color: var(--text-muted); }
+  .rdev { padding: 9px 10px; margin-bottom: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .rdev-head { display: flex; align-items: center; gap: 8px; }
+  .rdev-id { font: 500 12px/1.3 var(--mono); color: var(--text); }
+  .rdev-pkg { font: 400 11px/1.3 var(--mono); color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rdev-head .sp { margin-left: auto; }
+  .rdev-detail { margin-top: 6px; font: 400 11.5px/1.5 var(--mono); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+  .rdev-arts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 7px; }
+  .rdev-arts a { font: 500 11px/1 var(--mono); color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
+  .rdev-arts a:hover { color: var(--text); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; flex: none;
+    font: 600 10.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2);
+    color: var(--text-2); white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex: none; }
+  .pill.passed { color: var(--ok); border-color: rgba(63,185,138,.35); }
+  .pill.passed::before { background: var(--ok); }
+  .pill.failed, .pill.error { color: var(--down); border-color: rgba(229,84,75,.35); }
+  .pill.failed::before, .pill.error::before { background: var(--down); }
+  .pill.running, .pill.queued { color: var(--warn); border-color: rgba(217,154,43,.35); }
+  .pill.running::before, .pill.queued::before { background: var(--warn); animation: led-pulse 1.8s var(--ease) infinite; }
+  .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
+
+  .foot .runactions { display: flex; gap: 8px; }
+  .foot .runactions .btn { flex: 1; }
 </style>
 </head>
 <body>
+
 <div class="head">
-  <div id="title">Тесты</div>
-  <div class="sub" id="sub">загрузка партии…</div>
+  <div class="h" id="headTitle">Тесты</div>
+  <div class="target" id="target">загрузка партии…</div>
 </div>
-<div class="cards" id="cards">
-  <button class="card" onclick="pickSmoke()">
-    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg></span>
-    <span class="body">
-      <span class="title-row"><span class="title">Смоук-тест</span><span class="plats"><span class="plat">Android</span><span class="plat">iOS</span></span></span>
-      <span class="desc">Установить, запустить, проверить что не упала — без тестового кода, только liveness (install_smoke)</span>
-      <span class="flow">
-        <span class="step">установить</span><span class="arrow">→</span>
-        <span class="step">запустить</span><span class="arrow">→</span>
-        <span class="step">ждать ~8с</span><span class="arrow">→</span>
-        <span class="step">жива?</span>
-      </span>
-      <span class="meta">
-        <span class="group"><span class="label">нужно</span><span class="val">.apk/.aab/.apks или .ipa — по одной на платформу</span></span>
-        <span class="group"><span class="label">результат</span><span class="val">скриншот, лог (logcat / syslog)</span></span>
-      </span>
-    </span>
-  </button>
-  <div class="card card--split">
-    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
-    <span class="body">
-      <span class="title-row"><span class="title">Maestro</span><span class="plats"><span class="plat">Android</span><span class="plat">iOS</span></span></span>
-      <span class="desc">Прогнать .yaml-флоу, опционально с новой сборкой</span>
-      <span class="flow">
-        <span class="step">(установить)</span><span class="arrow">→</span>
-        <span class="step">maestro test flow.yaml</span><span class="arrow">→</span>
-        <span class="step">отчёт</span>
-      </span>
-      <span class="meta">
-        <span class="group"><span class="label">нужно</span><span class="val">.yaml-флоу (обязателен) + сборка (опционально)</span></span>
-        <span class="group"><span class="label">результат</span><span class="val">report.xml, maestro.log, скриншот, лог</span></span>
-      </span>
-      <span class="actions">
-        <button class="btn btn--sm" onclick="pickMaestroFlow()">Файл теста (.yaml)</button>
-        <button class="btn btn--sm" onclick="pickMaestroBuild()">Сборка (.apk/.ipa)</button>
-        <span class="status" id="maestroStatus">флоу не выбран</span>
-        <button class="btn btn--sm btn--primary" id="maestroStart" onclick="startMaestro()" disabled>Запустить</button>
-      </span>
-    </span>
+
+<!-- ============ form ============ -->
+<div class="pane" id="paneForm">
+  <div class="steplabel"><span class="n">1</span>Что запустить</div>
+  <div id="types"></div>
+
+  <div class="steplabel"><span class="n">2</span>Что для этого нужно</div>
+  <div id="slots"></div>
+
+  <details class="how" id="how">
+    <summary>Как это работает</summary>
+    <div class="howbody" id="howBody"></div>
+  </details>
+</div>
+
+<div class="foot" id="footForm">
+  <div class="why" id="why"></div>
+  <button class="btn btn--primary btn--block" id="runBtn" onclick="startRun()" disabled>Запустить</button>
+  <div class="more"><button class="btn btn--sm btn--ghost" onclick="openRuns('/runs.html')">Все прогоны →</button></div>
+</div>
+
+<!-- ============ progress, in this same panel ============ -->
+<div class="pane" id="paneRun" hidden>
+  <div class="runhead">
+    <span class="rname" id="runName"></span>
+    <span class="pill" id="runPill"></span>
+    <span class="rwhen" id="runWhen"></span>
   </div>
-  <button class="card" onclick="commandRun()">
-    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
-    <span class="body">
-      <span class="title-row"><span class="title">Команда</span><span class="plats"><span class="plat">Android</span><span class="plat">iOS</span></span></span>
-      <span class="desc">Любая shell-команда на устройстве — escape hatch для appium и своих скриптов</span>
-      <span class="flow">
-        <span class="step">(установить)</span><span class="arrow">→</span>
-        <span class="step">sh -c "команда"</span><span class="arrow">→</span>
-        <span class="step">файлы из cwd</span>
-      </span>
-      <span class="meta">
-        <span class="group"><span class="label">env</span><span class="val">POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR</span></span>
-        <span class="group"><span class="label">результат</span><span class="val">command.log + всё, что команда запишет, скриншот, лог</span></span>
-      </span>
-    </span>
-  </button>
-  <div class="card card--split" id="itCard">
-    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/></svg></span>
-    <span class="body">
-      <span class="title-row"><span class="title">Integration test</span><span class="plats"><span class="plat">Android</span></span></span>
-      <span class="desc">Гоняет реальные сценарии из вашего integration_test — не просто liveness, а конкретные assert'ы</span>
-      <span class="flow">
-        <span class="step">установить app</span><span class="arrow">→</span>
-        <span class="step">установить test apk</span><span class="arrow">→</span>
-        <span class="step">am instrument -w</span><span class="arrow">→</span>
-        <span class="step">OK / FAILURES</span>
-      </span>
-      <span class="meta">
-        <span class="group"><span class="label">нужно</span><span class="val">app .apk + androidTest .apk (2 файла, оба .apk — различаются только ролью)</span></span>
-        <span class="group"><span class="label">результат</span><span class="val">instrument.log, скриншот, logcat</span></span>
-      </span>
-      <span class="actions">
-        <button class="btn btn--sm" id="itAppBtn" onclick="pickITApp()">APK приложения</button>
-        <button class="btn btn--sm" id="itTestBtn" onclick="pickITTest()">androidTest APK</button>
-        <span class="status" id="itStatus">файлы не выбраны</span>
-        <button class="btn btn--sm btn--primary" id="itStart" onclick="startIntegrationTest()" disabled>Запустить</button>
-      </span>
-    </span>
+  <div id="runDevices"></div>
+</div>
+
+<div class="foot" id="footRun" hidden>
+  <div class="runactions">
+    <button class="btn" onclick="backToForm()">← Запустить ещё</button>
+    <button class="btn btn--danger" id="cancelBtn" hidden onclick="cancelRun()">Отменить</button>
+    <button class="btn" onclick="openRuns('/runs.html?r=' + encodeURIComponent(currentRun))">Все прогоны</button>
   </div>
 </div>
-<div class="foot"><button class="btn btn--sm" onclick="openRuns('/runs.html')">Все прогоны →</button></div>
+
 <div class="toasts" id="toasts"></div>
-<input type="file" id="smokeFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="startSmoke(this.files); this.value=''">
-<input type="file" id="maestroFlowFile" hidden accept=".yaml,.yml" onchange="onMaestroFlowPicked(this.files[0]); this.value=''">
-<input type="file" id="maestroBuildFile" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="onMaestroBuildPicked(this.files); this.value=''">
-<input type="file" id="itAppFile" hidden accept=".apk" onchange="onITAppPicked(this.files[0]); this.value=''">
-<input type="file" id="itTestFile" hidden accept=".apk" onchange="onITTestPicked(this.files[0]); this.value=''">
+
 <script>
 const batch = new URLSearchParams(location.search).get("b");
-const platExt = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
 let devices = [];
 
+const PLAT_NAME = { android: "Android", ios: "iOS" };
+const PLAT_EXT = { android: ".apk / .aab / .apks", ios: ".ipa" };
+const PLAT_ACCEPT = { android: ".apk,.aab,.apks", ios: ".ipa" };
+
 function batchPlatforms() { return [...new Set(devices.map(d => d.platform))]; }
-function platformOf(name) {
-  const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
-  for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
-  return null;
+
+// ---------------------------------------------------------------------------
+// What can be run. Every type declares the inputs it needs and the form is
+// generated from them, so all four are filled in and started the same way —
+// nothing fires straight out of a file dialog, and the jargon lives under
+// "Как это работает" instead of on the card.
+// slots() is a function because the builds required depend on which platforms
+// the reservation actually holds.
+// ---------------------------------------------------------------------------
+const TYPES = {
+  install_smoke: {
+    name: "Смоук-тест",
+    one: "Поставить сборку, открыть приложение и проверить, что оно не упало в первые секунды",
+    plats: ["android", "ios"],
+    slots: () => batchPlatforms().map(p => ({
+      key: "build-" + p,
+      field: "artifact",
+      label: "Сборка для " + PLAT_NAME[p],
+      hint: "файл " + PLAT_EXT[p] + " — установится на " + PLAT_NAME[p] + "-устройства партии",
+      accept: PLAT_ACCEPT[p],
+      required: true,
+    })),
+    how: [
+      ["шаги", "установить сборку, запустить приложение, подождать ~8 секунд, проверить что процесс жив"],
+      ["итог", "пройден — приложение всё ещё работает; провален — упало или не запустилось"],
+      ["файлы", "скриншот экрана в конце и лог устройства (logcat / syslog)"],
+    ],
+  },
+
+  maestro: {
+    name: "Maestro",
+    one: "Прогнать сценарий из .yaml: тапы, ввод текста, проверки того, что на экране",
+    plats: ["android", "ios"],
+    slots: () => [
+      {
+        key: "flow", field: "flow",
+        label: "Сценарий Maestro",
+        hint: "файл .yaml — что нажимать и что проверять",
+        accept: ".yaml,.yml", required: true,
+      },
+    ].concat(batchPlatforms().map(p => ({
+      key: "build-" + p,
+      field: "artifact",
+      label: "Сборка для " + PLAT_NAME[p],
+      hint: "файл " + PLAT_EXT[p] + ". Без него сценарий пойдёт по уже установленному приложению",
+      accept: PLAT_ACCEPT[p], required: false,
+    }))),
+    how: [
+      ["шаги", "установить сборку, если приложили, затем maestro test flow.yaml"],
+      ["итог", "пройден — Maestro дошёл до конца сценария без падений"],
+      ["файлы", "report.xml, maestro.log, скриншот, лог устройства"],
+    ],
+  },
+
+  command: {
+    name: "Своя команда",
+    one: "Выполнить shell-команду для каждого устройства — для appium и собственных скриптов",
+    plats: ["android", "ios"],
+    slots: () => [{
+      key: "command", field: "command", kind: "text",
+      label: "Команда",
+      hint: "выполнится на хосте фермы отдельно для каждого устройства, через sh -c",
+      placeholder: "adb shell dumpsys battery > battery.txt",
+      required: true,
+    }],
+    how: [
+      ["окружение", "POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (он же рабочая папка)"],
+      ["итог", "пройден — команда завершилась с кодом 0"],
+      ["файлы", "command.log и всё, что команда запишет в рабочую папку, плюс скриншот и лог"],
+    ],
+  },
+
+  integration_test: {
+    name: "Integration test",
+    one: "Прогнать ваши сценарии из integration_test — настоящие проверки, а не просто «запустилось»",
+    plats: ["android"],
+    needs: "android",
+    slots: () => [
+      {
+        key: "app", field: "artifact",
+        label: "APK приложения",
+        hint: "обычная сборка — build/app/outputs/…/app-debug.apk",
+        accept: ".apk", required: true,
+      },
+      {
+        key: "test", field: "test_artifact",
+        label: "APK с тестами (androidTest)",
+        hint: "сборка тестов — …-debug-androidTest.apk. Расширение то же, поэтому файла два",
+        accept: ".apk", required: true,
+      },
+    ],
+    how: [
+      ["шаги", "установить оба APK, затем am instrument -w и разбор результата"],
+      ["итог", "пройден при OK, провален при FAILURES"],
+      ["файлы", "instrument.log, скриншот, logcat"],
+    ],
+  },
+};
+
+let type = localStorage.getItem("poligon_test_type") || "install_smoke";
+const picked = {};   // slot key -> File | string
+
+// ---------------------------------------------------------------------------
+// form
+// ---------------------------------------------------------------------------
+function typeDisabledReason(key) {
+  const t = TYPES[key];
+  if (t.needs && devices.length && !batchPlatforms().includes(t.needs)) {
+    return "нужно " + PLAT_NAME[t.needs] + "-устройство — в партии таких нет";
+  }
+  return "";
 }
-// hand the run off to its own "Прогоны" drawer tab (this page lives in an
-// iframe itself, so it asks the parent panel to open one) instead of
-// replacing this tab's own content — keeps "Тесты" around to start another run
+
+function renderTypes() {
+  document.getElementById("types").innerHTML = Object.keys(TYPES).map(key => {
+    const t = TYPES[key];
+    const off = typeDisabledReason(key);
+    return '<button class="type" role="radio" aria-checked="' + (key === type) + '"' +
+      (off ? ' disabled title="' + esc(off) + '"' : "") + ' onclick="pickType(\'' + key + '\')">' +
+      '<span class="radio"></span>' +
+      '<span class="tbody">' +
+        '<span class="tname">' + esc(t.name) + '</span>' +
+        '<span class="tone">' + esc(off || t.one) + '</span>' +
+        '<span class="tplats">' + t.plats.map(p => '<span class="tplat">' + PLAT_NAME[p] + '</span>').join("") + '</span>' +
+      '</span></button>';
+  }).join("");
+}
+
+function pickType(key) {
+  if (typeDisabledReason(key)) return;
+  type = key;
+  localStorage.setItem("poligon_test_type", key);
+  for (const k of Object.keys(picked)) delete picked[k];
+  renderTypes();
+  renderSlots();
+}
+
+function renderSlots() {
+  const t = TYPES[type];
+  const slots = t.slots();
+  document.getElementById("slots").innerHTML = slots.map(s => {
+    const badge = '<span class="' + (s.required ? "slot-req" : "slot-opt") + '">' +
+      (s.required ? "обязательно" : "не обязательно") + '</span>';
+    const head = '<div class="slot-head"><span class="slot-label">' + esc(s.label) + '</span>' + badge + '</div>' +
+      '<div class="slot-hint">' + esc(s.hint) + '</div>';
+
+    if (s.kind === "text") {
+      const v = picked[s.key] || "";
+      return '<div class="slot ' + (v ? "is-filled" : "is-missing") + '">' + head +
+        '<textarea class="input input--area" rows="3" placeholder="' + esc(s.placeholder || "") + '"' +
+        ' oninput="setText(\'' + s.key + '\', this.value)">' + esc(v) + '</textarea></div>';
+    }
+    const f = picked[s.key];
+    return '<div class="slot ' + (f ? "is-filled" : (s.required ? "is-missing" : "")) + '">' + head +
+      '<div class="slot-row">' +
+        '<button class="btn btn--sm" onclick="pickFile(\'' + s.key + '\',\'' + s.accept + '\')">' +
+          (f ? "Заменить" : "Выбрать файл") + '</button>' +
+        '<span class="slot-file ' + (f ? "has" : "") + '">' + (f ? esc(f.name) : "файл не выбран") + '</span>' +
+        (f ? '<button class="icon-btn is-danger" title="Убрать файл" aria-label="Убрать файл"' +
+             ' onclick="clearSlot(\'' + s.key + '\')">✕</button>' : "") +
+      '</div></div>';
+  }).join("");
+
+  document.getElementById("howBody").innerHTML = t.how.map(pair =>
+    '<div class="howrow"><span class="howk">' + esc(pair[0]) + '</span><span>' + esc(pair[1]) + '</span></div>').join("");
+
+  validate();
+}
+
+function pickFile(key, accept) {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = accept;
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const ok = accept.split(",").some(e => f.name.toLowerCase().endsWith(e.trim()));
+    if (!ok) { toast(f.name + ": нужен файл " + accept, "err"); return; }
+    picked[key] = f;
+    renderSlots();
+  };
+  inp.click();
+}
+function clearSlot(key) { delete picked[key]; renderSlots(); }
+function setText(key, v) { if (v.trim()) picked[key] = v; else delete picked[key]; validate(); }
+
+// the primary button never sits dead without saying what is missing
+function validate() {
+  const btn = document.getElementById("runBtn");
+  const why = document.getElementById("why");
+  const n = devices.length;
+  if (!n) {
+    btn.disabled = true;
+    btn.textContent = "Нет устройств";
+    why.textContent = "В партии нет устройств — вернитесь на ферму и займите хотя бы одно.";
+    return;
+  }
+  const missing = TYPES[type].slots().filter(s => s.required && !picked[s.key]);
+  btn.textContent = "Запустить на " + n + " " + plural(n, "устройстве", "устройствах", "устройствах");
+  btn.disabled = missing.length > 0;
+  why.textContent = missing.length
+    ? "Не хватает: " + missing.map(s => s.label.toLowerCase()).join(", ")
+    : "";
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+// the run history is a page of its own; this panel lives in an iframe, so it
+// asks the wall to open that tab rather than replacing itself
 function openRuns(src) {
-  if (window.parent && window.parent.openModal) {
+  if (window.parent && window.parent !== window && window.parent.openModal) {
     window.parent.openModal("runs", "Прогоны", src, true);
   } else {
-    location.href = src; // opened standalone (no parent panel) — just navigate
+    location.href = src;
   }
 }
-function goToRun(id) { openRuns("/runs.html?r=" + id); }
 
-function pickSmoke() { document.getElementById("smokeFile").click(); }
-async function startSmoke(files) {
-  files = [...(files || [])];
-  if (!files.length) return;
-  const byPlat = {};
-  for (const f of files) {
-    const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: не .apk/.aab/.apks и не .ipa`, "err"); return; }
-    if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
-    byPlat[p] = f;
-  }
-  const missing = batchPlatforms().filter(p => !byPlat[p]);
-  if (missing.length) {
-    toast(`в партии есть устройства ${missing.join(" + ")} — добавьте сборку для каждой платформы`, "err");
-    return;
-  }
+// ---------------------------------------------------------------------------
+// run + progress, without leaving this panel
+// ---------------------------------------------------------------------------
+let currentRun = "";
+let pollTimer = null;
+
+async function startRun() {
   const fd = new FormData();
-  fd.append("type", "install_smoke");
+  fd.append("type", type);
   for (const d of devices) fd.append("device", d.id);
-  for (const f of files) fd.append("artifact", f);
-  toast(`Запускаю смоук-тест на ${devices.length} устр.…`);
+  for (const s of TYPES[type].slots()) {
+    const v = picked[s.key];
+    if (v) fd.append(s.field, v);
+  }
+  document.getElementById("runBtn").disabled = true;
   try {
     const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Прогон ${b.id} в очереди`, "ok");
-    setTimeout(() => goToRun(b.id), 500);
-  } catch (e) { toast(e.message, "err"); }
-}
-
-// maestro: flow and build(s) can live in different directories, so each has
-// its own button/dialog — pick either in any order, "Запустить" fires once
-// a flow is present
-let maestroFlow = null;
-let maestroBuilds = {}; // platform -> File
-function pickMaestroFlow() { document.getElementById("maestroFlowFile").click(); }
-function pickMaestroBuild() { document.getElementById("maestroBuildFile").click(); }
-function onMaestroFlowPicked(file) {
-  if (!file) return;
-  maestroFlow = file;
-  updateMaestroStatus();
-}
-function onMaestroBuildPicked(files) {
-  for (const f of [...(files || [])]) {
-    const p = platformOf(f.name);
-    if (!p) { toast(`${f.name}: не сборка (.apk/.aab/.apks/.ipa)`, "err"); continue; }
-    maestroBuilds[p] = f;
+    currentRun = b.id;
+    showRun();
+    poll();
+  } catch (e) {
+    toast(e.message, "err");
+    validate();
   }
-  updateMaestroStatus();
-}
-function updateMaestroStatus() {
-  const parts = [];
-  parts.push(maestroFlow ? "флоу: " + maestroFlow.name : "флоу не выбран");
-  const builds = Object.values(maestroBuilds).map(f => f.name);
-  parts.push(builds.length ? "сборка: " + builds.join(", ") : "без сборки (используется уже установленная)");
-  document.getElementById("maestroStatus").textContent = parts.join(" · ");
-  document.getElementById("maestroStart").disabled = !maestroFlow;
-}
-async function startMaestro() {
-  if (!maestroFlow) return;
-  const fd = new FormData();
-  fd.append("type", "maestro");
-  fd.append("flow", maestroFlow);
-  for (const f of Object.values(maestroBuilds)) fd.append("artifact", f);
-  for (const d of devices) fd.append("device", d.id);
-  toast(`Запускаю Maestro на ${devices.length} устр.…`);
-  try {
-    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
-    const b = await r.json();
-    if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Прогон ${b.id} в очереди`, "ok");
-    maestroFlow = null;
-    maestroBuilds = {};
-    updateMaestroStatus();
-    setTimeout(() => goToRun(b.id), 500);
-  } catch (e) { toast(e.message, "err"); }
 }
 
-async function commandRun() {
-  const cmd = await promptDialog({
-    title: "Команда на каждом устройстве",
-    hint: "Выполнится на каждом устройстве партии через sh -c.\n"
-      + "Окружение: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (он же cwd).\n"
-      + "Всё, что команда запишет в cwd, попадёт в артефакты прогона.",
-    label: "Команда",
-    placeholder: "adb shell dumpsys battery > battery.txt",
-    multiline: true,
-    okText: "Запустить",
+function showRun() {
+  document.getElementById("paneForm").hidden = true;
+  document.getElementById("footForm").hidden = true;
+  document.getElementById("paneRun").hidden = false;
+  document.getElementById("footRun").hidden = false;
+  document.getElementById("headTitle").textContent = "Тесты · " + TYPES[type].name;
+  document.getElementById("runName").textContent = "#" + currentRun;
+  document.getElementById("runDevices").innerHTML =
+    '<div class="rdev"><div class="rdev-detail">ставлю в очередь…</div></div>';
+}
+
+function backToForm() {
+  clearTimeout(pollTimer);
+  currentRun = "";
+  document.getElementById("paneRun").hidden = true;
+  document.getElementById("footRun").hidden = true;
+  document.getElementById("paneForm").hidden = false;
+  document.getElementById("footForm").hidden = false;
+  document.getElementById("headTitle").textContent = "Тесты";
+  validate();
+}
+
+const ST = {
+  passed: "пройден", failed: "провален", error: "ошибка", running: "выполняется",
+  queued: "в очереди", canceled: "отменён", skipped: "пропущен", pending: "ожидание",
+};
+const DONE = ["passed", "failed", "error", "canceled"];
+
+function elapsed(a, b) {
+  if (!a) return "";
+  const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000);
+  return s < 60 ? s + "с" : Math.floor(s / 60) + "м " + (s % 60) + "с";
+}
+
+async function poll() {
+  if (!currentRun) return;
+  try {
+    const r = await fetch("/api/runs/" + currentRun, { credentials: "same-origin" });
+    const run = await r.json();
+    if (!r.ok) throw new Error(run.error || r.statusText);
+    renderRun(run);
+    const live = DONE.indexOf(run.status) === -1;
+    document.getElementById("cancelBtn").hidden = !live;
+    if (live) pollTimer = setTimeout(poll, 2000);
+  } catch (e) {
+    document.getElementById("runDevices").innerHTML =
+      '<div class="rdev"><div class="rdev-detail">' + esc(e.message) + '</div></div>';
+    pollTimer = setTimeout(poll, 5000);
+  }
+}
+
+function renderRun(run) {
+  const pill = document.getElementById("runPill");
+  pill.className = "pill " + run.status;
+  pill.textContent = ST[run.status] || run.status;
+  document.getElementById("runWhen").textContent =
+    run.started_at ? elapsed(run.started_at, run.finished_at) : "в очереди";
+
+  document.getElementById("runDevices").innerHTML = (run.devices || []).map(d => {
+    const arts = (d.artifacts || []).map(n =>
+      '<a href="/api/runs/' + run.id + '/artifacts/' + d.device_id + '/' + n + '" target="_blank">' + esc(n) + '</a>'
+    ).join("");
+    return '<div class="rdev"><div class="rdev-head">' +
+      '<span class="rdev-id">' + esc(d.device_id) + '</span>' +
+      (d.package ? '<span class="rdev-pkg">' + esc(d.package) + '</span>' : "") +
+      '<span class="sp"></span>' +
+      '<span class="pill ' + d.status + '">' + (ST[d.status] || d.status) + '</span></div>' +
+      (d.detail ? '<div class="rdev-detail">' + esc(d.detail) + '</div>' : "") +
+      (arts ? '<div class="rdev-arts">' + arts + '</div>' : "") +
+      '</div>';
+  }).join("") || '<div class="rdev"><div class="rdev-detail">устройства ещё не взяты в работу…</div></div>';
+}
+
+async function cancelRun() {
+  const ok = await confirmDialog({
+    title: "Отменить прогон?",
+    body: "Уже начатые шаги на устройствах будут прерваны. Собранные артефакты останутся.",
+    okText: "Отменить прогон",
+    cancelText: "Пусть идёт",
   });
-  if (!cmd) return;
-  const fd = new FormData();
-  fd.append("type", "command");
-  fd.append("command", cmd);
-  for (const d of devices) fd.append("device", d.id);
-  toast(`Запускаю команду на ${devices.length} устр.…`);
+  if (!ok) return;
   try {
-    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
-    const b = await r.json();
-    if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Прогон ${b.id} в очереди`, "ok");
-    setTimeout(() => goToRun(b.id), 500);
+    const r = await fetch("/api/runs/" + currentRun + "/cancel", { method: "POST", headers: HW() });
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || r.statusText); }
+    poll();
   } catch (e) { toast(e.message, "err"); }
 }
 
-// integration_test: two apks that look identical by name, so each has its own
-// button and both are shown before the run starts — nothing fires from a file
-// dialog alone any more
-let itApp = null, itTest = null;
-function pickITApp() { document.getElementById("itAppFile").click(); }
-function pickITTest() { document.getElementById("itTestFile").click(); }
-function onITAppPicked(f) { if (f) { itApp = f; updateITStatus(); } }
-function onITTestPicked(f) { if (f) { itTest = f; updateITStatus(); } }
-function updateITStatus() {
-  const parts = [
-    itApp ? "app: " + itApp.name : "app не выбран",
-    itTest ? "test: " + itTest.name : "androidTest не выбран",
-  ];
-  document.getElementById("itStatus").textContent = parts.join(" · ");
-  document.getElementById("itStart").disabled = !(itApp && itTest);
-}
-async function startIntegrationTest() {
-  if (!itApp || !itTest) return;
-  if (!batchPlatforms().includes("android")) {
-    toast("integration_test пока только для Android — в партии нет android-устройств", "err");
-    return;
-  }
-  const fd = new FormData();
-  fd.append("type", "integration_test");
-  fd.append("artifact", itApp);
-  fd.append("test_artifact", itTest);
-  for (const d of devices) fd.append("device", d.id);
-  toast(`Запускаю integration_test на ${devices.length} устр.…`);
-  try {
-    const r = await fetch("/api/runs", { method: "POST", headers: HW(), body: fd });
-    const b = await r.json();
-    if (!r.ok) throw new Error(b.error || r.statusText);
-    toast(`Прогон ${b.id} в очереди`, "ok");
-    itApp = null; itTest = null;
-    updateITStatus();
-    setTimeout(() => goToRun(b.id), 500);
-  } catch (e) { toast(e.message, "err"); }
-}
-
+// ---------------------------------------------------------------------------
 async function main() {
-  if (!batch) { document.getElementById("sub").textContent = "нет партии"; return; }
+  const target = document.getElementById("target");
+  if (!batch) { target.textContent = "нет партии"; renderTypes(); renderSlots(); return; }
   try {
-    const b = await (await fetch(`/api/batches/${batch}`, { credentials: "same-origin" })).json();
-    if (!b.devices) { document.getElementById("sub").textContent = b.error || "партия не найдена"; return; }
-    devices = b.devices;
-    const by = {};
-    for (const d of devices) by[d.platform] = (by[d.platform] || 0) + 1;
-    document.getElementById("sub").textContent =
-      Object.entries(by).map(([p, n]) => `${n} ${p}`).join(" · ") || "0 устройств";
-    if (!batchPlatforms().includes("android")) {
-      const c = document.getElementById("itCard");
-      c.classList.add("card--off");
-      c.title = "в партии нет android-устройств";
-      for (const b of c.querySelectorAll("button")) b.disabled = true;
-      document.getElementById("itStatus").textContent = "в партии нет android-устройств";
+    const b = await (await fetch("/api/batches/" + batch, { credentials: "same-origin" })).json();
+    if (!b.devices) { target.textContent = b.error || "партия не найдена"; }
+    else {
+      devices = b.devices;
+      const n = devices.length;
+      target.innerHTML = "Запустится сразу на <b>" + n + "</b> " +
+        plural(n, "устройстве", "устройствах", "устройствах") +
+        ': <span class="ids">' + esc(devices.map(d => d.id).join(", ")) + "</span>";
     }
   } catch (e) {
-    document.getElementById("sub").textContent = e.message;
+    target.textContent = e.message;
   }
+  if (typeDisabledReason(type)) type = "install_smoke";
+  renderTypes();
+  renderSlots();
 }
 main();
 </script>
