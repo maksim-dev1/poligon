@@ -368,11 +368,15 @@ function nearViewport(id) {
   return r.bottom > -300 && r.top < window.innerHeight + 300;
 }
 
+const lastVisible = new Map();
+
 function applyTile(id) {
   const f = document.getElementById("if-" + id);
   if (!f) return;
   const visible = (onScreen.has(id) || nearViewport(id)) && !wallHidden;
   if (visible && !f.getAttribute("src") && f.dataset.src) f.src = f.dataset.src;
+  if (lastVisible.get(id) === visible) return;
+  lastVisible.set(id, visible);
   const d = devices.find(x => x.id === id);
   if (d && d.platform === "ios" && f.contentWindow) {
     try { f.contentWindow.postMessage({ poligon: "visible", visible }, location.origin); } catch {}
@@ -395,11 +399,10 @@ document.addEventListener("visibilitychange", () => {
   applyAllTiles();
 });
 
-let scrollTick = false;
+let scrollTimer = null;
 window.addEventListener("scroll", () => {
-  if (scrollTick) return;
-  scrollTick = true;
-  requestAnimationFrame(() => { scrollTick = false; applyAllTiles(); });
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(applyAllTiles, 200);
 }, { passive: true });
 function platformOf(name) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();

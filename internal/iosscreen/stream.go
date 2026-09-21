@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"mime/multipart"
 	"net/http"
 	"sync"
 	"time"
@@ -274,6 +272,13 @@ func (c *Controller) pump(ctx context.Context, deviceID string, ep Endpoint, s *
 }
 
 // readMJPEG consumes one multipart response until it breaks.
+//
+// It does NOT trust the declared boundary. WebDriverAgent announces
+// `boundary=--BoundaryString` — the value already contains the two dashes that
+// MIME says introduce the delimiter — so a spec-following multipart reader
+// hunts for `----BoundaryString`, finds nothing, and reports an empty stream.
+// Scanning for JPEG markers is what the old per-frame reader did and it works
+// against every mjpeg server we have seen, so that is the only path.
 func (c *Controller) readMJPEG(ctx context.Context, ep Endpoint, s *stream) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ep.MJPEG, nil)
 	if err != nil {
@@ -286,27 +291,6 @@ func (c *Controller) readMJPEG(ctx context.Context, ep Endpoint, s *stream) erro
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("mjpeg: %s", resp.Status)
-	}
-
-	// WDA announces a boundary; if it does not, fall back to scanning for JPEG
-	// markers in the raw byte stream.
-	_, params, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if b := params["boundary"]; b != "" {
-		mr := multipart.NewReader(resp.Body, b)
-		for {
-			part, err := mr.NextPart()
-			if err != nil {
-				return err
-			}
-			data, err := io.ReadAll(io.LimitReader(part, maxFrame))
-			part.Close()
-			if err != nil {
-				return err
-			}
-			if len(data) > 0 {
-				s.publish(data)
-			}
-		}
 	}
 	return scanJPEGs(resp.Body, s)
 }
