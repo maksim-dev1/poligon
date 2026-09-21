@@ -11,15 +11,15 @@
 package iosscreen
 
 import (
-	"bufio"
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"sync"
 	"time"
 )
@@ -30,26 +30,44 @@ type Endpoint struct {
 	MJPEG string `yaml:"mjpeg"` // host:port of WDA mjpeg server (device 9100)
 }
 
+// Tuning is how WDA should encode its mjpeg stream. A zero field leaves that
+// setting alone.
+type Tuning struct {
+	Framerate int
+	Quality   int
+	Scale     int
+}
+
 // Controller manages WDA sessions and proxies for the configured iOS devices.
 type Controller struct {
 	endpoints map[string]Endpoint // device id -> endpoint
+	tune      Tuning
 
 	mu       sync.Mutex
-	sessions map[string]string // device id -> WDA sessionId
-	proxies  map[string]*httputil.ReverseProxy
+	sessions map[string]string  // device id -> WDA sessionId
+	streams  map[string]*stream // device id -> the one shared screen reader
 	client   *http.Client
+	// screen streams are long-lived, so they cannot use the request client's timeout
+	streamClient *http.Client
 }
 
 // New builds a Controller. endpoints may be nil/empty (iOS screen disabled).
-func New(endpoints map[string]Endpoint) *Controller {
+func New(endpoints map[string]Endpoint, tune Tuning) *Controller {
 	if endpoints == nil {
 		endpoints = map[string]Endpoint{}
 	}
 	return &Controller{
 		endpoints: endpoints,
+		tune:      tune,
 		sessions:  map[string]string{},
-		proxies:   map[string]*httputil.ReverseProxy{},
+		streams:   map[string]*stream{},
 		client:    &http.Client{Timeout: 10 * time.Second},
+		streamClient: &http.Client{
+			Transport: &http.Transport{
+				DisableCompression: true, // frames are already JPEG
+				MaxIdleConns:       8,
+			},
+		},
 	}
 }
 
@@ -60,7 +78,7 @@ func (c *Controller) Set(deviceID string, ep Endpoint) {
 	defer c.mu.Unlock()
 	c.endpoints[deviceID] = ep
 	delete(c.sessions, deviceID) // force a fresh WDA session against the new endpoint
-	delete(c.proxies, deviceID)
+	c.stopStream(deviceID)       // the old reader points at the previous WDA
 }
 
 // Unset drops a device's endpoint — call when its WebDriverAgent has gone away,
@@ -71,7 +89,7 @@ func (c *Controller) Unset(deviceID string) {
 	defer c.mu.Unlock()
 	delete(c.endpoints, deviceID)
 	delete(c.sessions, deviceID)
-	delete(c.proxies, deviceID)
+	c.stopStream(deviceID)
 }
 
 // endpoint returns a copy of a device's endpoint under the lock.
@@ -88,67 +106,73 @@ func (c *Controller) Configured(deviceID string) bool {
 	return ok
 }
 
-// MJPEGHandler proxies the device's mjpeg stream. The caller must have already
-// checked auth + reservation.
-func (c *Controller) MJPEGHandler(deviceID string) (http.Handler, error) {
-	ep, ok := c.endpoint(deviceID)
-	if !ok || ep.MJPEG == "" {
-		return nil, fmt.Errorf("no ios screen endpoint for %q", deviceID)
+// Frame returns the newest JPEG the shared reader has. Polling clients
+// (Safari, which will not render a multipart <img>) hit this; it costs one map
+// lookup, not a fresh connection to the device.
+func (c *Controller) Frame(deviceID string) ([]byte, error) {
+	sb, err := c.Subscribe(deviceID)
+	if err != nil {
+		return nil, err
 	}
-	c.mu.Lock()
-	rp := c.proxies[deviceID]
-	if rp == nil {
-		u := &url.URL{Scheme: "http", Host: ep.MJPEG}
-		rp = httputil.NewSingleHostReverseProxy(u)
-		rp.FlushInterval = 10 * time.Millisecond // stream frames as they arrive
-		c.proxies[deviceID] = rp
+	defer sb.Close()
+
+	if b, age, err := sb.Latest(); err == nil && age < staleAfter {
+		return b, nil
 	}
-	c.mu.Unlock()
-	return rp, nil
+	// nothing cached yet (the reader has just started) — wait briefly for the
+	// first frame rather than failing the very first poll
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	return sb.Next(ctx)
 }
 
-// Frame reads a single JPEG from the device's mjpeg stream. Used by clients
-// (Safari) that cannot render a multipart/x-mixed-replace <img>; the page polls
-// this instead.
-func (c *Controller) Frame(deviceID string) ([]byte, error) {
+// FrameAge reports how old the newest frame is, so the page can tell a live
+// screen from a frozen one without guessing from image errors.
+func (c *Controller) FrameAge(deviceID string) (time.Duration, error) {
+	c.mu.Lock()
+	s := c.streams[deviceID]
+	c.mu.Unlock()
+	if s == nil {
+		return 0, errors.New("screen not being watched")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur.data == nil {
+		if s.err != nil {
+			return 0, s.err
+		}
+		return 0, errors.New("no frame yet")
+	}
+	return time.Since(s.cur.at), nil
+}
+
+// Screenshot grabs a full-resolution PNG straight from WDA. Run artifacts use
+// this rather than a frame off the live stream: the stream is deliberately
+// scaled down and heavily compressed for the wall, which is the wrong trade for
+// a screenshot someone will open to see why a test failed.
+func (c *Controller) Screenshot(deviceID string) ([]byte, error) {
 	ep, ok := c.endpoint(deviceID)
-	if !ok || ep.MJPEG == "" {
+	if !ok || ep.WDA == "" {
 		return nil, fmt.Errorf("no ios screen endpoint for %q", deviceID)
 	}
-	resp, err := c.client.Get("http://" + ep.MJPEG)
+	resp, err := c.client.Get("http://" + ep.WDA + "/screenshot")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	// the mjpeg body is: (headers)\r\n\r\n <JPEG> \r\n--boundary ... repeated.
-	// scan for SOI (FFD8) then read through EOI (FFD9).
-	br := bufio.NewReaderSize(resp.Body, 64*1024)
-	var buf []byte
-	started := false
-	limit := 4 << 20
-	for len(buf) < limit {
-		b, err := br.ReadByte()
-		if err != nil {
-			return nil, err
-		}
-		if !started {
-			if b != 0xFF {
-				continue
-			}
-			n, _ := br.Peek(1)
-			if len(n) == 1 && n[0] == 0xD8 {
-				started = true
-				buf = append(buf, 0xFF)
-			}
-			continue
-		}
-		buf = append(buf, b)
-		if b == 0xD9 && len(buf) >= 2 && buf[len(buf)-2] == 0xFF {
-			return buf, nil
-		}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("wda screenshot: %s", resp.Status)
 	}
-	return nil, fmt.Errorf("no complete jpeg frame")
+	var out struct {
+		Value string `json:"value"` // base64 PNG
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if out.Value == "" {
+		return nil, errors.New("wda returned an empty screenshot")
+	}
+	return base64.StdEncoding.DecodeString(out.Value)
 }
 
 // Input is one control action from the dashboard.

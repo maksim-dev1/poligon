@@ -78,8 +78,9 @@ func (c *Capturer) ensureSyslog(dev model.Device) (*syslogCapture, error) {
 }
 
 // Screenshot returns image bytes and their MIME type. Android grabs the
-// framebuffer directly (PNG); iOS reuses the live-screen frame (JPEG) and so
-// needs the device's screen to be up.
+// framebuffer directly (PNG); iOS asks WebDriverAgent for a full-resolution
+// PNG, falling back to a frame off the live stream (JPEG, scaled down for the
+// wall) if that fails. Either way the device's screen must be up.
 func (c *Capturer) Screenshot(ctx context.Context, dev model.Device) ([]byte, string, error) {
 	switch dev.Platform {
 	case model.Android:
@@ -88,6 +89,9 @@ func (c *Capturer) Screenshot(ctx context.Context, dev model.Device) ([]byte, st
 	case model.IOS:
 		if c.ios == nil || !c.ios.Configured(dev.ID) {
 			return nil, "", fmt.Errorf("iOS live screen is not up for %s", dev.ID)
+		}
+		if b, err := c.ios.Screenshot(dev.ID); err == nil {
+			return b, "image/png", nil
 		}
 		b, err := c.ios.Frame(dev.ID)
 		return b, "image/jpeg", err

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -130,6 +131,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	ios.HandleFunc("GET /ios/{id}/size", s.iosSize)
 	ios.HandleFunc("GET /ios/{id}/mjpeg", s.iosMJPEG)
 	ios.HandleFunc("GET /ios/{id}/frame", s.iosFrame)
+	ios.HandleFunc("GET /ios/{id}/state", s.iosState)
 	ios.HandleFunc("POST /ios/{id}/input", s.iosInput)
 	ios.HandleFunc("POST /ios/{id}/restart", s.iosRestart)
 	ios.HandleFunc("GET /ios/{id}/job", s.iosJob)
@@ -309,21 +311,68 @@ func (s *Server) iosSize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int{"w": wpx, "h": hpx})
 }
 
+// iosMJPEG serves the device's screen as multipart/x-mixed-replace, which an
+// <img> renders natively — no JavaScript runs per frame and no request is made
+// per frame. Frames come from the one shared reader per device, so ten viewers
+// still cost the device exactly one mjpeg connection.
 func (s *Server) iosMJPEG(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.iosHolder(w, r)
 	if !ok {
 		return
 	}
-	h, err := s.ios.MJPEGHandler(id)
+	sub, err := s.ios.Subscribe(id)
 	if err != nil {
 		fail(w, http.StatusBadGateway, err)
 		return
 	}
-	// strip our path so the upstream sees "/"
-	r2 := r.Clone(r.Context())
-	r2.URL.Path = "/"
-	r2.URL.RawPath = "/"
-	h.ServeHTTP(w, r2)
+	defer sub.Close()
+
+	fl, canFlush := w.(http.Flusher)
+	if !canFlush {
+		fail(w, http.StatusInternalServerError, errors.New("streaming unsupported"))
+		return
+	}
+
+	const boundary = "poligonframe"
+	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary)
+	w.Header().Set("Cache-Control", "no-store, no-transform")
+	w.Header().Set("Connection", "close")
+	w.WriteHeader(http.StatusOK)
+	fl.Flush()
+
+	for {
+		frame, err := sub.Next(r.Context())
+		if err != nil {
+			return
+		}
+		if _, err := fmt.Fprintf(w,
+			"\r\n--%s\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n",
+			boundary, len(frame)); err != nil {
+			return
+		}
+		if _, err := w.Write(frame); err != nil {
+			return
+		}
+		fl.Flush()
+	}
+}
+
+// iosState reports how fresh the screen is, so the page can say "frozen"
+// instead of silently showing a stale frame.
+func (s *Server) iosState(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.iosHolder(w, r)
+	if !ok {
+		return
+	}
+	age, err := s.ios.FrameAge(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"live": false, "detail": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"live":   age < 5*time.Second,
+		"age_ms": age.Milliseconds(),
+	})
 }
 
 // iosFrame returns one JPEG from the device — the polling fallback for browsers

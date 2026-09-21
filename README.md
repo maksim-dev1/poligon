@@ -191,6 +191,13 @@ each (re)start is self-cleaning.
 - **On poligon restart:** iOS screens are torn down and rebuilt (≈1 min each) —
   no orphaned `ios runwda` / `ios forward` processes accumulate. A background
   watchdog also auto-restarts an iOS screen whose WebDriverAgent stops answering.
+- **iOS screen cost:** poligon reads each device's WebDriverAgent mjpeg stream
+  **once** and fans it out to every viewer, so ten open tiles are still one
+  stream on the phone. How much the phone sends is set in `devices.yaml` under
+  `ios_wda:` — `mjpeg_framerate` (12), `mjpeg_quality` (35) and `mjpeg_scale`
+  (50, percent). Raise them for a sharper wall, lower them if the phones or the
+  host struggle. Run screenshots ignore these and come from WDA's full-quality
+  `/screenshot`.
 - **Power loss:** with `scripts/host-setup.sh` applied (FileVault off, auto-login,
   `pmset autorestart 1`) the mac powers on, logs in, and all services come up
   with no human at the keyboard.

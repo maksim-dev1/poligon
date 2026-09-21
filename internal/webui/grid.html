@@ -210,10 +210,12 @@ function cell(d, url) {
   const c = document.createElement("div");
   c.className = "cell";
   c.id = "cell-" + d.id;
+  c.dataset.device = d.id;
+  c.dataset.platform = d.platform;
   const noInput = d.specs && d.specs.input_injection === "blocked";
   const src = url && d.platform === "ios" ? url + (url.includes("?") ? "&" : "?") + "embed=1" : url;
   const body = url
-    ? `<iframe id="if-${d.id}" src="${src}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
+    ? `<iframe id="if-${d.id}" data-src="${src}" allow="autoplay; clipboard-read; clipboard-write"></iframe>`
     : `<div class="tile-blank">экран недоступен</div>`;
   const icon = {
     x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>`,
@@ -343,9 +345,62 @@ function hideScrcpyToolbar(ifr) {
 function reopen(id) {
   const f = document.getElementById("if-" + id);
   if (!f) return;
-  const u = (f.getAttribute("src") || urls[id] || "").split("#")[0];
+  const u = (f.getAttribute("src") || f.dataset.src || urls[id] || "").split("#")[0];
   if (u) f.src = u + (u.includes("?") ? "&" : "#") + "r=" + Date.now();
 }
+
+// ---- only stream what is actually on screen ------------------------------
+// Every tile used to pull frames at full rate whether or not it was scrolled
+// into view, and whether or not the wall was even the active tab. On the iOS
+// side that is the expensive one: each viewer is a screenshot loop on a device
+// that re-encodes every frame.
+let wallHidden = document.hidden;
+const onScreen = new Set();
+
+// geometry is the source of truth, the observer is only a prompt notification:
+// a wall built in a background tab never gets an IntersectionObserver callback,
+// and a tile that is never reported must still load rather than stay blank
+function nearViewport(id) {
+  const c = document.getElementById("cell-" + id);
+  if (!c) return false;
+  const r = c.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return false;
+  return r.bottom > -300 && r.top < window.innerHeight + 300;
+}
+
+function applyTile(id) {
+  const f = document.getElementById("if-" + id);
+  if (!f) return;
+  const visible = (onScreen.has(id) || nearViewport(id)) && !wallHidden;
+  if (visible && !f.getAttribute("src") && f.dataset.src) f.src = f.dataset.src;
+  const d = devices.find(x => x.id === id);
+  if (d && d.platform === "ios" && f.contentWindow) {
+    try { f.contentWindow.postMessage({ poligon: "visible", visible }, location.origin); } catch {}
+  }
+}
+
+const tileWatcher = new IntersectionObserver(entries => {
+  for (const e of entries) {
+    const id = e.target.dataset.device;
+    if (!id) continue;
+    e.isIntersecting ? onScreen.add(id) : onScreen.delete(id);
+    applyTile(id);
+  }
+}, { rootMargin: "300px" });   // load a little before it scrolls in
+
+function applyAllTiles() { for (const d of devices) applyTile(d.id); }
+
+document.addEventListener("visibilitychange", () => {
+  wallHidden = document.hidden;
+  applyAllTiles();
+});
+
+let scrollTick = false;
+window.addEventListener("scroll", () => {
+  if (scrollTick) return;
+  scrollTick = true;
+  requestAnimationFrame(() => { scrollTick = false; applyAllTiles(); });
+}, { passive: true });
 function platformOf(name) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
   for (const [p, exts] of Object.entries(platExt)) if (exts.includes(ext)) return p;
@@ -391,12 +446,20 @@ async function main() {
   for (const d of devices) {
     const url = await screenURL(d.id);
     urls[d.id] = url || "";
-    grid.appendChild(cell(d, url));
+    const el = cell(d, url);
+    grid.appendChild(el);
+    tileWatcher.observe(el);
     if (d.platform === "android") {
       const ifr = document.getElementById("if-" + d.id);
       if (ifr) ifr.addEventListener("load", () => hideScrcpyToolbar(ifr));
     }
+    // an iOS player only learns it is visible once it has loaded
+    const f = document.getElementById("if-" + d.id);
+    if (f && d.platform === "ios") f.addEventListener("load", () => applyTile(d.id));
   }
+  applyAllTiles();          // load whatever is on screen right now
+  setTimeout(applyAllTiles, 1500); // and again, in case layout settled late
+
   setInterval(() => {
     fetch(`/api/batches/${batch}/heartbeat`, { method: "POST", headers: HW() }).catch(() => {});
   }, 60000);

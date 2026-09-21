@@ -114,7 +114,11 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 			iosEndpoints[rr.DeviceID] = iosscreen.Endpoint{WDA: rr.WDA, MJPEG: rr.MJPEG}
 		}
 	}
-	iosCtl := iosscreen.New(iosEndpoints)
+	iosCtl := iosscreen.New(iosEndpoints, iosscreen.Tuning{
+		Framerate: cfg.IOSWDA.MJPEGFramerate,
+		Quality:   cfg.IOSWDA.MJPEGQuality,
+		Scale:     cfg.IOSWDA.MJPEGScale,
+	})
 	prov := provision.New(cfg, st, adb.New(cfg.ADBPath), ios.Default(), iosCtl, log)
 
 	capt := capture.New(adb.New(cfg.ADBPath), iosCtl, ios.Default())

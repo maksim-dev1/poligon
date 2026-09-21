@@ -36,25 +36,93 @@ const statusEl = document.getElementById("status");
 document.getElementById("title").textContent = id;
 
 let dev = { w: 390, h: 844 };
-let errStreak = 0;
 let streaming = false;
+let paused = false;
 const downEl = document.getElementById("down");
 
+// Safari will not render a multipart/x-mixed-replace <img>, so it keeps the
+// polling path. Everything else gets one long-lived connection the browser
+// decodes itself: no JS, no request and no image allocation per frame.
+const canStream = !/^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+
+// ---- streaming path -------------------------------------------------------
+function startStream() {
+  // a multipart stream never finishes, so attaching it before the document has
+  // loaded leaves the tab spinning forever — wait for load, then connect
+  const go = () => {
+    if (!streaming || paused) return;
+    img.src = base + "/mjpeg?t=" + Date.now();
+    statusEl.textContent = "трансляция";
+  };
+  if (document.readyState === "complete") go();
+  else window.addEventListener("load", go, { once: true });
+}
+function stopStream() {
+  // dropping the src closes the connection, which releases the device-side
+  // reader once the last viewer is gone
+  img.removeAttribute("src");
+}
+
+// ---- polling path (Safari) ------------------------------------------------
+let errStreak = 0;
 function pump() {
-  if (!streaming) return;
+  if (!streaming || paused || canStream) return;
   const next = new Image();
   next.onload = () => {
     img.src = next.src;
     statusEl.textContent = "трансляция";
     if (errStreak) { errStreak = 0; downEl.classList.remove("show"); }
-    if (streaming) setTimeout(pump, 90);
+    if (streaming && !paused) setTimeout(pump, 100);
   };
   next.onerror = () => {
     statusEl.textContent = "ошибка трансляции";
     if (++errStreak >= 6) { streaming = false; showDown("WebDriverAgent перестал отвечать.\nПерезапустите его, чтобы вернуть экран."); }
-    else if (streaming) setTimeout(pump, 1000);
+    else if (streaming && !paused) setTimeout(pump, 1000);
   };
   next.src = base + "/frame?t=" + Date.now();
+}
+
+// ---- pause while nobody is looking ---------------------------------------
+// A tile scrolled out of the wall, or a wall in a background tab, used to keep
+// pulling frames at full rate. Each paused tile is one less mjpeg reader on a
+// device that is already the bottleneck.
+function setPaused(v) {
+  v = !!v;
+  if (v === paused) return;
+  paused = v;
+  if (paused) {
+    statusEl.textContent = "пауза";
+    if (canStream) stopStream();
+  } else if (streaming) {
+    if (canStream) startStream(); else pump();
+  }
+}
+window.addEventListener("message", e => {
+  const d = e.data;
+  if (d && d.poligon === "visible") setPaused(!d.visible);
+});
+document.addEventListener("visibilitychange", () => {
+  // a popped-out player pauses itself; inside the wall the parent decides
+  if (window.parent === window) setPaused(document.hidden);
+});
+
+// ---- watchdog -------------------------------------------------------------
+// A dead WebDriverAgent leaves a perfectly valid last frame on screen, which
+// looks live. Ask the server how old the newest frame actually is.
+let watchdog = null;
+async function checkLive() {
+  if (!streaming || paused) return;
+  try {
+    const st = await (await fetch(base + "/state")).json();
+    if (st.live) {
+      downEl.classList.remove("show");
+      statusEl.textContent = "трансляция";
+    } else if (st.detail !== "screen not being watched") {
+      statusEl.textContent = "экран замер";
+      showDown("Экран не обновляется" + (st.age_ms ? " " + Math.round(st.age_ms / 1000) + "с" : "") +
+        ".\nWebDriverAgent мог зависнуть — перезапустите его.");
+    }
+  } catch {}
 }
 
 async function init() {
@@ -62,9 +130,21 @@ async function init() {
   errStreak = 0;
   try {
     const r = await fetch(base + "/size");
-    if (r.ok) { const s = await r.json(); dev = s; }
+    if (r.ok) { const sz = await r.json(); dev = sz; }
   } catch (e) {}
-  if (!streaming) { streaming = true; pump(); }
+  streaming = true;
+  if (canStream) {
+    img.onerror = () => {
+      if (!streaming || paused) return;
+      statusEl.textContent = "ошибка трансляции";
+      showDown("Трансляция оборвалась.\nWebDriverAgent мог перестать отвечать.");
+    };
+    startStream();
+  } else {
+    pump();
+  }
+  clearInterval(watchdog);
+  watchdog = setInterval(checkLive, 4000);
 }
 
 function showDown(msg) {

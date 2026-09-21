@@ -83,6 +83,14 @@ type IOSWDAConfig struct {
 	DDIDir        string `yaml:"ddi_dir"`         // Developer Disk Image cache for `ios image auto` (iOS 17+); default ~/.cache/poligon/ddi
 	WDAPortBase   int    `yaml:"wda_port_base"`   // first host port for WDA http (default 18100)
 	MJPEGPortBase int    `yaml:"mjpeg_port_base"` // first host port for WDA mjpeg (default 19100)
+
+	// How WDA should encode the mjpeg stream. Downscaling and lowering quality
+	// on the device is far cheaper than shipping full-resolution frames over
+	// USB and re-encoding them on the host — a wall tile is ~300px wide, a
+	// modern iPhone screenshot is ~1200px.
+	MJPEGFramerate int `yaml:"mjpeg_framerate"` // frames per second WDA emits (default 12)
+	MJPEGQuality   int `yaml:"mjpeg_quality"`   // JPEG quality 1-100 (default 35)
+	MJPEGScale     int `yaml:"mjpeg_scale"`     // scaling factor 1-100 (default 50)
 }
 
 // DeviceSpec is one entry in devices.yaml.
@@ -97,16 +105,16 @@ type DeviceSpec struct {
 // Default returns config with sane defaults applied.
 func Default() Config {
 	return Config{
-		Listen:        ":8080",
-		DBPath:        "poligon.db",
-		StorageDir:    "storage",
-		PollInterval:  10 * time.Second,
-		SpecsInterval: time.Hour,
-		IdleTimeout:   15 * time.Minute,
-		MaxLease:      4 * time.Hour,
-		ADBPath:       "adb",
-		AutoDiscover:  true,
-		LiveSidecar:   "http://127.0.0.1:8000",
+		Listen:                  ":8080",
+		DBPath:                  "poligon.db",
+		StorageDir:              "storage",
+		PollInterval:            10 * time.Second,
+		SpecsInterval:           time.Hour,
+		IdleTimeout:             15 * time.Minute,
+		MaxLease:                4 * time.Hour,
+		ADBPath:                 "adb",
+		AutoDiscover:            true,
+		LiveSidecar:             "http://127.0.0.1:8000",
 		ADBTunnelPort:           5038,
 		ADBTunnelPortRangeStart: 5040,
 		ADBTunnelPortRangeEnd:   5090,
@@ -122,6 +130,10 @@ func Default() Config {
 			DDIDir:        "~/.cache/poligon/ddi",
 			WDAPortBase:   18100,
 			MJPEGPortBase: 19100,
+
+			MJPEGFramerate: 12,
+			MJPEGQuality:   35,
+			MJPEGScale:     50,
 		},
 	}
 }
