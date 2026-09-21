@@ -12,7 +12,10 @@ if [ ! -d ws-scrcpy ]; then
 fi
 cd ws-scrcpy
 npm install --no-audit --no-fund
-npm run dist
+
+# a fresh clone carries ws-scrcpy's own defaults (7 Mbit/s at 60 fps per
+# device), which are wrong for a wall of phones — patch them and build
+"$(dirname "$0")/tune-live-sidecar.sh"
 
 cat > "$DIR/ws-scrcpy.config.json" <<JSON
 { "server": [ { "secure": false, "port": 8000, "hostname": "127.0.0.1" } ],
