@@ -1097,30 +1097,3 @@ button.health:hover { box-shadow: 0 0 0 4px var(--line); }
   cursor: pointer;
 }
 .wall-pill .zoom .pct:hover { background: var(--surface); color: var(--text); }
-
-/* ---- edge handle: the tests panel comes out of the right edge, so the way
-   to open it sits on that edge instead of competing with the wall controls
-   in the floating pill ------------------------------------------------- */
-
-.edge-handle {
-  position: fixed;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 35;
-  appearance: none;
-  writing-mode: vertical-rl;
-  padding: 16px 7px;
-  font: 600 11.5px/1 var(--sans);
-  letter-spacing: .08em;
-  color: var(--text-2);
-  background: var(--surface-2);
-  border: 1px solid var(--line-2);
-  border-right: 0;
-  border-radius: var(--r-md) 0 0 var(--r-md);
-  cursor: pointer;
-  box-shadow: -8px 0 20px -10px rgba(0,0,0,.6);
-  transition: color .12s var(--ease), background .12s var(--ease), padding-right .12s var(--ease);
-}
-.edge-handle:hover { color: var(--text); background: var(--surface); padding-right: 11px; }
-.edge-handle[hidden] { display: none; }
