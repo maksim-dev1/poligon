@@ -330,9 +330,22 @@ func redact(run model.Run) model.Run {
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := store.RunFilter{
-		Status: q.Get("status"),
-		Type:   q.Get("type"),
-		User:   q.Get("user"),
+		Type: q.Get("type"),
+		User: q.Get("user"),
+		Q:    q.Get("q"),
+	}
+	// status accepts a comma-separated set so the dashboard's "упавшие" filter
+	// is one request rather than two
+	if st := q.Get("status"); st != "" {
+		if strings.Contains(st, ",") {
+			for _, v := range strings.Split(st, ",") {
+				if v = strings.TrimSpace(v); v != "" {
+					f.Statuses = append(f.Statuses, v)
+				}
+			}
+		} else {
+			f.Status = st
+		}
 	}
 	if v, err := strconv.Atoi(q.Get("limit")); err == nil {
 		f.Limit = v

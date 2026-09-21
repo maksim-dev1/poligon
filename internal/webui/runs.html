@@ -10,61 +10,110 @@
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-  .head { flex: none; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-  .head .head-row { display: flex; align-items: center; gap: 10px; }
+  .head { flex: none; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .head-row { display: flex; align-items: center; gap: 10px; }
   .head h1 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
   .head .sp { margin-left: auto; }
-  .head .sub { margin-top: 3px; font: 400 12px/1.4 var(--sans); color: var(--text-muted); }
+  .head .sub { margin-top: 3px; font: 400 12px/1.45 var(--sans); color: var(--text-muted); }
 
-  .toolbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-  .toolbar .select { min-width: 0; flex: 1 1 140px; }
-  .pager { flex: none; display: flex; align-items: center; gap: 6px; font: 400 11px/1 var(--mono); color: var(--text-2); }
-  .pager .btn { height: 24px; padding: 0 8px; font-size: 11px; }
+  .toolbar {
+    flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 9px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  }
+  .segs { display: inline-flex; gap: 2px; padding: 2px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-sm); }
+  .seg {
+    appearance: none; border: 1px solid transparent; background: transparent; cursor: pointer;
+    padding: 0 10px; height: 24px; border-radius: var(--r-xs);
+    font: 500 11.5px/1 var(--sans); color: var(--text-3); white-space: nowrap;
+  }
+  .seg:hover { color: var(--text); }
+  .seg[aria-pressed="true"] { background: var(--surface); color: var(--text); border-color: var(--line-2); }
+  .toolbar .search { flex: 1 1 180px; min-width: 140px; height: 28px; }
+  .toolbar .select { height: 28px; font-size: 12px; flex: 0 0 auto; }
 
-  .list { flex: 1; overflow: auto; padding: 10px 14px 40px; display: grid; gap: 8px; align-content: start; }
+  .list { flex: 1; overflow: auto; padding: 4px 14px 32px; }
 
-  .run { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
-  .run.is-open { border-color: var(--line-2); }
+  .daylabel {
+    position: sticky; top: 0; z-index: 2;
+    margin: 0 -14px; padding: 12px 14px 6px;
+    background: var(--bg);
+    font: 600 10px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted);
+  }
 
-  .run-summary {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
-    width: 100%; padding: 10px 12px; cursor: pointer;
+  .run {
+    margin-bottom: 6px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
+  }
+  .run.is-bad { border-color: rgba(229,84,75,.28); }
+  .run.is-live { border-color: rgba(217,154,43,.35); }
+
+  .run-top {
+    display: flex; align-items: flex-start; gap: 9px;
+    width: 100%; padding: 10px 11px; cursor: pointer;
     background: none; border: 0; text-align: left; font: inherit; color: inherit;
   }
-  .run-summary:hover { background: var(--surface-2); }
-  .chevron { flex: none; color: var(--text-muted); transition: transform .12s var(--ease); }
-  .chevron.open { transform: rotate(90deg); }
-  .type-icon { flex: none; width: 22px; height: 22px; border-radius: var(--r-xs); background: var(--inset); display: grid; place-items: center; color: var(--text-2); }
-  .type-icon svg { width: 12px; height: 12px; }
-  .type-name { font: 600 12.5px/1.3 var(--sans); color: var(--text); white-space: nowrap; }
-  .counts { display: flex; gap: 6px; font: 600 11px/1 var(--mono); }
-  .counts .n-pass { color: var(--ok); }
-  .counts .n-fail { color: var(--down); }
-  .counts .n-run { color: var(--warn); }
-  .sp { flex: 1 1 auto; min-width: 8px; }
-  .run-when { flex: none; font: 400 11px/1.4 var(--mono); color: var(--text-muted); text-align: right; }
-  .run-sub { flex-basis: 100%; font: 400 11px/1.4 var(--mono); color: var(--text-muted); padding-left: 32px; margin-top: -2px; }
+  .run-top:hover { background: var(--surface-2); }
 
-  .run-body { border-top: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 10px; }
-  .run-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .devices-label { font: 600 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-  .device { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; display: grid; gap: 6px; }
-  .device-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 500 12px/1.3 var(--mono); }
-  .device-head .did { color: var(--text); }
-  .device-head .pkg { color: var(--text-muted); font-weight: 400; }
-  .device-detail { font: 400 11.5px/1.5 var(--mono); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
-  .device-artifacts { display: flex; gap: 8px; flex-wrap: wrap; }
-  .device-artifacts a { font: 500 11px/1 var(--mono); color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
-  .device-artifacts a:hover { color: var(--text); }
+  /* the verdict is the first thing on the row, as a glyph, not a word */
+  .mark {
+    flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%;
+    display: grid; place-items: center;
+    font: 700 11px/1 var(--sans); color: var(--bg);
+  }
+  .mark.passed { background: var(--ok); }
+  .mark.failed, .mark.error { background: var(--down); }
+  .mark.running, .mark.queued { background: var(--warn); animation: led-pulse 1.8s var(--ease) infinite; }
+  .mark.canceled { background: var(--text-muted); }
+
+  .run-body { flex: 1; min-width: 0; }
+  .run-line1 { display: flex; align-items: baseline; gap: 8px; }
+  .run-what { font: 600 12.5px/1.35 var(--sans); color: var(--text); min-width: 0; }
+  .run-what .subject { font-family: var(--mono); font-weight: 500; font-size: 11.5px; color: var(--text-2); }
+  .run-when { margin-left: auto; flex: none; font: 400 11px/1.4 var(--mono); color: var(--text-muted); }
+  .run-line2 { margin-top: 3px; font: 400 11.5px/1.5 var(--sans); color: var(--text-muted); }
+  .run-line2 .bad { color: var(--down); }
+  .run-line2 .good { color: var(--ok); }
+  .run-line2 .live { color: var(--warn); }
+  .run-why {
+    margin-top: 5px; padding: 6px 8px;
+    background: var(--inset); border-left: 2px solid rgba(229,84,75,.5); border-radius: 0 var(--r-xs) var(--r-xs) 0;
+    font: 400 11px/1.5 var(--mono); color: var(--text-2);
+    overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .run-quick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  .chip {
+    appearance: none; display: inline-flex; align-items: center; gap: 5px;
+    height: 23px; padding: 0 8px; cursor: pointer;
+    font: 500 11px/1 var(--sans); color: var(--text-2);
+    background: var(--inset); border: 1px solid var(--line-2); border-radius: var(--r-xs);
+    text-decoration: none;
+  }
+  .chip:hover { color: var(--text); border-color: var(--line-strong); background: var(--surface-2); }
+  .chip svg { width: 12px; height: 12px; }
+  .chip.is-danger { color: var(--down); border-color: rgba(229,84,75,.3); }
+  .chip.is-danger:hover { background: rgba(229,84,75,.12); color: var(--down); }
+
+  /* expanded: one block per device */
+  .run-detail { border-top: 1px solid var(--line); padding: 9px 11px; }
+  .dev { padding: 8px 9px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+  .dev + .dev { margin-top: 5px; }
+  .dev-head { display: flex; align-items: center; gap: 8px; }
+  .dev-id { font: 500 12px/1.3 var(--mono); color: var(--text); }
+  .dev-pkg { font: 400 11px/1.3 var(--mono); color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dev-head .sp { margin-left: auto; }
+  .dev-detail { margin-top: 6px; font: 400 11.5px/1.5 var(--mono); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+  .dev-arts { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+  .meta-line { margin-top: 9px; font: 400 10.5px/1.5 var(--mono); color: var(--text-muted); }
 
   .pill {
     display: inline-flex; align-items: center; gap: 5px; flex: none;
-    font: 600 11px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase;
+    font: 600 10.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase;
     padding: 3px 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2);
     color: var(--text-2); white-space: nowrap;
   }
   .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex: none; }
-  .pill.passed  { color: var(--ok); border-color: rgba(63,185,138,.35); }
+  .pill.passed { color: var(--ok); border-color: rgba(63,185,138,.35); }
   .pill.passed::before { background: var(--ok); }
   .pill.failed, .pill.error { color: var(--down); border-color: rgba(229,84,75,.35); }
   .pill.failed::before, .pill.error::before { background: var(--down); }
@@ -72,133 +121,223 @@
   .pill.running::before, .pill.queued::before { background: var(--warn); }
   .pill.canceled, .pill.skipped, .pill.pending { color: var(--text-muted); }
 
-  .empty { padding: 32px 20px; text-align: center; color: var(--text-muted); font: 400 12.5px/1.6 var(--sans); }
+  .more { display: flex; justify-content: center; padding: 10px 0 4px; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font: 400 12.5px/1.65 var(--sans); }
   .empty .big { font: 600 13px/1.4 var(--sans); color: var(--text-2); margin-bottom: 6px; }
 </style>
 </head>
 <body>
+
 <div class="head">
   <div class="head-row">
     <h1>Прогоны</h1>
     <span class="sp"></span>
-    <!-- only when this page is a tab of its own: inside the wall's drawer the
-         wall is already one click away -->
+    <!-- only as a tab of its own: inside the wall's drawer the wall is already
+         one click away -->
     <a class="btn btn--sm" id="backLink" href="/" hidden>← Ферма</a>
   </div>
-  <div class="sub">История всех тестов, запущенных со стены экранов. Клик по строке — результат по каждому устройству.</div>
+  <div class="sub" id="sub">Что запускали на устройствах и чем это кончилось.</div>
 </div>
+
 <div class="toolbar">
-  <select class="select" id="fStatus" onchange="setFilter('status', this.value)">
-    <option value="">Все статусы</option>
-    <option value="queued">В очереди</option>
-    <option value="running">Выполняется</option>
-    <option value="passed">Пройден</option>
-    <option value="failed">Провален</option>
-    <option value="error">Ошибка</option>
-    <option value="canceled">Отменён</option>
-  </select>
-  <select class="select" id="fType" onchange="setFilter('type', this.value)">
-    <option value="">Все типы</option>
+  <div class="segs" role="group" aria-label="Фильтр">
+    <button class="seg" id="seg-all"  aria-pressed="true"  onclick="setScope('all')">Все</button>
+    <button class="seg" id="seg-bad"  aria-pressed="false" onclick="setScope('bad')">Упавшие</button>
+    <button class="seg" id="seg-live" aria-pressed="false" onclick="setScope('live')">Идут сейчас</button>
+    <button class="seg" id="seg-mine" aria-pressed="false" onclick="setScope('mine')">Мои</button>
+  </div>
+  <select class="select" id="fType" onchange="setType(this.value)">
+    <option value="">Любой тип</option>
     <option value="install_smoke">Смоук-тест</option>
     <option value="maestro">Maestro</option>
-    <option value="command">Команда</option>
+    <option value="command">Своя команда</option>
     <option value="integration_test">Integration test</option>
   </select>
+  <input class="input search" id="q" type="search" placeholder="Устройство, сборка, команда…" oninput="onSearch()">
 </div>
+
 <div class="page-error" id="err"></div>
 <div class="list" id="list"></div>
 <div class="toasts" id="toasts"></div>
-<div class="toolbar" style="border-top:1px solid var(--line);border-bottom:0">
-  <div class="pager" id="pager"></div>
-</div>
 
 <script>
 if (window.parent === window) document.getElementById("backLink").hidden = false;
 
 const want = new URLSearchParams(location.search).get("r");
-const open = new Set(want ? [want] : []);
+const opened = new Set(want ? [want] : []);
+let me = "";
 
+const TYPE_NAME = {
+  install_smoke: "Смоук-тест",
+  maestro: "Maestro",
+  command: "Своя команда",
+  integration_test: "Integration test",
+};
 const ST = {
   passed: "пройден", failed: "провален", error: "ошибка", running: "выполняется",
   queued: "в очереди", canceled: "отменён", skipped: "пропущен", pending: "ожидание",
 };
-const stName = s => ST[s] || s;
+const MARK = { passed: "✓", failed: "✕", error: "✕", running: "", queued: "", canceled: "–" };
+const LIVE = ["queued", "running"];
 
-// same vocabulary + icons as tests.html's cards
-const TYPE = {
-  install_smoke:    { name: "Смоук-тест",      icon: `<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>` },
-  maestro:           { name: "Maestro",          icon: `<polygon points="5 3 19 12 5 21 5 3"/>` },
-  command:           { name: "Команда",          icon: `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>` },
-  integration_test:  { name: "Integration test", icon: `<path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/>` },
-};
-const typeInfo = t => TYPE[t] || { name: t, icon: `<circle cx="12" cy="12" r="8"/>` };
+// ---------------------------------------------------------------------------
+// what a run actually was: the file, the flow or the command — never the
+// random id, which tells nobody anything
+// ---------------------------------------------------------------------------
+function subjectOf(r) {
+  const sp = r.spec || {};
+  if (r.type === "command") {
+    const c = (sp.command || "").replace(/\s+/g, " ").trim();
+    return c.length > 46 ? c.slice(0, 46) + "…" : c;
+  }
+  if (r.type === "maestro") {
+    const parts = [sp.flow_path].filter(Boolean);
+    const b = Object.values(sp.artifacts || {});
+    if (b.length) parts.push(b.join(" + "));
+    return parts.join(" · ");
+  }
+  const b = Object.values(sp.artifacts || {});
+  const t = Object.values(sp.test_artifacts || {});
+  return b.concat(t).join(" + ");
+}
 
-const fmt = t => t ? new Date(t).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
-const dur = (a, b) => {
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+function dur(a, b) {
   if (!a) return "";
   const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000);
-  return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
-};
+  if (s < 60) return s + "с";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + "м " + (s % 60) + "с";
+  return Math.floor(m / 60) + "ч " + (m % 60) + "м";
+}
 
-// count devices by status so the collapsed row already answers "did it pass?"
-function counts(devices) {
+const two = n => String(n).padStart(2, "0");
+function timeOf(t) { const d = new Date(t); return two(d.getHours()) + ":" + two(d.getMinutes()); }
+
+// group header: "Сегодня" / "Вчера" / "12 сентября"
+const MONTHS = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+function dayKey(t) { const d = new Date(t); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate(); }
+function dayLabel(t) {
+  const d = new Date(t), now = new Date();
+  if (dayKey(d) === dayKey(now)) return "Сегодня";
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (dayKey(d) === dayKey(y)) return "Вчера";
+  return d.getDate() + " " + MONTHS[d.getMonth()] + (d.getFullYear() !== now.getFullYear() ? " " + d.getFullYear() : "");
+}
+
+// one plain sentence for the whole run instead of a row of tiny counters
+function verdict(r) {
+  const ds = r.devices || [];
+  const n = ds.length;
   const c = {};
-  for (const d of devices || []) c[d.status] = (c[d.status] || 0) + 1;
-  const parts = [];
-  if (c.passed) parts.push(`<span class="n-pass">✓ ${c.passed}</span>`);
-  if (c.failed || c.error) parts.push(`<span class="n-fail">✕ ${(c.failed || 0) + (c.error || 0)}</span>`);
-  if (c.running || c.pending) parts.push(`<span class="n-run">… ${(c.running || 0) + (c.pending || 0)}</span>`);
-  return parts.join("");
+  for (const d of ds) c[d.status] = (c[d.status] || 0) + 1;
+  const bad = (c.failed || 0) + (c.error || 0);
+  const live = (c.running || 0) + (c.pending || 0);
+
+  if (LIVE.includes(r.status)) {
+    const done = n - live;
+    return '<span class="live">идёт — готово ' + done + " из " + n + "</span>";
+  }
+  if (r.status === "canceled") return "отменён";
+  if (bad && bad === n) return '<span class="bad">упали все ' + n + "</span>";
+  if (bad) return '<span class="bad">' + bad + " " + plural(bad, "упало", "упали", "упало") + " из " + n + "</span>";
+  if (c.passed === n && n) return '<span class="good">все ' + plural(n, "прошло", "прошли", "прошли") + "</span>";
+  return ST[r.status] || r.status;
 }
 
-function deviceCard(runId, d) {
-  const arts = (d.artifacts || []).map(n =>
-    `<a href="/api/runs/${runId}/artifacts/${d.device_id}/${n}" target="_blank">${esc(n)}</a>`).join("");
-  return `<div class="device">
-    <div class="device-head">
-      <span class="did">${esc(d.device_id)}</span>
-      ${d.package ? `<span class="pkg">${esc(d.package)}</span>` : ""}
-      <span class="sp"></span>
-      <span class="pill ${d.status}">${stName(d.status)}</span>
-    </div>
-    ${d.detail ? `<div class="device-detail">${esc(d.detail)}</div>` : ""}
-    ${arts ? `<div class="device-artifacts">${arts}</div>` : ""}
-  </div>`;
+// the first thing that went wrong, on the row itself — no expanding required
+function firstFailure(r) {
+  const d = (r.devices || []).find(x => x.status === "failed" || x.status === "error");
+  if (d && d.detail) return d.device_id + ": " + d.detail;
+  if (d) return d.device_id + ": " + (ST[d.status] || d.status);
+  if (r.detail && !LIVE.includes(r.status) && r.status !== "passed") return r.detail;
+  return "";
 }
 
+// nicer names for the files a run leaves behind
+const ART_NAME = {
+  "screenshot.png": "скриншот", "screen.png": "скриншот",
+  "logcat.txt": "logcat", "logcat.log": "logcat",
+  "syslog.txt": "syslog", "syslog.log": "syslog",
+  "command.log": "вывод команды",
+  "maestro.log": "лог maestro", "report.xml": "отчёт maestro",
+  "instrument.log": "лог instrument",
+};
+function artName(n) { return ART_NAME[n] || n; }
+
+const ICON_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+function artChips(runId, d) {
+  return (d.artifacts || []).map(n =>
+    '<a class="chip" target="_blank" href="/api/runs/' + runId + '/artifacts/' + d.device_id + '/' + n +
+    '" title="' + esc(n) + '">' + ICON_DL + esc(artName(n)) + '</a>').join("");
+}
+
+// ---------------------------------------------------------------------------
 function runCard(r) {
-  const isOpen = open.has(r.id);
-  const info = typeInfo(r.type);
-  const n = (r.devices || []).length;
-  const body = isOpen ? `
-    <div class="run-body">
-      <div class="run-actions">
-        ${["passed","failed","error","canceled"].includes(r.status)
-          ? `<button class="btn btn--sm" title="Запустить снова с теми же файлами" onclick="rerun('${r.id}')">Повторить</button>` : ""}
-        ${["queued","running"].includes(r.status)
-          ? `<button class="btn btn--sm btn--danger" onclick="cancelRun('${r.id}')">Отменить</button>` : ""}
-      </div>
-      <div>
-        <div class="devices-label">${n} устройств${n === 1 ? "о" : n < 5 ? "а" : ""}</div>
-        <div style="display:grid;gap:6px;margin-top:6px">${(r.devices || []).map(d => deviceCard(r.id, d)).join("")}</div>
-      </div>
-    </div>` : "";
-  return `<div class="run ${isOpen ? "is-open" : ""}" id="run-${r.id}">
-    <button class="run-summary" onclick="toggle('${r.id}')">
-      <svg class="chevron ${isOpen ? "open" : ""}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-      <span class="type-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${info.icon}</svg></span>
-      <span class="type-name">${info.name}</span>
-      <span class="pill ${r.status}">${stName(r.status)}</span>
-      <span class="counts">${counts(r.devices)}</span>
-      <span class="sp"></span>
-      <span class="run-when">${fmt(r.created_at)}</span>
-      <span class="run-sub">#${esc(r.id)} · ${n} устр. · ${dur(r.started_at, r.finished_at) || "—"}${r.detail ? " · " + esc(r.detail) : ""}</span>
-    </button>${body}
-  </div>`;
+  const isOpen = opened.has(r.id);
+  const ds = r.devices || [];
+  const n = ds.length;
+  const why = firstFailure(r);
+  const bad = !LIVE.includes(r.status) && r.status !== "passed" && r.status !== "canceled";
+  const failing = ds.filter(d => d.status === "failed" || d.status === "error");
+  const quickDev = failing[0] || ds[0];
+  const subject = subjectOf(r);
+
+  const cls = ["run"];
+  if (bad) cls.push("is-bad");
+  if (LIVE.includes(r.status)) cls.push("is-live");
+
+  const detail = isOpen ? '<div class="run-detail">' +
+    ds.map(d =>
+      '<div class="dev"><div class="dev-head">' +
+        '<span class="dev-id">' + esc(d.device_id) + '</span>' +
+        (d.package ? '<span class="dev-pkg">' + esc(d.package) + '</span>' : "") +
+        '<span class="sp"></span>' +
+        '<span class="pill ' + d.status + '">' + (ST[d.status] || d.status) + '</span>' +
+      '</div>' +
+      (d.detail ? '<div class="dev-detail">' + esc(d.detail) + '</div>' : "") +
+      (d.artifacts && d.artifacts.length ? '<div class="dev-arts">' + artChips(r.id, d) + '</div>' : "") +
+      '</div>').join("") +
+    '<div class="meta-line">#' + esc(r.id) + ' · запустил ' + esc(r.user || "?") +
+      ' · ' + new Date(r.created_at).toLocaleString() + '</div>' +
+    '</div>' : "";
+
+  return '<div class="' + cls.join(" ") + '" id="run-' + r.id + '">' +
+    '<button class="run-top" onclick="toggle(\'' + r.id + '\')">' +
+      '<span class="mark ' + r.status + '">' + (MARK[r.status] || "") + '</span>' +
+      '<span class="run-body">' +
+        '<span class="run-line1">' +
+          '<span class="run-what">' + esc(TYPE_NAME[r.type] || r.type) +
+            (subject ? ' <span class="subject">' + esc(subject) + '</span>' : "") + '</span>' +
+          '<span class="run-when">' + timeOf(r.created_at) + '</span>' +
+        '</span>' +
+        '<span class="run-line2">' + n + " " + plural(n, "устройство", "устройства", "устройств") +
+          (r.started_at ? " · " + dur(r.started_at, r.finished_at) : "") +
+          " · " + verdict(r) + '</span>' +
+        (why && !isOpen ? '<span class="run-why">' + esc(why) + '</span>' : "") +
+      '</span>' +
+    '</button>' +
+    '<div class="run-quick" style="padding:0 11px 10px">' +
+      (quickDev && quickDev.artifacts && quickDev.artifacts.length && !isOpen ? artChips(r.id, quickDev) : "") +
+      (LIVE.includes(r.status)
+        ? '<button class="chip is-danger" onclick="cancelRun(\'' + r.id + '\')">Отменить</button>'
+        : '<button class="chip" onclick="rerun(\'' + r.id + '\')" title="Запустить снова с теми же файлами">Повторить</button>') +
+      '<button class="chip" onclick="toggle(\'' + r.id + '\')">' +
+        (isOpen ? "Свернуть" : n > 1 ? "Все " + n + " " + plural(n, "устройство", "устройства", "устройств") : "Подробнее") +
+      '</button>' +
+    '</div>' +
+    detail + '</div>';
 }
 
 function toggle(id) {
-  open.has(id) ? open.delete(id) : open.add(id);
+  opened.has(id) ? opened.delete(id) : opened.add(id);
   render(LAST);
 }
 
@@ -209,63 +348,85 @@ async function post(path) {
   return b;
 }
 async function rerun(id) {
-  const b = await post(`/api/runs/${id}/rerun`);
-  if (b) { open.add(b.id); load(); }
+  const b = await post("/api/runs/" + id + "/rerun");
+  if (b) { opened.add(b.id); toast("Запустил заново", "ok"); load(); }
 }
 async function cancelRun(id) {
   const ok = await confirmDialog({
     title: "Отменить прогон?",
-    body: "Уже запущенные шаги на устройствах будут прерваны. Собранные артефакты останутся.",
-    okText: "Отменить прогон",
-    cancelText: "Пусть идёт",
+    body: "Уже начатые шаги на устройствах будут прерваны. Собранные артефакты останутся.",
+    okText: "Отменить прогон", cancelText: "Пусть идёт",
   });
-  if (!ok) return;
-  if (await post(`/api/runs/${id}/cancel`)) load();
+  if (ok && await post("/api/runs/" + id + "/cancel")) load();
 }
 
+// ---------------------------------------------------------------------------
 let LAST = [];
 function render(runs) {
   LAST = runs;
   const el = document.getElementById("list");
   if (!runs.length) {
-    el.innerHTML = filters.status || filters.type
-      ? `<div class="empty">ничего не найдено под этот фильтр</div>`
-      : `<div class="empty"><div class="big">прогонов пока нет</div>откройте партию устройств на стене экранов и нажмите «Тесты», чтобы запустить первый</div>`;
+    el.innerHTML = (scope !== "all" || type || query)
+      ? '<div class="empty"><div class="big">ничего не нашлось</div>' +
+        'Попробуйте снять фильтры или очистить поиск.</div>'
+      : '<div class="empty"><div class="big">прогонов пока нет</div>' +
+        'Займите устройства на ферме, откройте их экраны и нажмите «Тесты».</div>';
     return;
   }
-  el.innerHTML = runs.map(runCard).join("");
+  let html = "", day = "";
+  for (const r of runs) {
+    const label = dayLabel(r.created_at);
+    if (label !== day) { day = label; html += '<div class="daylabel">' + label + "</div>"; }
+    html += runCard(r);
+  }
+  if (LAST.length < total) {
+    html += '<div class="more"><button class="btn btn--sm" onclick="showMore()">Показать ещё (' +
+      (total - LAST.length) + ")</button></div>";
+  }
+  el.innerHTML = html;
 }
 
-// ---- filters + paging ----
-const filters = { status: "", type: "" };
-let page = 0;
-const pageSize = 20;
+// ---- filters ----
+let scope = "all";      // all | bad | live | mine
+let type = "";
+let query = "";
+let limit = 20;
 let total = 0;
+let searchTimer = null;
 
-function setFilter(key, val) { filters[key] = val; page = 0; load(); }
-function prevPage() { if (page > 0) { page--; load(); } }
-function nextPage() { if ((page + 1) * pageSize < total) { page++; load(); } }
-function renderPager() {
-  const shown = LAST.length;
-  const from = shown ? page * pageSize + 1 : 0;
-  const to = page * pageSize + shown;
-  document.getElementById("pager").innerHTML = `
-    <span>${from}–${to} из ${total}</span>
-    <button class="btn" ${page === 0 ? "disabled" : ""} onclick="prevPage()">← назад</button>
-    <button class="btn" ${to >= total ? "disabled" : ""} onclick="nextPage()">вперёд →</button>`;
+function setScope(s) {
+  scope = s;
+  for (const k of ["all", "bad", "live", "mine"]) {
+    document.getElementById("seg-" + k).setAttribute("aria-pressed", String(k === s));
+  }
+  limit = 20;
+  load();
 }
+function setType(v) { type = v; limit = 20; load(); }
+function onSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { query = document.getElementById("q").value.trim(); limit = 20; load(); }, 250);
+}
+function showMore() { limit += 20; load(); }
 
 async function load() {
   try {
-    const params = new URLSearchParams({ limit: pageSize, offset: page * pageSize });
-    if (filters.status) params.set("status", filters.status);
-    if (filters.type) params.set("type", filters.type);
-    const b = await (await fetch(`/api/runs?${params}`, { credentials: "same-origin" })).json();
+    const params = new URLSearchParams({ limit: limit, offset: 0 });
+    if (type) params.set("type", type);
+    if (query) params.set("q", query);
+    if (scope === "bad") params.set("status", "failed,error");
+    if (scope === "live") params.set("status", "queued,running");
+    if (scope === "mine" && me) params.set("user", me);
+
+    const b = await (await fetch("/api/runs?" + params, { credentials: "same-origin" })).json();
     document.getElementById("err").textContent = "";
     total = b.total || 0;
     render(b.runs || []);
-    renderPager();
-    const active = (b.runs || []).some(r => r.status === "running" || r.status === "queued");
+    document.getElementById("sub").textContent = total
+      ? "Показано " + (b.runs || []).length + " из " + total + ". Клик по строке — результат по каждому устройству."
+      : "Что запускали на устройствах и чем это кончилось.";
+
+    const active = (b.runs || []).some(r => LIVE.includes(r.status));
     clearTimeout(window._t);
     window._t = setTimeout(load, active ? 2500 : 15000);
   } catch (e) {
@@ -273,7 +434,8 @@ async function load() {
     window._t = setTimeout(load, 5000);
   }
 }
-load();
+
+fetch("/auth/me").then(r => r.ok ? r.json() : null).then(u => { me = (u && u.name) || ""; }).finally(load);
 </script>
 </body>
 </html>

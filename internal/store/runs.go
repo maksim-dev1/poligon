@@ -104,14 +104,19 @@ func (s *Store) runDevices(runID string) ([]model.RunDevice, error) {
 }
 
 // Runs lists recent runs (newest first), each with its devices.
-// RunFilter narrows Runs to a status/type/user, with limit+offset paging.
-// Every field is optional; a zero value means "don't filter on this".
+// RunFilter narrows Runs to a status/type/user, an optional free-text search,
+// and limit+offset paging. Every field is optional; a zero value means
+// "don't filter on this". Statuses takes precedence over Status and exists so
+// the dashboard can ask for "everything that went wrong" (failed + error) in
+// one query.
 type RunFilter struct {
-	Status string
-	Type   string
-	User   string
-	Limit  int
-	Offset int
+	Status   string
+	Statuses []string
+	Type     string
+	User     string
+	Q        string // matches the run id, user, its spec (build/flow/command) or any of its devices
+	Limit    int
+	Offset   int
 }
 
 // Runs lists runs matching f, newest first, and the total number of matches
@@ -126,7 +131,13 @@ func (s *Store) Runs(f RunFilter) (runs []model.Run, total int, err error) {
 
 	var where []string
 	var args []any
-	if f.Status != "" {
+	if len(f.Statuses) > 0 {
+		marks := strings.TrimSuffix(strings.Repeat("?,", len(f.Statuses)), ",")
+		where = append(where, "status IN ("+marks+")")
+		for _, st := range f.Statuses {
+			args = append(args, st)
+		}
+	} else if f.Status != "" {
 		where = append(where, "status = ?")
 		args = append(args, f.Status)
 	}
@@ -137,6 +148,15 @@ func (s *Store) Runs(f RunFilter) (runs []model.Run, total int, err error) {
 	if f.User != "" {
 		where = append(where, "user = ?")
 		args = append(args, f.User)
+	}
+	// spec holds the build/flow file names and the command text, so searching it
+	// lets a run be found by what it actually ran rather than by its random id
+	if q := strings.TrimSpace(f.Q); q != "" {
+		like := "%" + q + "%"
+		where = append(where, `(id LIKE ? OR user LIKE ? OR spec LIKE ? OR detail LIKE ?
+			OR EXISTS (SELECT 1 FROM run_devices d WHERE d.run_id = runs.id
+				AND (d.device_id LIKE ? OR d.package LIKE ? OR d.detail LIKE ?)))`)
+		args = append(args, like, like, like, like, like, like, like)
 	}
 	clause := ""
 	if len(where) > 0 {
