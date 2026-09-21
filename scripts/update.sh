@@ -8,6 +8,27 @@ export PATH="/usr/local/go/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
 
 UID_N="$(id -u)"
 
+# Restarting a LaunchDaemon needs root. Over ssh without a tty, a cached sudo
+# ticket does not always carry into this script, and the old code printed
+# "not loaded" for that case too — so a deploy looked like it had restarted the
+# sidecar when it had not. Tell the truth, and say exactly what to run.
+restart_daemon() {
+  local label="$1"
+  if ! sudo -n launchctl print "system/$label" >/dev/null 2>&1; then
+    if ! launchctl print "system/$label" >/dev/null 2>&1; then
+      echo "   $label is not loaded — install it with scripts/install-all.sh"
+      return 0
+    fi
+  fi
+  if sudo -n launchctl kickstart -k "system/$label" >/dev/null 2>&1; then
+    echo "   restarted $label"
+    return 0
+  fi
+  echo "   could NOT restart $label (needs sudo). Run this on the host:"
+  echo "     sudo launchctl kickstart -k system/$label"
+  return 0
+}
+
 echo "==> git pull"
 git pull --ff-only
 
@@ -18,10 +39,8 @@ mv poligon.new poligon          # only swapped if the build succeeded
 echo "==> restart services"
 launchctl kickstart -k "gui/$UID_N/com.pancir.poligon" 2>/dev/null \
   || echo "   poligon not loaded — run scripts/install-all.sh"
-sudo launchctl kickstart -k system/com.pancir.poligon-live 2>/dev/null \
-  || echo "   com.pancir.poligon-live not loaded"
-sudo launchctl kickstart -k system/com.pancir.go-ios-tunnel 2>/dev/null \
-  || echo "   com.pancir.go-ios-tunnel not loaded"
+restart_daemon com.pancir.poligon-live
+restart_daemon com.pancir.go-ios-tunnel
 
 echo "==> waiting for /healthz"
 for i in $(seq 1 20); do

@@ -58,7 +58,29 @@ cd "$WS_DIR"
 npm run dist >/dev/null
 
 echo "==> restarting the sidecar (live Android screens blink)"
-sudo launchctl kickstart -k system/com.pancir.poligon-live 2>/dev/null \
-  || echo "   com.pancir.poligon-live not loaded — start it with scripts/install-all.sh"
+# only the server half of ws-scrcpy needs this; the players live in
+# dist/public/bundle.js, which browsers refetch on their own
+
+# Restarting a LaunchDaemon needs root. Over ssh without a tty, a cached sudo
+# ticket does not always carry into this script, and the old code printed
+# "not loaded" for that case too — so a deploy looked like it had restarted the
+# sidecar when it had not. Tell the truth, and say exactly what to run.
+restart_daemon() {
+  local label="$1"
+  if ! sudo -n launchctl print "system/$label" >/dev/null 2>&1; then
+    if ! launchctl print "system/$label" >/dev/null 2>&1; then
+      echo "   $label is not loaded — install it with scripts/install-all.sh"
+      return 0
+    fi
+  fi
+  if sudo -n launchctl kickstart -k "system/$label" >/dev/null 2>&1; then
+    echo "   restarted $label"
+    return 0
+  fi
+  echo "   could NOT restart $label (needs sudo). Run this on the host:"
+  echo "     sudo launchctl kickstart -k system/$label"
+  return 0
+}
+restart_daemon com.pancir.poligon-live
 
 echo "==> done"
