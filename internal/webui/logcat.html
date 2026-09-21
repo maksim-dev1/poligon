@@ -4,28 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>logcat</title>
+<link rel="stylesheet" href="/app.css">
 <style>
   html, body { height: 100%; }
-  body { margin: 0; display: flex; flex-direction: column; background: #0b0d11; overflow: hidden; font: 12px/1.5 ui-monospace, monospace; }
-  .bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #14161b; border-bottom: 1px solid #262a33; }
-  .bar input { flex: 1; min-width: 0; background: #0b0d11; border: 1px solid #262a33; border-radius: 6px; color: #d7dae0; padding: 6px 8px; font: inherit; }
-  .bar button { flex: none; background: #1c1f26; border: 1px solid #262a33; border-radius: 6px; color: #d7dae0; padding: 6px 10px; font: inherit; cursor: pointer; }
-  .bar button:hover { background: #262a33; }
-  .bar .status { flex: none; color: #8a8f98; }
-  #log { flex: 1; overflow: auto; padding: 8px 12px; white-space: pre; color: #c9cdd4; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--inset); overflow: hidden; font: 12px/1.5 var(--mono); }
+  .bar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .bar .input { flex: 1; min-width: 120px; height: 28px; font-family: var(--mono); font-size: 12px; }
+  .bar .status { flex: none; color: var(--text-muted); }
+  .bar .matches { flex: none; color: var(--text-3); }
+  #log { flex: 1; overflow: auto; padding: 8px 12px; white-space: pre; color: var(--text-2); }
   #log div { padding: 1px 0; }
-  #log .hit { color: #d7dae0; }
   #log .hidden-line { display: none; }
+  /* only shown when the view is scrolled away from the tail — clicking it
+     jumps back and re-arms follow mode */
+  .jump {
+    position: fixed; right: 16px; bottom: 16px; z-index: 5;
+    display: none;
+  }
+  .jump.show { display: inline-flex; }
 </style>
 </head>
 <body>
 <div class="bar">
   <span class="status" id="status">подключение…</span>
-  <input id="filter" placeholder="фильтр (подстрока, регистр не важен)…" oninput="applyFilter()">
-  <button id="pauseBtn" onclick="togglePause()">Пауза</button>
-  <button onclick="clearLog()">Очистить</button>
+  <input id="filter" class="input" placeholder="фильтр (подстрока, регистр не важен)…" oninput="applyFilter()">
+  <span class="matches" id="matches"></span>
+  <button class="btn btn--sm" id="pauseBtn" onclick="togglePause()">Пауза</button>
+  <button class="btn btn--sm" onclick="clearLog()">Очистить</button>
 </div>
 <div id="log"></div>
+<button class="btn btn--sm btn--primary jump" id="jump" onclick="jumpToTail()">↓ К последним строкам</button>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 document.title = "logcat — " + (id || "?");
@@ -34,11 +42,33 @@ const status = document.getElementById("status");
 let paused = false, buf = [];
 const MAX_LINES = 5000;
 
+// follow the tail only while the reader is already at the tail — scrolling up
+// to read something used to be undone by the next line that arrived
+let follow = true;
+logEl.addEventListener("scroll", () => {
+  follow = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 24;
+  document.getElementById("jump").classList.toggle("show", !follow);
+});
+function jumpToTail() {
+  follow = true;
+  logEl.scrollTop = logEl.scrollHeight;
+  document.getElementById("jump").classList.remove("show");
+}
+
+function countMatches() {
+  const q = document.getElementById("filter").value;
+  const el = document.getElementById("matches");
+  if (!q) { el.textContent = ""; return; }
+  let n = 0;
+  for (const line of logEl.children) if (!line.classList.contains("hidden-line")) n++;
+  el.textContent = `${n} из ${logEl.children.length}`;
+}
 function applyFilter() {
   const q = document.getElementById("filter").value.toLowerCase();
   for (const line of logEl.children) {
     line.classList.toggle("hidden-line", q !== "" && !line.textContent.toLowerCase().includes(q));
   }
+  countMatches();
 }
 function appendLine(text) {
   if (paused) { buf.push(text); return; }
@@ -48,14 +78,16 @@ function appendLine(text) {
   if (q !== "" && !text.toLowerCase().includes(q)) div.classList.add("hidden-line");
   logEl.appendChild(div);
   while (logEl.children.length > MAX_LINES) logEl.removeChild(logEl.firstChild);
-  logEl.scrollTop = logEl.scrollHeight;
+  if (follow) logEl.scrollTop = logEl.scrollHeight;
 }
 function togglePause() {
   paused = !paused;
-  document.getElementById("pauseBtn").textContent = paused ? "Продолжить" : "Пауза";
-  if (!paused) { buf.forEach(appendLine); buf = []; }
+  const btn = document.getElementById("pauseBtn");
+  btn.textContent = paused ? `Продолжить${buf.length ? " (" + buf.length + ")" : ""}` : "Пауза";
+  btn.classList.toggle("btn--primary", paused);
+  if (!paused) { buf.forEach(appendLine); buf = []; countMatches(); }
 }
-function clearLog() { logEl.innerHTML = ""; }
+function clearLog() { logEl.innerHTML = ""; countMatches(); }
 
 function connect() {
   if (!id) { status.textContent = "нет id устройства"; return; }

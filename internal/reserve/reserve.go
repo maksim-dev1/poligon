@@ -156,6 +156,46 @@ func (m *Manager) BatchDevices(batch, user string) ([]string, error) {
 	return ids, nil
 }
 
+// UserBatch is one active batch owned by a user, newest reservation first.
+type UserBatch struct {
+	Batch     string    `json:"batch"`
+	Devices   []string  `json:"devices"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// UserBatches lists every batch the user still holds. The dashboard needs it
+// to recover a session: the batch id otherwise lives only in one browser's
+// localStorage, so a second browser (or cleared storage) left the devices
+// reserved with no way back to their screens and no way to release them.
+func (m *Manager) UserBatches(user string) ([]UserBatch, error) {
+	rows, err := m.db.Query(
+		`SELECT batch, device_id, created_at FROM reservations
+		 WHERE user = ? AND released = 0 AND batch != ''
+		 ORDER BY created_at DESC, device_id`, user)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []UserBatch
+	idx := map[string]int{}
+	for rows.Next() {
+		var batch, device string
+		var created time.Time
+		if err := rows.Scan(&batch, &device, &created); err != nil {
+			return nil, err
+		}
+		i, ok := idx[batch]
+		if !ok {
+			idx[batch] = len(out)
+			out = append(out, UserBatch{Batch: batch, CreatedAt: created})
+			i = len(out) - 1
+		}
+		out[i].Devices = append(out[i].Devices, device)
+	}
+	return out, rows.Err()
+}
+
 // HeartbeatBatch renews every reservation in a batch.
 func (m *Manager) HeartbeatBatch(batch, user string) error {
 	r, err := m.db.Exec(

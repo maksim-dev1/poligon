@@ -110,6 +110,7 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 
 	// multi-device batches: reserve a set, install once to all, one grid of screens
 	api.HandleFunc("POST /batches", s.batchCreate)
+	api.HandleFunc("GET /batches", s.batchList)
 	api.HandleFunc("GET /batches/{batch}", s.batchGet)
 	api.HandleFunc("POST /batches/{batch}/install", s.batchInstall)
 	api.HandleFunc("POST /batches/{batch}/heartbeat", s.batchHeartbeat)

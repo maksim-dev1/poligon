@@ -1016,3 +1016,84 @@ body.ios-player.embed #screen { inset: 0; width: 100%; height: 100%; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   .led--reserved::before, .led--running::before, .led--busy::before { animation: none; opacity: .7; }
 }
+
+/* ---- dialogs (confirm/prompt replacements) -------------------------- */
+
+.modal-body {
+  margin: -6px 0 0;
+  font: 400 12.5px/1.6 var(--sans);
+  color: var(--text-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.modal:has(.input--area) { max-width: 460px; }
+.input--area {
+  height: auto;
+  padding: 9px 11px;
+  line-height: 1.55;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  resize: vertical;
+  width: 100%;
+}
+
+/* ---- "you still hold devices" banner (dashboard) -------------------- */
+
+.banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin: 0 18px 16px;
+  padding: 11px 12px 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-md);
+}
+.banner .banner-text { font: 400 12.5px/1.5 var(--sans); color: var(--text-2); }
+.banner .banner-text b { color: var(--text); font-weight: 600; }
+.banner .banner-sub {
+  flex-basis: 100%;
+  font: 400 11.5px/1.5 var(--mono);
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.banner .spacer { margin-left: auto; }
+
+/* ---- filter bar readout --------------------------------------------- */
+
+.filterbar .filter-count {
+  font: 500 11.5px/1 var(--mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.filterbar .btn--ghost { color: var(--text-3); }
+
+/* ---- devices this user already holds --------------------------------- */
+
+.card--mine { border-color: rgba(217,154,43,.4); }
+.hold--mine b { color: var(--warn); }
+.hold .hold-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+/* ---- health dot as a real button ------------------------------------ */
+
+button.health {
+  appearance: none;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+button.health:hover { box-shadow: 0 0 0 4px var(--line); }
+
+/* ---- zoom percentage doubles as "reset to 100%" ---------------------- */
+
+.wall-pill .zoom .pct {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+}
+.wall-pill .zoom .pct:hover { background: var(--surface); color: var(--text); }

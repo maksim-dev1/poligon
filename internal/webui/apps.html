@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>приложения</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -49,17 +50,7 @@
 <div class="toasts" id="toasts"></div>
 <script>
 const id = new URLSearchParams(location.search).get("id");
-const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
-const HW = () => ({ "X-Poligon-CSRF": csrf(), "Content-Type": "application/json" });
 
-function toast(msg, kind) {
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " toast--" + kind : "");
-  el.textContent = msg;
-  document.getElementById("toasts").appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
-}
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
 let apps = [];
 async function loadApps() {
@@ -101,11 +92,13 @@ function renderList() {
 async function appAction(action, pkg, confirmFirst) {
   const labels = { launch: "запущено", "force-stop": "остановлено", "clear-data": "данные очищены", uninstall: "удалено" };
   if (confirmFirst) {
-    const q = action === "uninstall" ? `Удалить ${pkg} с устройства?` : `Очистить данные и кэш ${pkg}? Приложение как будто только что установлено.`;
-    if (!confirm(q)) return;
+    const ok = await confirmDialog(action === "uninstall"
+      ? { title: "Удалить приложение?", body: pkg + "\nПакет и все его данные исчезнут с устройства.", okText: "Удалить" }
+      : { title: "Очистить данные?", body: pkg + "\nДанные и кэш сотрутся — приложение станет как только что установленное.", okText: "Очистить" });
+    if (!ok) return;
   }
   try {
-    const r = await fetch(`/api/devices/${id}/apps/${action}`, { method: "POST", headers: HW(), body: JSON.stringify({ package: pkg }) });
+    const r = await fetch(`/api/devices/${id}/apps/${action}`, { method: "POST", headers: HJ(), body: JSON.stringify({ package: pkg }) });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
     toast(`${pkg}: ${labels[action] || "готово"}`, "ok");
@@ -114,7 +107,7 @@ async function appAction(action, pkg, confirmFirst) {
 }
 async function openSettings(screen) {
   try {
-    const r = await fetch(`/api/devices/${id}/settings`, { method: "POST", headers: HW(), body: JSON.stringify({ screen }) });
+    const r = await fetch(`/api/devices/${id}/settings`, { method: "POST", headers: HJ(), body: JSON.stringify({ screen }) });
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
   } catch (e) { toast(e.message, "err"); }

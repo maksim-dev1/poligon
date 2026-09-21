@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>тесты</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -39,6 +40,7 @@
   .card.card--split:hover { background: var(--surface); border-color: var(--line); }
   .card .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
   .card .actions .status { font: 400 11px/1.4 var(--mono); color: var(--text-muted); flex: 1; min-width: 0; }
+  .card--off { opacity: .45; }
   .foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -103,7 +105,7 @@
       </span>
     </span>
   </button>
-  <button class="card" id="itCard" onclick="pickIntegrationTest()">
+  <div class="card card--split" id="itCard">
     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v4M15 2v4M9 22v-4M15 22v-4M2 9h4M2 15h4M22 9h-4M22 15h-4"/><rect x="6" y="6" width="12" height="12" rx="2"/></svg></span>
     <span class="body">
       <span class="title-row"><span class="title">Integration test</span><span class="plats"><span class="plat">Android</span></span></span>
@@ -115,11 +117,17 @@
         <span class="step">OK / FAILURES</span>
       </span>
       <span class="meta">
-        <span class="group"><span class="label">нужно</span><span class="val">app .apk + androidTest .apk (2 файла)</span></span>
+        <span class="group"><span class="label">нужно</span><span class="val">app .apk + androidTest .apk (2 файла, оба .apk — различаются только ролью)</span></span>
         <span class="group"><span class="label">результат</span><span class="val">instrument.log, скриншот, logcat</span></span>
       </span>
+      <span class="actions">
+        <button class="btn btn--sm" id="itAppBtn" onclick="pickITApp()">APK приложения</button>
+        <button class="btn btn--sm" id="itTestBtn" onclick="pickITTest()">androidTest APK</button>
+        <span class="status" id="itStatus">файлы не выбраны</span>
+        <button class="btn btn--sm btn--primary" id="itStart" onclick="startIntegrationTest()" disabled>Запустить</button>
+      </span>
     </span>
-  </button>
+  </div>
 </div>
 <div class="foot"><button class="btn btn--sm" onclick="openRuns('/runs.html')">Все прогоны →</button></div>
 <div class="toasts" id="toasts"></div>
@@ -130,18 +138,9 @@
 <input type="file" id="itTestFile" hidden accept=".apk" onchange="onITTestPicked(this.files[0]); this.value=''">
 <script>
 const batch = new URLSearchParams(location.search).get("b");
-const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
-const HW = () => ({ "X-Poligon-CSRF": csrf() });
 const platExt = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
 let devices = [];
 
-function toast(msg, kind) {
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " toast--" + kind : "");
-  el.textContent = msg;
-  document.getElementById("toasts").appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
-}
 function batchPlatforms() { return [...new Set(devices.map(d => d.platform))]; }
 function platformOf(name) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
@@ -239,7 +238,16 @@ async function startMaestro() {
 }
 
 async function commandRun() {
-  const cmd = prompt("Команда, которая выполнится на каждом устройстве.\nОкружение: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (cwd).\nФайлы в cwd собираются как артефакты.");
+  const cmd = await promptDialog({
+    title: "Команда на каждом устройстве",
+    hint: "Выполнится на каждом устройстве партии через sh -c.\n"
+      + "Окружение: POLIGON_DEVICE_ID, ANDROID_SERIAL / DEVICE_UDID, POLIGON_RUN_DIR (он же cwd).\n"
+      + "Всё, что команда запишет в cwd, попадёт в артефакты прогона.",
+    label: "Команда",
+    placeholder: "adb shell dumpsys battery > battery.txt",
+    multiline: true,
+    okText: "Запустить",
+  });
   if (!cmd) return;
   const fd = new FormData();
   fd.append("type", "command");
@@ -255,32 +263,32 @@ async function commandRun() {
   } catch (e) { toast(e.message, "err"); }
 }
 
-// integration_test: two apks, asked one at a time — same extension, no way
-// to tell app vs androidTest apart by filename alone
-let itAppFile = null;
-function pickIntegrationTest() {
+// integration_test: two apks that look identical by name, so each has its own
+// button and both are shown before the run starts — nothing fires from a file
+// dialog alone any more
+let itApp = null, itTest = null;
+function pickITApp() { document.getElementById("itAppFile").click(); }
+function pickITTest() { document.getElementById("itTestFile").click(); }
+function onITAppPicked(f) { if (f) { itApp = f; updateITStatus(); } }
+function onITTestPicked(f) { if (f) { itTest = f; updateITStatus(); } }
+function updateITStatus() {
+  const parts = [
+    itApp ? "app: " + itApp.name : "app не выбран",
+    itTest ? "test: " + itTest.name : "androidTest не выбран",
+  ];
+  document.getElementById("itStatus").textContent = parts.join(" · ");
+  document.getElementById("itStart").disabled = !(itApp && itTest);
+}
+async function startIntegrationTest() {
+  if (!itApp || !itTest) return;
   if (!batchPlatforms().includes("android")) {
     toast("integration_test пока только для Android — в партии нет android-устройств", "err");
     return;
   }
-  itAppFile = null;
-  toast("Выберите APK приложения…");
-  document.getElementById("itAppFile").click();
-}
-function onITAppPicked(file) {
-  if (!file) return;
-  itAppFile = file;
-  toast("Теперь выберите androidTest APK…");
-  document.getElementById("itTestFile").click();
-}
-async function onITTestPicked(file) {
-  if (!file || !itAppFile) return;
-  const appFile = itAppFile;
-  itAppFile = null;
   const fd = new FormData();
   fd.append("type", "integration_test");
-  fd.append("artifact", appFile);
-  fd.append("test_artifact", file);
+  fd.append("artifact", itApp);
+  fd.append("test_artifact", itTest);
   for (const d of devices) fd.append("device", d.id);
   toast(`Запускаю integration_test на ${devices.length} устр.…`);
   try {
@@ -288,6 +296,8 @@ async function onITTestPicked(file) {
     const b = await r.json();
     if (!r.ok) throw new Error(b.error || r.statusText);
     toast(`Прогон ${b.id} в очереди`, "ok");
+    itApp = null; itTest = null;
+    updateITStatus();
     setTimeout(() => goToRun(b.id), 500);
   } catch (e) { toast(e.message, "err"); }
 }
@@ -303,8 +313,11 @@ async function main() {
     document.getElementById("sub").textContent =
       Object.entries(by).map(([p, n]) => `${n} ${p}`).join(" · ") || "0 устройств";
     if (!batchPlatforms().includes("android")) {
-      document.getElementById("itCard").disabled = true;
-      document.getElementById("itCard").title = "в партии нет android-устройств";
+      const c = document.getElementById("itCard");
+      c.classList.add("card--off");
+      c.title = "в партии нет android-устройств";
+      for (const b of c.querySelectorAll("button")) b.disabled = true;
+      document.getElementById("itStatus").textContent = "в партии нет android-устройств";
     }
   } catch (e) {
     document.getElementById("sub").textContent = e.message;

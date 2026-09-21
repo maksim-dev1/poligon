@@ -5,25 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>poligon — экраны</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 </head>
 <body>
 <div class="wall-pill" id="pill">
   <div class="zoom">
-    <button class="icon-btn" title="Уменьшить" onclick="setZoom(-10)">
+    <button class="icon-btn" title="Уменьшить" aria-label="Уменьшить" onclick="setZoom(-10)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
-    <span class="pct" id="zoom">100%</span>
-    <button class="icon-btn" title="Увеличить" onclick="setZoom(10)">
+    <button type="button" class="pct" id="zoom" title="Сбросить масштаб до 100%" onclick="resetZoom()">100%</button>
+    <button class="icon-btn" title="Увеличить" aria-label="Увеличить" onclick="setZoom(10)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
   </div>
   <span class="divider"></span>
   <button class="btn btn--sm" onclick="openModal('tests','Тесты','/tests.html?b='+batch)">Тесты</button>
-  <span class="health" id="health" title="проверка системы…"></span>
+  <button type="button" class="health" id="health" title="проверка системы…" aria-label="Состояние сервисов фермы" onclick="showHealth()"></button>
   <span class="readout" id="sub"></span>
   <span class="divider"></span>
   <a class="btn btn--ghost btn--sm" href="/">Ферма</a>
-  <button class="btn btn--danger btn--sm" onclick="releaseAll()">Завершить работу</button>
+  <button class="btn btn--danger btn--sm" onclick="releaseAll()" title="Освободить все устройства партии и вернуться на ферму">Завершить работу</button>
   <input type="file" id="deviceInstallFile" hidden accept=".apk,.aab,.apks,.ipa" onchange="installOne(pendingInstallId, this.files[0]); this.value=''">
 </div>
 <div class="page-error" id="err"></div>
@@ -35,9 +36,7 @@
 <div class="toasts" id="toasts"></div>
 <script>
 const batch = new URLSearchParams(location.search).get("b");
-const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
 const H = {};
-const HW = () => ({ "X-Poligon-CSRF": csrf() });
 let devices = [];
 const urls = {};
 const sub = document.getElementById("sub");
@@ -49,16 +48,6 @@ function defaultSub() {
   return parts.join(" · ") || `${devices.length} устр.`;
 }
 function setSub(t) { sub.textContent = t || defaultSub(); }
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
-
-function toast(msg, kind) {
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " toast--" + kind : "");
-  el.textContent = msg;
-  document.getElementById("toasts").appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
-}
-
 // ---- zoom ----
 let zoom = +(localStorage.getItem("poligon_zoom") || 100);
 function applyZoom() {
@@ -68,6 +57,7 @@ function applyZoom() {
   localStorage.setItem("poligon_zoom", zoom);
 }
 function setZoom(d) { zoom += d; applyZoom(); }
+function resetZoom() { zoom = 100; applyZoom(); }
 
 // ---- keep the wall clear of the floating pill (it can wrap to 2+ rows) ----
 function fitWallTop() {
@@ -238,34 +228,38 @@ function cell(d, url) {
   };
   c.innerHTML = `
     <div class="tile-rail">
-      <button class="icon-btn" title="Установить сборку" onclick="pickInstallFor('${d.id}')">${icon.install}</button>
-      <button class="icon-btn" title="Перезапустить экран" onclick="restartOne('${d.id}')">${icon.restart}</button>
-      <button class="icon-btn" title="Обновить" onclick="reopen('${d.id}')">${icon.swap}</button>
-      <button class="icon-btn" title="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
-      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
-      <button class="icon-btn" title="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
-      <button class="icon-btn" title="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
+      <button class="icon-btn" title="Установить сборку" aria-label="Установить сборку" onclick="pickInstallFor('${d.id}')">${icon.install}</button>
+      <button class="icon-btn" title="Перезапустить экран" aria-label="Перезапустить экран" onclick="restartOne('${d.id}')">${icon.restart}</button>
+      <button class="icon-btn" title="Обновить" aria-label="Обновить" onclick="reopen('${d.id}')">${icon.swap}</button>
+      <button class="icon-btn" title="Скриншот" aria-label="Скриншот" onclick="window.open('/api/devices/${d.id}/screenshot','_blank')">${icon.cam}</button>
+      ${d.platform === "android" ? `<button class="icon-btn" title="logcat с последнего снятия" aria-label="logcat с последнего снятия" onclick="window.open('/api/devices/${d.id}/logcat','_blank')">${icon.doc}</button>` : ""}
+      <button class="icon-btn" title="Открыть в отдельном окне" aria-label="Открыть в отдельном окне" onclick="window.open(urls['${d.id}'],'w-${d.id}')">${icon.ext}</button>
+      <button class="icon-btn" title="Характеристики" aria-label="Характеристики" onclick="toggleInfo('${d.id}')">${icon.info}</button>
+      ${d.platform === "ios" ? `
+      <span class="tile-rail-sep"></span>
+      <button class="icon-btn" title="Домой" aria-label="Домой" onclick="iosInput('${d.id}',{type:'home'})">${icon.home}</button>
+      <button class="icon-btn" title="Разбудить экран" aria-label="Разбудить экран" onclick="iosInput('${d.id}',{type:'wake'})">${icon.power}</button>` : ""}
       ${d.platform === "android" ? `
       <span class="tile-rail-sep"></span>
-      <button class="icon-btn" title="Питание" onclick="keyEvent('${d.id}','power')">${icon.power}</button>
-      <button class="icon-btn" title="Громче" onclick="keyEvent('${d.id}','volume_up')">${icon.volUp}</button>
-      <button class="icon-btn" title="Тише" onclick="keyEvent('${d.id}','volume_down')">${icon.volDown}</button>
-      <button class="icon-btn" title="Назад" onclick="keyEvent('${d.id}','back')">${icon.back}</button>
-      <button class="icon-btn" title="Домой" onclick="keyEvent('${d.id}','home')">${icon.home}</button>
-      <button class="icon-btn" title="Последние приложения" onclick="keyEvent('${d.id}','recents')">${icon.recents}</button>
+      <button class="icon-btn" title="Питание" aria-label="Питание" onclick="keyEvent('${d.id}','power')">${icon.power}</button>
+      <button class="icon-btn" title="Громче" aria-label="Громче" onclick="keyEvent('${d.id}','volume_up')">${icon.volUp}</button>
+      <button class="icon-btn" title="Тише" aria-label="Тише" onclick="keyEvent('${d.id}','volume_down')">${icon.volDown}</button>
+      <button class="icon-btn" title="Назад" aria-label="Назад" onclick="keyEvent('${d.id}','back')">${icon.back}</button>
+      <button class="icon-btn" title="Домой" aria-label="Домой" onclick="keyEvent('${d.id}','home')">${icon.home}</button>
+      <button class="icon-btn" title="Последние приложения" aria-label="Последние приложения" onclick="keyEvent('${d.id}','recents')">${icon.recents}</button>
       <span class="tile-rail-sep"></span>
-      <button class="icon-btn" title="Терминал" onclick="openModal('term-${d.id}','Терминал — ${d.id}','/terminal.html?id=${d.id}')">${icon.term}</button>
-      <button class="icon-btn" title="Файлы" onclick="openModal('files-${d.id}','Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
-      <button class="icon-btn" title="Логи (live)" onclick="openModal('logcat-${d.id}','Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
-      <button class="icon-btn" title="Приложения" onclick="openModal('apps-${d.id}','Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
-      <button class="icon-btn" title="UI dump" onclick="openModal('uidump-${d.id}','UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>
-      <button class="icon-btn" id="rec-${d.id}" title="Запись экрана (до 3 мин)" onclick="toggleRecord('${d.id}', this)">${icon.record}</button>
+      <button class="icon-btn" title="Терминал" aria-label="Терминал" onclick="openModal('term-${d.id}','Терминал — ${d.id}','/terminal.html?id=${d.id}')">${icon.term}</button>
+      <button class="icon-btn" title="Файлы" aria-label="Файлы" onclick="openModal('files-${d.id}','Файлы — ${d.id}','/files.html?id=${d.id}')">${icon.folder}</button>
+      <button class="icon-btn" title="Логи (live)" aria-label="Логи (live)" onclick="openModal('logcat-${d.id}','Logcat — ${d.id}','/logcat.html?id=${d.id}')">${icon.logs}</button>
+      <button class="icon-btn" title="Приложения" aria-label="Приложения" onclick="openModal('apps-${d.id}','Приложения — ${d.id}','/apps.html?id=${d.id}')">${icon.apps}</button>
+      <button class="icon-btn" title="UI dump" aria-label="UI dump" onclick="openModal('uidump-${d.id}','UI dump — ${d.id}','/uidump.html?id=${d.id}')">${icon.tree}</button>
+      <button class="icon-btn" id="rec-${d.id}" title="Запись экрана (до 3 мин)" aria-label="Запись экрана (до 3 мин)" onclick="toggleRecord('${d.id}', this)">${icon.record}</button>
       <span class="tile-rail-sep"></span>
-      <button class="icon-btn" title="Debug из VS Code (flutter run)" onclick="openModal('vscode-setup','VS Code debug','/vscode-setup.html')">${icon.vscode}</button>` : ""}
+      <button class="icon-btn" title="Debug из VS Code (flutter run)" aria-label="Debug из VS Code (flutter run)" onclick="openModal('vscode-setup','VS Code debug','/vscode-setup.html')">${icon.vscode}</button>` : ""}
     </div>
     <div class="tile">
       <div class="tile-bar">
-        <button class="icon-btn is-danger" title="Освободить устройство" onclick="releaseOne('${d.id}')">${icon.x}</button>
+        <button class="icon-btn is-danger" title="Освободить устройство" aria-label="Освободить устройство" onclick="releaseOne('${d.id}')">${icon.x}</button>
         <span class="id">${esc(d.id)}</span><span class="plat">${esc(d.platform)}</span>
         ${noInput ? `<span class="noinput" title="тапы блокирует ОС — включите отладку по USB в MIUI (настройки безопасности)">нет ввода</span>` : ""}
       </div>
@@ -273,6 +267,17 @@ function cell(d, url) {
       ${body}
     </div>`;
   return c;
+}
+
+// the iOS player is same-origin under /live/ios/<id>, so the wall can drive it
+// straight through its own endpoints instead of reaching into the iframe
+async function iosInput(id, action) {
+  try {
+    const r = await fetch(`/live/ios/${encodeURIComponent(id)}/input`, {
+      method: "POST", headers: HJ(), body: JSON.stringify(action),
+    });
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || r.statusText); }
+  } catch (e) { toast(`${id}: ${e.message}`, "err"); }
 }
 
 async function keyEvent(id, key) {
@@ -339,6 +344,12 @@ function platformOf(name) {
 // opened as a drawer tab from the "Тесты" button — see openModal above.
 
 async function releaseOne(id) {
+  const ok = await confirmDialog({
+    title: `Освободить ${id}?`,
+    body: "Экран закроется, устройство вернётся в общий пул. Остальные устройства партии останутся за вами.",
+    okText: "Освободить",
+  });
+  if (!ok) return;
   try { await fetch(`/api/devices/${id}/release`, { method: "POST", headers: HW() }); } catch {}
   document.getElementById("cell-" + id)?.remove();
   devices = devices.filter(d => d.id !== id);
@@ -346,6 +357,12 @@ async function releaseOne(id) {
 }
 
 async function releaseAll() {
+  const ok = await confirmDialog({
+    title: "Завершить работу?",
+    body: `${devices.length} устр. вернутся в общий пул. Все экраны, терминалы и live-логи закроются. Запущенные прогоны это не отменяет.`,
+    okText: "Завершить и освободить",
+  });
+  if (!ok) return;
   try { await fetch(`/api/batches/${batch}/release`, { method: "POST", headers: HW() }); } catch {}
   localStorage.removeItem("poligon_batch");
   location.href = "/";
@@ -374,6 +391,7 @@ async function main() {
 }
 main().catch(e => document.getElementById("err").textContent = e.message);
 
+let healthDetail = "проверка системы…";
 async function pollHealth() {
   const el = document.getElementById("health");
   try {
@@ -383,11 +401,15 @@ async function pollHealth() {
     if (!h.go_ios_tunnel) bad.push("go-ios tunnel недоступен");
     if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS-экран(ов) недоступно`);
     el.className = "health " + (bad.length ? "health--warn" : "health--ok");
-    el.title = bad.length ? bad.join(" · ") : "все системы в норме";
+    healthDetail = bad.length ? bad.join("\n") : "Все системы в норме.";
   } catch {
     el.className = "health health--warn";
-    el.title = "проверка системы не удалась";
+    healthDetail = "Проверка системы не удалась — сервер не ответил на /healthz.";
   }
+  el.title = healthDetail;
+}
+function showHealth() {
+  toast(healthDetail, document.getElementById("health").classList.contains("health--warn") ? "err" : "ok");
 }
 pollHealth();
 setInterval(pollHealth, 15000);

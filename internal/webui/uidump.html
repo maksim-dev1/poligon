@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UI dump</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -32,22 +33,13 @@
 <div class="toolbar">
   <input class="select search" id="search" placeholder="поиск по id / тексту / классу…" oninput="applyFilter()">
   <span class="status" id="status">снимаю…</span>
-  <button class="btn btn--sm" onclick="load()">Снять заново</button>
+  <button class="btn btn--sm" onclick="load()" title="Снимок статичный — после любого действия на устройстве снимите заново">Снять заново</button>
 </div>
 <div class="body" id="body"><div class="empty">снимаю…</div></div>
 <div class="toasts" id="toasts"></div>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 document.title = "UI dump — " + (id || "?");
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
-
-function toast(msg, kind) {
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " toast--" + kind : "");
-  el.textContent = msg;
-  document.getElementById("toasts").appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 2000);
-}
 function copy(text, label) {
   navigator.clipboard?.writeText(text).then(() => toast(`Скопировано: ${label}`, "ok")).catch(() => {});
 }
@@ -84,9 +76,16 @@ function renderNode(el, depth, out) {
 
 function applyFilter() {
   const q = document.getElementById("search").value.toLowerCase();
-  for (const n of document.querySelectorAll(".node")) {
-    n.classList.toggle("hidden-node", q !== "" && !n.dataset.search.includes(q));
+  const nodes = document.querySelectorAll(".node");
+  let shown = 0;
+  for (const n of nodes) {
+    const hide = q !== "" && !n.dataset.search.includes(q);
+    n.classList.toggle("hidden-node", hide);
+    if (!hide) shown++;
   }
+  document.getElementById("status").textContent = q
+    ? `${shown} из ${nodes.length} элементов`
+    : `${id} — ${nodes.length} элементов`;
 }
 
 async function load() {
@@ -110,7 +109,7 @@ async function load() {
     const out = [];
     for (const child of root.children) renderNode(child, 0, out);
     body.innerHTML = out.join("") || `<div class="empty">пусто</div>`;
-    status.textContent = id + " — " + document.querySelectorAll(".node").length + " элементов";
+    applyFilter();
   } catch (e) {
     status.textContent = "ошибка";
     body.innerHTML = `<div class="empty err">${esc(e.message)}</div>`;

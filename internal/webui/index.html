@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>poligon</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 </head>
 <body>
 
@@ -35,8 +36,11 @@
   <header class="topbar">
     <span class="wordmark">poligon</span>
     <span class="readout" id="summary">загрузка…</span>
-    <span class="health" id="health" title="проверка системы…"></span>
+    <button type="button" id="health" class="health" title="проверка системы…"
+      aria-label="Состояние сервисов фермы" onclick="showHealth()"></button>
     <span class="spacer"></span>
+    <span class="readout" id="whoami"></span>
+    <a class="btn btn--ghost btn--sm" href="/runs.html" title="История всех прогонов">Прогоны</a>
     <button id="chpw" class="btn btn--ghost btn--sm" hidden onclick="changePassword()">Пароль</button>
     <button id="logout" class="btn btn--ghost btn--sm" hidden onclick="logout()">Выйти</button>
   </header>
@@ -45,13 +49,19 @@
 
   <h1 class="page-title">Мобильные устройства</h1>
 
+  <!-- every batch this account still holds, including ones reserved from
+       another browser — without this the devices stay locked with no way back -->
+  <div id="held"></div>
+
   <section class="filterbar">
     <input id="f-q" class="input filter-search" type="search" placeholder="Бренд, модель, MSISDN, с/н"
       oninput="onFilterChange()">
     <label class="checkbox"><input type="checkbox" id="f-android" checked onchange="onFilterChange()"> Android</label>
     <label class="checkbox"><input type="checkbox" id="f-ios" checked onchange="onFilterChange()"> iOS</label>
     <select id="f-os" class="select" onchange="onFilterChange()"><option value="">Версия ОС</option></select>
-    <label class="switch"><input type="checkbox" id="f-free" onchange="onFilterChange()"> Только свободные</label>
+    <label class="checkbox"><input type="checkbox" id="f-free" onchange="onFilterChange()"> Только свободные</label>
+    <span class="filter-count" id="f-count"></span>
+    <button type="button" class="btn btn--ghost btn--sm" id="f-reset" hidden onclick="resetFilters()">Сбросить</button>
     <div class="viewtoggle" role="group" aria-label="Вид">
       <button type="button" class="icon-btn" id="v-grid" aria-pressed="true" title="Плитки" onclick="setView('grid')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -74,16 +84,8 @@
 
 <script>
 let signedIn = false;
-const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
+let me = "";
 const $ = id => document.getElementById(id);
-
-function toast(msg, kind) {
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " toast--" + kind : "");
-  el.textContent = msg;
-  $("toasts").appendChild(el);
-  setTimeout(() => { el.style.transition = "opacity .2s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, kind === "err" ? 6000 : 3500);
-}
 
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
@@ -144,6 +146,8 @@ async function submitGate() {
       return;
     }
     signedIn = true;
+    me = email;
+    $("whoami").textContent = email;
     showApp();
     refresh();
   } finally {
@@ -152,7 +156,7 @@ async function submitGate() {
 }
 
 async function logout() {
-  try { await fetch("/auth/logout", { method: "POST", headers: { "X-Poligon-CSRF": csrf() } }); } catch {}
+  try { await fetch("/auth/logout", { method: "POST", headers: HW() }); } catch {}
   signedIn = false;
   showGate();
 }
@@ -175,7 +179,7 @@ function changePassword() {
     </form>`;
   document.body.appendChild(back);
   const close = () => back.remove();
-  back.addEventListener("click", e => { if (e.target === back) close(); });
+  back.addEventListener("mousedown", e => { if (e.target === back) close(); });
   document.addEventListener("keydown", function esc(e) { if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); } });
   $("cp-cancel").onclick = close;
   back.querySelector(".modal").onsubmit = async () => {
@@ -184,7 +188,7 @@ function changePassword() {
     $("cp-save").disabled = true;
     try {
       const r = await fetch("/auth/password", {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Poligon-CSRF": csrf() },
+        method: "POST", headers: HJ(),
         body: JSON.stringify({ current: cur, new: next }),
       });
       const b = await r.json().catch(() => ({}));
@@ -200,8 +204,7 @@ const LED_RU = {
   running: "работает", offline: "офлайн", degraded: "сбой", maintenance: "обслуж.",
   unauthorized: "не авторизовано", candidate: "новое", error: "ошибка",
 };
-function led(s) { return `<span class="led led--${s}">${LED_RU[s] || s}</span>`; }
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
+function led(s, label) { return `<span class="led led--${s}">${label || LED_RU[s] || s}</span>`; }
 function platTag(p) { return `<span class="plat">${esc(p)}</span>`; }
 
 const sel = new Set();
@@ -218,6 +221,19 @@ function onFilterChange() {
   filters.os = $("f-os").value;
   filters.freeOnly = $("f-free").checked;
   renderPool();
+}
+
+function resetFilters() {
+  $("f-q").value = "";
+  $("f-android").checked = true;
+  $("f-ios").checked = true;
+  $("f-os").value = "";
+  $("f-free").checked = false;
+  onFilterChange();
+}
+
+function filtersActive() {
+  return !!(filters.q || filters.os || filters.freeOnly || !filters.android || !filters.ios);
 }
 
 function setView(v) {
@@ -253,34 +269,45 @@ function rebuildOsOptions(pool) {
 function renderPool() {
   const farm = lastPool.filter(d => d.adopted);
   const shown = farm.filter(matchesFilters);
+  $("f-count").textContent = farm.length
+    ? (shown.length === farm.length ? `${farm.length} устр.` : `${shown.length} из ${farm.length}`)
+    : "";
+  $("f-reset").hidden = !filtersActive();
   $("pool").innerHTML = shown.length
     ? shown.map(card).join("")
     : (farm.length
-        ? `<div class="empty"><div class="big">ничего не найдено</div>измените фильтры</div>`
+        ? `<div class="empty"><div class="big">ничего не найдено</div>измените фильтры или нажмите «Сбросить»</div>`
         : `<div class="empty"><div class="big">на ферме нет устройств</div>подключите телефон — он появится здесь</div>`);
+  renderBar();
 }
 
-let batch = localStorage.getItem("poligon_batch") || "";
-let batchIds = [];
-let batchDevs = [];
+let heldBatches = [];
 const PLAT_EXT = { android: [".apk", ".aab", ".apks"], ios: [".ipa"] };
 let fastPoll = null;
 
 // ---- farm card ----
 function card(d) {
   const s = d.specs || {};
+  const mine = !!(d.reservation && d.reservation.user === me);
   const canReserve = d.status === "free";
   const selected = sel.has(d.id);
   const cls = ["card"];
   if (canReserve) cls.push("card--free", "card--selectable");
+  else if (mine) cls.push("card--mine");
   else if (["offline", "degraded", "maintenance", "unauthorized"].includes(d.status)) cls.push("card--muted");
   if (selected) cls.push("card--selected");
-  return `<div class="${cls.join(" ")}" ${canReserve ? `onclick="toggleSel('${d.id}')"` : ""}>
+  // free cards are a checkbox writ large: clickable and reachable by keyboard
+  const pick = canReserve
+    ? ` role="checkbox" tabindex="0" aria-checked="${selected}" onclick="toggleSel('${d.id}')"
+        onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();toggleSel('${d.id}')}"`
+    : "";
+  return `<div class="${cls.join(" ")}"${pick}>
     <div class="card-head">
-      <input type="checkbox" class="card-check" ${canReserve ? "" : "disabled"} ${selected ? "checked" : ""}
+      <input type="checkbox" class="card-check" tabindex="-1" ${canReserve ? "" : "disabled"} ${selected ? "checked" : ""}
+        aria-label="Выбрать ${esc(d.id)}"
         onclick="event.stopPropagation()" onchange="toggleSel('${d.id}')">
       <span class="card-id">${platTag(d.platform)} ${esc(d.id)}</span>
-      ${led(d.status)}
+      ${led(d.status, mine ? "занято вами" : null)}
     </div>
     <div class="card-sub">${esc(s.model || "модель неизвестна")} · ${esc(s.os_version || "?")}
       <span class="tag">${esc(d.source || "config")}</span></div>
@@ -292,7 +319,14 @@ function card(d) {
       <div class="row"><span class="k">screen</span><span class="v">${esc(s.screen_size || "—")}${s.screen_density ? " @" + esc(s.screen_density) : ""}</span></div>
       <div class="row"><span class="k">battery</span><span class="v">${s.battery >= 0 ? s.battery + "%" : "—"}</span></div>
     </div>
-    ${d.reservation ? `<div class="hold">занял <b>${esc(d.reservation.user)}</b></div>` : ""}
+    ${d.reservation ? (mine
+      ? `<div class="hold hold--mine">занято <b>вами</b>
+           <div class="hold-actions">
+             <button class="btn btn--sm" onclick="event.stopPropagation();openDeviceBatch('${d.id}')">Открыть экран</button>
+             <button class="btn btn--sm btn--danger" onclick="event.stopPropagation();releaseDevice('${d.id}')">Освободить</button>
+           </div>
+         </div>`
+      : `<div class="hold">занял <b>${esc(d.reservation.user)}</b></div>`) : ""}
   </div>`;
 }
 
@@ -322,61 +356,101 @@ function candidateCard(d) {
   </div>`;
 }
 
+// selection is local state — repaint straight away instead of waiting on a
+// network round-trip, otherwise a click looks like it did nothing
 function toggleSel(id) {
   sel.has(id) ? sel.delete(id) : sel.add(id);
-  renderBar();
-  refresh();
+  renderPool();
 }
 
 function renderBar() {
   const bar = $("batchbar");
-  if (batch) {
-    bar.innerHTML = `<div class="tray">
-      <span class="tray-count">${batchIds.length}<span> в партии</span></span>
-      <button class="btn btn--primary" onclick="openGrid()">Открыть экраны</button>
-      <button class="btn" onclick="pickBatchFile()">Установить сборку</button>
-      <button class="btn btn--danger" onclick="releaseBatch()">Освободить все</button>
-      <input type="file" id="bf" hidden multiple accept=".apk,.aab,.apks,.ipa" onchange="batchUpload(this.files); this.value=''">
-    </div>`;
-    return;
-  }
   if (sel.size) {
+    const n = sel.size;
     bar.innerHTML = `<div class="tray">
-      <span class="tray-count">${sel.size}<span> выбрано</span></span>
-      <button class="btn btn--primary" onclick="startTesting()">Начать тест</button>
-      <button class="btn btn--ghost" onclick="clearSel()">Очистить</button>
+      <span class="tray-count">${n}<span> ${plural(n, "устройство", "устройства", "устройств")} выбрано</span></span>
+      <button class="btn btn--primary" onclick="reserveSelected()">Занять и открыть экраны</button>
+      <button class="btn btn--ghost" onclick="clearSel()">Снять выбор</button>
     </div>`;
     return;
   }
   bar.innerHTML = "";
 }
-function clearSel() { sel.clear(); renderBar(); refresh(); }
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+function clearSel() { sel.clear(); renderPool(); }
 
-async function startTesting() {
-  const ids = [...sel];
-  if (!ids.length) return;
-  try {
-    const res = await api("/batches", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ devices: ids }) });
-    batch = res.batch; localStorage.setItem("poligon_batch", batch);
-    sel.clear();
-    location.href = "/live/grid?b=" + encodeURIComponent(batch);
-  } catch (e) { toast(e.message, "err"); }
+// ---- batches this account still holds --------------------------------
+function renderHeld() {
+  const el = $("held");
+  if (!heldBatches.length) { el.innerHTML = ""; return; }
+  el.innerHTML = heldBatches.map(b => {
+    const n = b.devices.length;
+    return `<div class="banner">
+      <span class="banner-text"><b>${n}</b> ${plural(n, "устройство занято", "устройства заняты", "устройств занято")} вами. Вернитесь к экранам или освободите, если закончили.</span>
+      <span class="spacer"></span>
+      <button class="btn btn--sm btn--primary" onclick="openBatch('${b.batch}')">Открыть экраны</button>
+      <button class="btn btn--sm" onclick="pickBatchFile('${b.batch}')">Установить сборку</button>
+      <button class="btn btn--sm btn--danger" onclick="releaseHeld('${b.batch}')">Освободить</button>
+      <span class="banner-sub">${esc(b.devices.join(", "))}</span>
+    </div>`;
+  }).join("");
 }
 
-async function releaseBatch() {
-  try { await api(`/batches/${batch}/release`, { method: "POST" }); } catch (e) {}
-  batch = ""; batchIds = []; localStorage.removeItem("poligon_batch");
+function openBatch(b) {
+  localStorage.setItem("poligon_batch", b);
+  location.href = "/live/grid?b=" + encodeURIComponent(b);
+}
+function openDeviceBatch(id) {
+  const b = heldBatches.find(x => x.devices.includes(id));
+  if (b) openBatch(b.batch);
+  else toast("Не нашёл партию для этого устройства — обновите страницу.", "err");
+}
+async function releaseHeld(b) {
+  const held = heldBatches.find(x => x.batch === b);
+  const n = held ? held.devices.length : 0;
+  const ok = await confirmDialog({
+    title: "Освободить устройства?",
+    body: `${n} ${plural(n, "устройство вернётся", "устройства вернутся", "устройств вернётся")} в общий пул. Открытые экраны и терминалы закроются.`,
+    okText: "Освободить",
+  });
+  if (!ok) return;
+  try { await api(`/batches/${b}/release`, { method: "POST" }); } catch (e) { toast(e.message, "err"); }
+  if (localStorage.getItem("poligon_batch") === b) localStorage.removeItem("poligon_batch");
   refresh();
 }
-function pickBatchFile() { $("bf").click(); }
+async function releaseDevice(id) {
+  const ok = await confirmDialog({
+    title: `Освободить ${id}?`,
+    body: "Устройство вернётся в общий пул и станет доступно другим.",
+    okText: "Освободить",
+  });
+  if (!ok) return;
+  try { await api(`/devices/${id}/release`, { method: "POST" }); toast(`${id}: освобождено`, "ok"); }
+  catch (e) { toast(e.message, "err"); }
+  refresh();
+}
+
+// installing one build across a whole reservation, without going to the wall
+// first — mixed Android+iOS batches need one artifact per platform
+function pickBatchFile(b) {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.multiple = true;
+  inp.accept = ".apk,.aab,.apks,.ipa";
+  inp.onchange = () => batchUpload(b, inp.files);
+  inp.click();
+}
 function platformOf(name) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
   for (const [p, exts] of Object.entries(PLAT_EXT)) if (exts.includes(ext)) return p;
   return null;
 }
-async function batchUpload(files) {
+async function batchUpload(b, files) {
   files = [...(files || [])];
   if (!files.length) return;
 
@@ -387,26 +461,38 @@ async function batchUpload(files) {
     if (byPlat[p]) { toast(`выбрано две сборки ${p} — оставьте одну`, "err"); return; }
     byPlat[p] = f;
   }
-  const need = [...new Set(batchDevs.map(d => d.platform))];
+  const held = heldBatches.find(x => x.batch === b);
+  const ids = held ? held.devices : [];
+  const need = [...new Set(ids.map(id => (lastPool.find(d => d.id === id) || {}).platform).filter(Boolean))];
   const missing = need.filter(p => !byPlat[p]);
   if (missing.length) {
     toast(`в партии есть устройства ${missing.join(" + ")} — добавьте ${missing.map(p => p === "ios" ? ".ipa" : ".apk/.aab").join(" + ")}`, "err");
     return;
   }
 
-  const label = files.map(f => f.name).join(" + ");
-  toast(`Устанавливаю ${label} на ${batchIds.length} устр.…`);
+  toast(`Устанавливаю ${files.map(f => f.name).join(" + ")} на ${ids.length} устр.…`);
   const fd = new FormData();
   for (const f of files) fd.append("artifact", f);
   try {
-    const res = await api(`/batches/${batch}/install`, { method: "POST", body: fd });
+    const res = await api(`/batches/${b}/install`, { method: "POST", body: fd });
     const bad = (res.results || []).filter(r => r.status !== "ok" && r.status !== "skipped");
     toast(`Установлено на ${res.ok}/${res.total}` + (bad.length ? "\n" + bad.map(r => `${r.device}: ${r.detail}`).join("\n") : ""),
       bad.length ? "err" : "ok");
   } catch (e) { toast(e.message, "err"); }
   refresh();
 }
-function openGrid() { location.href = "/live/grid?b=" + encodeURIComponent(batch); }
+
+async function reserveSelected() {
+  const ids = [...sel];
+  if (!ids.length) return;
+  try {
+    const res = await api("/batches", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ devices: ids }) });
+    sel.clear();
+    openBatch(res.batch);
+  } catch (e) { toast(e.message, "err"); }
+}
 
 async function adopt(id) {
   try { await api(`/devices/${id}/adopt`, { method: "POST" }); refresh(); scheduleFastPoll(); }
@@ -422,16 +508,14 @@ async function refresh() {
   try {
     const pool = await api("/devices");
     $("err").textContent = "";
-    if (batch) {
-      try { const b = await api(`/batches/${batch}`); batchDevs = b.devices; batchIds = b.devices.map(d => d.id); }
-      catch { batch = ""; batchIds = []; batchDevs = []; localStorage.removeItem("poligon_batch"); }
-    }
+    try { heldBatches = (await api("/batches")).batches || []; } catch { heldBatches = []; }
     const cands = pool.filter(d => !d.adopted);
     const farm  = pool.filter(d => d.adopted);
     for (const id of [...sel]) if (!farm.find(d => d.id === id && d.status === "free")) sel.delete(id);
 
     lastPool = pool;
     rebuildOsOptions(pool);
+    renderHeld();
     $("candidates").innerHTML = cands.map(candidateCard).join("");
     renderPool();
     $("cand-title").hidden = cands.length === 0;
@@ -447,8 +531,6 @@ async function refresh() {
     const anyJob = cands.some(d => d.job && (d.job.state === "running" || d.job.state === "queued"));
     if (!anyJob && fastPoll) { clearInterval(fastPoll); fastPoll = null; }
     if (anyJob) scheduleFastPoll();
-
-    renderBar();
   } catch (e) {
     if (e.message !== "unauthorized") $("err").textContent = e.message;
   }
@@ -458,6 +540,8 @@ async function boot() {
   setView(view);
   const r = await fetch("/auth/me").catch(() => null);
   if (!r || !r.ok) { showGate(); $("email-in").focus(); return; }
+  me = (await r.json().catch(() => ({}))).name || "";
+  $("whoami").textContent = me;
   signedIn = true;
   showApp();
   refresh();
@@ -465,6 +549,7 @@ async function boot() {
 boot();
 setInterval(() => { if (signedIn) refresh(); }, 5000);
 
+let healthDetail = "проверка системы…";
 async function pollHealth() {
   const el = $("health");
   try {
@@ -474,11 +559,17 @@ async function pollHealth() {
     if (!h.go_ios_tunnel) bad.push("go-ios tunnel недоступен");
     if (h.ios_screens_ready < h.ios_screens_total) bad.push(`${h.ios_screens_total - h.ios_screens_ready} iOS-экран(ов) недоступно`);
     el.className = "health " + (bad.length ? "health--warn" : "health--ok");
-    el.title = bad.length ? bad.join(" · ") : `все системы в норме · ${h.adb_devices ?? "?"} adb-устр.`;
+    healthDetail = bad.length ? bad.join("\n") : `Все системы в норме · ${h.adb_devices ?? "?"} adb-устр.`;
   } catch {
     el.className = "health health--warn";
-    el.title = "проверка системы не удалась";
+    healthDetail = "Проверка системы не удалась — сервер не ответил на /healthz.";
   }
+  el.title = healthDetail;
+}
+// the dot alone says "something", not "what" — a click spells it out for
+// anyone who never hovers long enough for a tooltip
+function showHealth() {
+  toast(healthDetail, $("health").classList.contains("health--warn") ? "err" : "ok");
 }
 pollHealth();
 setInterval(pollHealth, 15000);

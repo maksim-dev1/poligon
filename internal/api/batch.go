@@ -69,6 +69,18 @@ func (s *Server) batchCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"batch": batch, "reservations": res})
 }
 
+// batchList reports every batch the caller still holds so the dashboard can
+// offer a way back to (or out of) devices reserved from another browser.
+func (s *Server) batchList(w http.ResponseWriter, r *http.Request) {
+	u, _ := auth.UserFrom(r.Context())
+	batches, err := s.res.UserBatches(u.Name)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"batches": batches})
+}
+
 func (s *Server) batchGet(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 	ids, err := s.res.BatchDevices(r.PathValue("batch"), u.Name)

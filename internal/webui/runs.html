@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>прогоны</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
 <style>
   html, body { height: 100%; }
   body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
 
   .head { flex: none; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .head .head-row { display: flex; align-items: center; gap: 10px; }
   .head h1 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
+  .head .sp { margin-left: auto; }
   .head .sub { margin-top: 3px; font: 400 12px/1.4 var(--sans); color: var(--text-muted); }
 
   .toolbar { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
@@ -75,7 +78,13 @@
 </head>
 <body>
 <div class="head">
-  <h1>Прогоны</h1>
+  <div class="head-row">
+    <h1>Прогоны</h1>
+    <span class="sp"></span>
+    <!-- only when this page is a tab of its own: inside the wall's drawer the
+         wall is already one click away -->
+    <a class="btn btn--sm" id="backLink" href="/" hidden>← Ферма</a>
+  </div>
   <div class="sub">История всех тестов, запущенных со стены экранов. Клик по строке — результат по каждому устройству.</div>
 </div>
 <div class="toolbar">
@@ -98,11 +107,14 @@
 </div>
 <div class="page-error" id="err"></div>
 <div class="list" id="list"></div>
+<div class="toasts" id="toasts"></div>
 <div class="toolbar" style="border-top:1px solid var(--line);border-bottom:0">
   <div class="pager" id="pager"></div>
 </div>
 
 <script>
+if (window.parent === window) document.getElementById("backLink").hidden = false;
+
 const want = new URLSearchParams(location.search).get("r");
 const open = new Set(want ? [want] : []);
 
@@ -127,7 +139,6 @@ const dur = (a, b) => {
   const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000);
   return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
 };
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c])); }
 
 // count devices by status so the collapsed row already answers "did it pass?"
 function counts(devices) {
@@ -191,18 +202,26 @@ function toggle(id) {
   render(LAST);
 }
 
-const csrf = () => (document.cookie.match(/(?:^|;\s*)poligon_csrf=([^;]+)/) || [])[1] || "";
 async function post(path) {
-  const r = await fetch(path, { method: "POST", headers: { "X-Poligon-CSRF": csrf() }, credentials: "same-origin" });
+  const r = await fetch(path, { method: "POST", headers: HW(), credentials: "same-origin" });
   const b = await r.json().catch(() => ({}));
-  if (!r.ok) { alert(b.error || r.statusText); return null; }
+  if (!r.ok) { toast(b.error || r.statusText, "err"); return null; }
   return b;
 }
 async function rerun(id) {
   const b = await post(`/api/runs/${id}/rerun`);
   if (b) { open.add(b.id); load(); }
 }
-async function cancelRun(id) { if (await post(`/api/runs/${id}/cancel`)) load(); }
+async function cancelRun(id) {
+  const ok = await confirmDialog({
+    title: "Отменить прогон?",
+    body: "Уже запущенные шаги на устройствах будут прерваны. Собранные артефакты останутся.",
+    okText: "Отменить прогон",
+    cancelText: "Пусть идёт",
+  });
+  if (!ok) return;
+  if (await post(`/api/runs/${id}/cancel`)) load();
+}
 
 let LAST = [];
 function render(runs) {
