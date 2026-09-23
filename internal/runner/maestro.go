@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/model"
 )
 
@@ -84,7 +85,13 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 	case ctx.Err() != nil:
 		rd.Status, rd.Detail = model.RunCanceled, "canceled"
 	case runErr != nil:
-		rd.Status, rd.Detail = model.RunFailed, "maestro: "+tail(buf.String(), 400)
+		// a driver install refused by the phone ends in a long stack trace;
+		// name the cause instead of showing its last 400 characters
+		if h := adb.InstallHint(buf.String()); h != "" {
+			rd.Status, rd.Detail = model.RunError, "maestro could not install its driver: "+h
+		} else {
+			rd.Status, rd.Detail = model.RunFailed, "maestro: "+tail(buf.String(), 400)
+		}
 	default:
 		rd.Status, rd.Detail = model.RunPassed, ""
 	}

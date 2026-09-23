@@ -437,7 +437,7 @@ func (a *ADB) Install(ctx context.Context, serial, apkPath string, reinstall, gr
 		args = append(args, "-g")
 	}
 	args = append(args, apkPath)
-	return a.run(ctx, args...)
+	return withInstallHint(a.run(ctx, args...))
 }
 
 // InstallMultiple installs an app split set (from an .aab / .apks).
@@ -447,7 +447,38 @@ func (a *ADB) InstallMultiple(ctx context.Context, serial string, apks []string,
 		args = append(args, "-r")
 	}
 	args = append(args, apks...)
-	return a.run(ctx, args...)
+	return withInstallHint(a.run(ctx, args...))
+}
+
+// installHints maps the package-manager failures a farm actually hits to the
+// fix, because the raw code alone does not say what to do about it.
+var installHints = []struct{ code, hint string }{
+	{"INSTALL_FAILED_USER_RESTRICTED", "the phone blocks installs over USB — on MIUI enable Developer options → \"Install via USB\" (needs a Mi account and a SIM)"},
+	{"INSTALL_FAILED_INSUFFICIENT_STORAGE", "the phone is out of space — free storage on the device (e.g. `adb shell pm trim-caches 64G`)"},
+	{"INSTALL_FAILED_NO_MATCHING_ABIS", "the build has no native libraries for this phone's CPU — upload a universal APK or one for the device's ABI"},
+	{"INSTALL_FAILED_UPDATE_INCOMPATIBLE", "an app with the same package but a different signature is installed — uninstall it first"},
+	{"INSTALL_FAILED_VERSION_DOWNGRADE", "a newer version is installed — uninstall it first"},
+	{"INSTALL_FAILED_OLDER_SDK", "the build's minSdkVersion is higher than this phone's Android"},
+}
+
+// InstallHint returns a one-line fix for the first known install failure in
+// out (adb or maestro output), or "".
+func InstallHint(out string) string {
+	for _, h := range installHints {
+		if strings.Contains(out, h.code) {
+			return h.code + ": " + h.hint
+		}
+	}
+	return ""
+}
+
+func withInstallHint(out string, err error) (string, error) {
+	if err != nil {
+		if h := InstallHint(err.Error() + out); h != "" {
+			err = fmt.Errorf("%w\nhint: %s", err, h)
+		}
+	}
+	return out, err
 }
 
 // Launch starts the app's launcher activity.
