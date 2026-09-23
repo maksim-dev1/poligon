@@ -65,6 +65,14 @@ Run types: `install_smoke`, `maestro`, `command`, `integration_test`. Device sel
 `GET /runs/{id}/badge.svg` (no auth). Use `--data-urlencode` for urlencoded
 bodies (a raw `;` or space is rejected).
 
+**LAN URLs need macOS "Local Network" access.** On macOS 15+, a launchd
+service may not open connections to the local network until it is allowed in
+System Settings → Privacy & Security → Local Network. Until then every
+`artifact_url` / `flow_url` / `callback_url` pointing at a LAN host fails with
+`connect: no route to host`, while the same `curl` over ssh works (ssh sessions
+are exempt). Public URLs are unaffected. Granting it needs someone at the Mac's
+screen; recheck after a rebuild of the binary.
+
 ### VS Code / live debugging (Android)
 
 Everything above installs a pre-built artifact and collects results —
