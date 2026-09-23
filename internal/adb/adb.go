@@ -159,6 +159,20 @@ func (a *ADB) Keyevent(ctx context.Context, serial string, code int) error {
 	return err
 }
 
+// WakeUnlock turns the screen on and dismisses a non-secure keyguard (swipe
+// lock), so an automated run does not install, launch and screenshot into a
+// dozing, locked phone. A PIN/pattern lock stays up — that has to be removed
+// on the device itself.
+func (a *ADB) WakeUnlock(ctx context.Context, serial string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if _, err := a.shell(ctx, serial, "input", "keyevent", "224"); err != nil { // KEYCODE_WAKEUP
+		return err
+	}
+	_, err := a.shell(ctx, serial, "wm", "dismiss-keyguard")
+	return err
+}
+
 // shQuote single-quotes s for safe inclusion in a remote shell command line.
 // `adb shell a b c` joins its args with spaces and runs the result through
 // /system/bin/sh on the device, so any argument built from user input (a

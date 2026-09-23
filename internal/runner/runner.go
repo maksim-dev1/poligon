@@ -341,6 +341,12 @@ func (r *Runner) runDevice(ctx context.Context, run model.Run, rd model.RunDevic
 	dctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	if dev.Platform == model.Android {
+		if err := r.adb.WakeUnlock(dctx, dev.Serial); err != nil {
+			r.log.Warn("runner: wake/unlock failed", "device", dev.ID, "err", err)
+		}
+	}
+
 	switch run.Type {
 	case "install_smoke":
 		r.smoke(dctx, run, dev, &rd, devDir)
