@@ -47,6 +47,17 @@ curl -sX POST https://farm/api/runs -H "Authorization: Bearer plgn_…" \
   --data-urlencode type=command --data-urlencode device=pixel6-01 \
   --data-urlencode 'command=appium ... || exit 1'
 
+# a whole Maestro workspace: zip the .maestro/ folder (config.yaml, flows/,
+# subflows/) so runFlow: ../subflows/… resolves. flow_path picks one flow,
+# otherwise maestro runs what config.yaml lists; env= becomes -e KEY=VALUE.
+# Every flow also gets POLIGON_DEVICE_ID / POLIGON_PLATFORM.
+zip -qr maestro.zip .maestro
+curl -sX POST https://farm/api/runs -H "Authorization: Bearer plgn_…" \
+  -F type=maestro -F platform=android -F count=1 \
+  -F artifact=@app-release.apk -F flow=@maestro.zip \
+  -F flow_path=flows/offline_full_flow.yaml -F include_tags=offline \
+  -F env=PHONE=9525115368 -F env=CODE=0000
+
 # Flutter integration_test (Android): the app apk + its separately built
 # androidTest apk (flutter build apk --debug; cd android && ./gradlew
 # app:assembleDebugAndroidTest), am instrument reads the runner class off the

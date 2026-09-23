@@ -12,7 +12,7 @@ import (
 
 // fireCallback POSTs the finished run as JSON to url. Best-effort, one retry.
 func (r *Runner) fireCallback(url string, run model.Run) {
-	body, err := json.Marshal(run)
+	body, err := json.Marshal(run.Redacted())
 	if err != nil {
 		return
 	}

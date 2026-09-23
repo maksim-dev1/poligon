@@ -214,14 +214,32 @@ const TYPES = {
 
   maestro: {
     name: "Maestro",
-    one: "Прогнать сценарий из .yaml: тапы, ввод текста, проверки того, что на экране",
+    one: "Прогнать сценарии Maestro: тапы, ввод текста, проверки того, что на экране",
     plats: ["android", "ios"],
     slots: () => [
       {
         key: "flow", field: "flow",
         label: "Сценарий Maestro",
-        hint: "файл .yaml — что нажимать и что проверять",
-        accept: ".yaml,.yml", required: true,
+        hint: "файл .yaml или .zip всей папки .maestro (с subflows и config.yaml)",
+        accept: ".yaml,.yml,.zip", required: true,
+      },
+      {
+        key: "flow_path", field: "flow_path", kind: "text", rows: 1,
+        label: "Какой сценарий из архива",
+        hint: "путь внутри .zip. Пусто — прогнать все сценарии из config.yaml",
+        placeholder: "flows/offline_full_flow.yaml",
+      },
+      {
+        key: "include_tags", field: "include_tags", kind: "text", rows: 1,
+        label: "Только с тегами",
+        hint: "через запятую; пусто — все",
+        placeholder: "offline",
+      },
+      {
+        key: "env", field: "env", kind: "text", lines: true,
+        label: "Переменные",
+        hint: "KEY=VALUE по одной на строку, уходят в сценарий как -e. POLIGON_DEVICE_ID подставляется сам",
+        placeholder: "PHONE=9525115368\nCODE=0000",
       },
     ].concat(batchPlatforms().map(p => ({
       key: "build-" + p,
@@ -231,7 +249,7 @@ const TYPES = {
       accept: PLAT_ACCEPT[p], required: false,
     }))),
     how: [
-      ["шаги", "установить сборку, если приложили, затем maestro test flow.yaml"],
+      ["шаги", "установить сборку, если приложили, затем maestro test (один сценарий или вся папка)"],
       ["итог", "пройден — Maestro дошёл до конца сценария без падений"],
       ["файлы", "report.xml, maestro.log, скриншот, лог устройства"],
     ],
@@ -331,8 +349,8 @@ function renderSlots() {
 
     if (s.kind === "text") {
       const v = picked[s.key] || "";
-      return '<div class="slot ' + (v ? "is-filled" : "is-missing") + '">' + head +
-        '<textarea class="input input--area" rows="3" placeholder="' + esc(s.placeholder || "") + '"' +
+      return '<div class="slot ' + (v ? "is-filled" : (s.required ? "is-missing" : "")) + '">' + head +
+        '<textarea class="input input--area" rows="' + (s.rows || 3) + '" placeholder="' + esc(s.placeholder || "") + '"' +
         ' oninput="setText(\'' + s.key + '\', this.value)">' + esc(v) + '</textarea></div>';
     }
     const f = picked[s.key];
@@ -417,7 +435,12 @@ async function startRun() {
   for (const d of devices) fd.append("device", d.id);
   for (const s of TYPES[type].slots()) {
     const v = picked[s.key];
-    if (v) fd.append(s.field, v);
+    if (!v) continue;
+    if (s.lines) {
+      for (const line of v.split("\n").map(l => l.trim()).filter(Boolean)) fd.append(s.field, line);
+    } else {
+      fd.append(s.field, typeof v === "string" ? v.trim() : v);
+    }
   }
   document.getElementById("runBtn").disabled = true;
   try {

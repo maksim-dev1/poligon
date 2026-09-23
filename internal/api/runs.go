@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,10 @@ import (
 //	device        repeated device ids (the devices to run on)
 //	watch_seconds smoke settle window (optional)
 //	artifact      one build file per platform (.apk/.aab for Android, .ipa for iOS)
+//	flow          maestro: a .yaml, or a .zip of the whole .maestro/ workspace
+//	flow_path     maestro: the flow to run inside a zipped workspace (optional)
+//	env           maestro: repeated KEY=VALUE, passed as -e
+//	include_tags  maestro: --include-tags; exclude_tags likewise
 func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	u, _ := auth.UserFrom(r.Context())
 
@@ -79,6 +84,29 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 			spec.FlowPath = p
 		}
 	}
+
+	// a zipped .maestro workspace (flows + subflows + config.yaml) unpacks
+	// next to the upload; flow_path picks one flow inside it, else maestro
+	// runs the whole workspace (its config.yaml decides which flows count)
+	if spec.FlowPath != "" && runner.IsZip(spec.FlowPath) {
+		target, err := runner.ExtractWorkspace(spec.FlowPath, filepath.Join(dir, "workspace"), r.FormValue("flow_path"))
+		if err != nil {
+			fail(w, http.StatusBadRequest, err)
+			return
+		}
+		spec.FlowPath = target
+	} else if r.FormValue("flow_path") != "" {
+		fail(w, http.StatusBadRequest, errors.New("flow_path needs a zipped workspace as the flow"))
+		return
+	}
+	env, err := parseEnv(r.Form["env"])
+	if err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+	spec.Env = env
+	spec.IncludeTags = r.FormValue("include_tags")
+	spec.ExcludeTags = r.FormValue("exclude_tags")
 
 	// --- build artifact(s): uploaded files or artifact_url ---
 	if multipart {
@@ -232,7 +260,7 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusConflict, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, redact(run))
+	writeJSON(w, http.StatusOK, run.Redacted())
 }
 
 // selectDevices resolves a platform/tag/count selector to free device ids.
@@ -304,27 +332,26 @@ func (s *Server) downloadArtifact(ctx context.Context, url, dir, name string) (s
 	return path, nil
 }
 
-// redact replaces server-side file paths in a run's spec with base names before
-// it goes over the wire.
-func redact(run model.Run) model.Run {
-	if run.Spec.FlowPath != "" {
-		run.Spec.FlowPath = filepath.Base(run.Spec.FlowPath)
+var envKey = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// parseEnv reads repeated env=KEY=VALUE fields for maestro's -e. POLIGON_* is
+// reserved: the runner sets those per device.
+func parseEnv(pairs []string) (map[string]string, error) {
+	if len(pairs) == 0 {
+		return nil, nil
 	}
-	if len(run.Spec.Artifacts) > 0 {
-		a := make(map[model.Platform]string, len(run.Spec.Artifacts))
-		for p, v := range run.Spec.Artifacts {
-			a[p] = filepath.Base(v)
+	env := make(map[string]string, len(pairs))
+	for _, kv := range pairs {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || !envKey.MatchString(k) {
+			return nil, fmt.Errorf("env %q: want KEY=VALUE", kv)
 		}
-		run.Spec.Artifacts = a
-	}
-	if len(run.Spec.TestArtifacts) > 0 {
-		a := make(map[model.Platform]string, len(run.Spec.TestArtifacts))
-		for p, v := range run.Spec.TestArtifacts {
-			a[p] = filepath.Base(v)
+		if strings.HasPrefix(k, "POLIGON_") {
+			return nil, fmt.Errorf("env %s: POLIGON_* is set by the farm", k)
 		}
-		run.Spec.TestArtifacts = a
+		env[k] = v
 	}
-	return run
+	return env, nil
 }
 
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
@@ -359,7 +386,7 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range runs {
-		runs[i] = redact(runs[i])
+		runs[i] = runs[i].Redacted()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"runs":  runs,
@@ -373,7 +400,7 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, redact(run))
+	writeJSON(w, http.StatusOK, run.Redacted())
 }
 
 // rerunRun re-submits a finished run with the same spec and device set.
@@ -412,7 +439,7 @@ func (s *Server) rerunRun(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusConflict, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, redact(run))
+	writeJSON(w, http.StatusOK, run.Redacted())
 }
 
 func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {

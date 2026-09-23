@@ -1,6 +1,8 @@
 // Package model holds the core domain types shared across poligon.
 package model
 
+import "path/filepath"
+
 import "time"
 
 // Platform is the device OS family.
@@ -128,7 +130,10 @@ type RunSpec struct {
 	Artifacts      map[Platform]string `json:"artifacts,omitempty"`      // platform -> stored filename (app under test)
 	TestArtifacts  map[Platform]string `json:"test_artifacts,omitempty"` // integration_test: platform -> androidTest apk
 	WatchSeconds   int                 `json:"watch_seconds,omitempty"`
-	FlowPath       string              `json:"flow_path,omitempty"`       // maestro
+	FlowPath       string              `json:"flow_path,omitempty"`       // maestro: a .yaml, a workspace dir, or a flow inside one
+	Env            map[string]string   `json:"env,omitempty"`             // maestro: -e KEY=VALUE for the flows
+	IncludeTags    string              `json:"include_tags,omitempty"`    // maestro: --include-tags (comma-separated)
+	ExcludeTags    string              `json:"exclude_tags,omitempty"`    // maestro: --exclude-tags (comma-separated)
 	Command        string              `json:"command,omitempty"`         // command run type
 	TimeoutSeconds int                 `json:"timeout_seconds,omitempty"` // per-device cap (default 1200)
 	CallbackURL    string              `json:"callback_url,omitempty"`    // POSTed the run JSON on finish
@@ -159,4 +164,35 @@ type Session struct {
 	IP        string    `json:"ip"`
 	UserAgent string    `json:"user_agent"`
 	Revoked   bool      `json:"revoked"`
+}
+
+// Redacted replaces server-side file paths in a run's spec with base names before
+// it goes over the wire.
+func (run Run) Redacted() Run {
+	if run.Spec.FlowPath != "" {
+		run.Spec.FlowPath = filepath.Base(run.Spec.FlowPath)
+	}
+	// env often carries test credentials — show which keys were set, not values
+	if len(run.Spec.Env) > 0 {
+		e := make(map[string]string, len(run.Spec.Env))
+		for k := range run.Spec.Env {
+			e[k] = "***"
+		}
+		run.Spec.Env = e
+	}
+	if len(run.Spec.Artifacts) > 0 {
+		a := make(map[Platform]string, len(run.Spec.Artifacts))
+		for p, v := range run.Spec.Artifacts {
+			a[p] = filepath.Base(v)
+		}
+		run.Spec.Artifacts = a
+	}
+	if len(run.Spec.TestArtifacts) > 0 {
+		a := make(map[Platform]string, len(run.Spec.TestArtifacts))
+		for p, v := range run.Spec.TestArtifacts {
+			a[p] = filepath.Base(v)
+		}
+		run.Spec.TestArtifacts = a
+	}
+	return run
 }

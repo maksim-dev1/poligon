@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,8 +19,7 @@ import (
 // against the device. Maestro auto-detects the platform from --device, so the
 // same flow drives Android and iOS.
 func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device, rd *model.RunDevice, devDir string) {
-	flow := run.Spec.FlowPath
-	if flow == "" {
+	if run.Spec.FlowPath == "" {
 		rd.Status, rd.Detail = model.RunError, "no flow file"
 		return
 	}
@@ -43,11 +43,7 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 	report := filepath.Join(devDir, "report.xml")
 	debug := filepath.Join(devDir, "maestro")
 
-	cmd := exec.CommandContext(ctx, r.maestro,
-		"--device", target,
-		"test", "--format", "junit", "--output", report,
-		"--debug-output", debug,
-		flow)
+	cmd := exec.CommandContext(ctx, r.maestro, maestroArgs(run.Spec, dev, target, report, debug)...)
 	cmd.Env = append(os.Environ(), "MAESTRO_CLI_NO_ANALYTICS=1", "CI=true")
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
@@ -95,6 +91,34 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 	default:
 		rd.Status, rd.Detail = model.RunPassed, ""
 	}
+}
+
+// maestroArgs builds the `maestro test` command line. The flows always get
+// POLIGON_DEVICE_ID / POLIGON_PLATFORM, so one suite run on several phones can
+// pick per-device data (a test account each, say); caller env cannot override
+// them.
+func maestroArgs(spec model.RunSpec, dev model.Device, target, report, debug string) []string {
+	args := []string{"--device", target,
+		"test", "--format", "junit", "--output", report,
+		"--debug-output", debug}
+	keys := make([]string, 0, len(spec.Env))
+	for k := range spec.Env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		args = append(args, "-e", k+"="+spec.Env[k])
+	}
+	args = append(args,
+		"-e", "POLIGON_DEVICE_ID="+dev.ID,
+		"-e", "POLIGON_PLATFORM="+string(dev.Platform))
+	if spec.IncludeTags != "" {
+		args = append(args, "--include-tags", spec.IncludeTags)
+	}
+	if spec.ExcludeTags != "" {
+		args = append(args, "--exclude-tags", spec.ExcludeTags)
+	}
+	return append(args, spec.FlowPath)
 }
 
 // resolveMaestro finds the maestro binary: PATH first, then the default
