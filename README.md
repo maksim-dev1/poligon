@@ -19,8 +19,50 @@ Done:
 - **test runs** (`internal/runner`): `install_smoke` (install → launch → assert alive + no crash), `maestro` (run a `.yaml` flow, collect report + recording), `command` (generic escape hatch — appium etc.), `integration_test` (Android: install the app + its androidTest apk, run the instrumentation). Per-device artifacts under `<storage_dir>/runs/<id>/<device>/`, results at `/runs.html` (status/type filters, paged)
 - **live debugging from VS Code** (`internal/adbtunnel`, Android): exposes the host's adb server on the network automatically while any Android device is reserved, so `flutter run -d <serial>` / VS Code attaches to a farm device directly — hot reload, breakpoints, not just install-and-collect. One-time setup, then reserve+open VS Code is all it takes. See "VS Code / live debugging" below.
 
+- **coding agents over MCP** (`/mcp`): Claude Code / Codex drive the farm themselves — reserve a phone, install a build, screenshot + UI tree, tap / swipe / type / keys / deep links, logs, adb shell, Maestro runs. See "Agents (MCP)" below.
+
 Next:
 - iOS `integration_test` — needs a `.xctestrun` bundle + `xcodebuild test-without-building`, and Xcode on the host
+
+### Agents (MCP)
+
+`POST /mcp` is an MCP server (streamable HTTP, stateless) authenticated with a
+personal API token — `Authorization: Bearer plgn_…`, never the session cookie.
+Tokens: dashboard → **Агенты** (create / revoke, shows ready-made commands) or
+`poligon token create` on the host.
+
+```sh
+# Claude Code
+claude mcp add --transport http --scope user poligon https://farm/mcp \
+  --header "Authorization: Bearer plgn_…"
+
+# Codex — ~/.codex/config.toml
+[mcp_servers.poligon]
+url = "https://farm/mcp"
+bearer_token_env_var = "POLIGON_TOKEN"
+tool_timeout_sec = 900   # installs/runs take minutes; Codex defaults to 60s
+```
+
+Tools: `list_devices`, `reserve_device`, `release_device`, `install_app`,
+`list_apps`, `launch_app`, `stop_app`, `clear_app_data`, `uninstall_app`,
+`screenshot`, `ui_tree`, `tap`, `swipe`, `type_text`, `press_key`, `open_url`,
+`wait_for`, `get_logs`, `shell`, `start_run`, `get_run`, `get_run_artifact`,
+`cancel_run`, `list_runs`.
+
+- **Coordinates.** Screenshots come back scaled to ≤1280px on the long edge
+  (iOS: to points), and every x/y in `tap`/`swipe`/`ui_tree` is in that image
+  space — the server maps it to device pixels / points. Prefer
+  `tap {text|id|index}` from `ui_tree` over raw coordinates.
+- **Leases.** A device tool renews the reservation (≤ every 30s), so an agent
+  holds a phone while it works and loses it after `idle_timeout` of silence.
+- **Local builds.** Tool calls are JSON, so a file on the agent's machine goes
+  up first: `curl -F file=@app.apk -H "Authorization: Bearer $POLIGON_TOKEN"
+  https://farm/api/uploads` → `upload_id` (owner-only, kept 48h), then
+  `install_app {upload_id}` or `start_run {app:[upload_id]}`. URLs work too.
+- **Limits.** Android `type_text` is ASCII-only (`input text`); use a Maestro
+  flow's `inputText` for Cyrillic. `shell`, `list_apps`, `clear_app_data`,
+  `uninstall_app` are Android only. iOS input/UI tree need the device's
+  WebDriverAgent screen up.
 
 ### Test-run API
 
@@ -154,8 +196,9 @@ step — the network (LAN / VPN) is the perimeter. Passwords are bcrypt hashed.
   24h sliding idle window, revoked on logout. CSRF is enforced (double-submit)
   on cookie-authenticated writes.
 - Login and signup are rate-limited (5 failures per email/IP → 15-min lock).
-- Legacy `Authorization: Bearer <token>` still resolves for pre-existing
-  scripted callers; personal API tokens are a separate follow-up.
+- Personal API tokens (`plgn_…`) for scripts, CI and agents: dashboard →
+  **Агенты**, or `poligon token create|list|revoke` on the host. Stored hashed,
+  shown once. Legacy per-user `Authorization: Bearer <token>` still resolves.
 
 Put poligon behind TLS for anything past the trusted LAN — either set `tls:` in
 the config (direct HTTPS) or front it with `tailscale serve` / Caddy. Secure
@@ -233,6 +276,7 @@ internal/ios       libimobiledevice + ios-deploy wrapper
 internal/devices   poll loop, flap detection, specs refresh
 internal/reserve   booking, leases, auto-release
 internal/auth      users + bearer tokens
+internal/uitree    uiautomator / WDA source XML → tappable element list (MCP)
 internal/install   apk / aab / ipa(re-sign) install pipeline
 internal/capture   screenshot / logs / shell / files / apps / recording off a device
 internal/runner    automated test runs (install_smoke, maestro, command, integration_test)

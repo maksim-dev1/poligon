@@ -325,6 +325,23 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// BearerMiddleware authenticates by API token only — for machine surfaces
+// (the MCP endpoint) that no browser should reach with its session cookie.
+func (a *Auth) BearerMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if u, ok := a.fromBearer(r); ok {
+			a.serve(next, w, r, u)
+			return
+		}
+		if a.opt.DevUser != "" && a.opt.DevAllow {
+			a.serve(next, w, r, model.User{Name: a.opt.DevUser})
+			return
+		}
+		w.Header().Set("WWW-Authenticate", `Bearer realm="poligon"`)
+		http.Error(w, "unauthorized: pass Authorization: Bearer plgn_…", http.StatusUnauthorized)
+	})
+}
+
 func (a *Auth) serve(next http.Handler, w http.ResponseWriter, r *http.Request, u model.User) {
 	next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
 }

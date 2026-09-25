@@ -483,7 +483,7 @@ func withInstallHint(out string, err error) (string, error) {
 
 // Launch starts the app's launcher activity.
 func (a *ADB) Launch(ctx context.Context, serial, pkg string) error {
-	_, err := a.shell(ctx, serial, "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
+	_, err := a.shell(ctx, serial, "monkey", "-p", shQuote(pkg), "-c", "android.intent.category.LAUNCHER", "1")
 	return err
 }
 

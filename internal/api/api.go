@@ -47,6 +47,7 @@ type Server struct {
 	web  http.FileSystem
 
 	adbFilter *adbfilter.Manager
+	agent     *agentState // MCP-side caches; set by Handler
 }
 
 // New builds the API server.
@@ -100,6 +101,10 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	api.HandleFunc("GET /devices/{id}/ui-dump", s.deviceUIDump)
 	api.HandleFunc("POST /devices/{id}/settings", s.deviceOpenSettings)
 	api.HandleFunc("GET /debug-tunnel/info", s.deviceDebugTunnelInfo)
+	api.HandleFunc("POST /uploads", s.createUpload)
+	api.HandleFunc("GET /tokens", s.listTokens)
+	api.HandleFunc("POST /tokens", s.createToken)
+	api.HandleFunc("DELETE /tokens/{prefix}", s.revokeToken)
 	api.HandleFunc("POST /devices/{id}/record/start", s.deviceRecordStart)
 	api.HandleFunc("POST /devices/{id}/record/stop", s.deviceRecordStop)
 	api.HandleFunc("GET /devices/{id}/record/download", s.deviceRecordDownload)
@@ -138,6 +143,8 @@ func (s *Server) Handler(a *auth.Auth) http.Handler {
 	ios.HandleFunc("GET /grid", s.screenGrid)
 
 	mux.Handle("/api/", http.StripPrefix("/api", a.Middleware(api)))
+	// agent surface: MCP over streamable HTTP, API tokens only
+	mux.Handle("/mcp", s.mcpHandler(a))
 	mux.Handle("/live/grid", http.StripPrefix("/live", a.Middleware(ios)))
 	mux.Handle("/live/ios/", http.StripPrefix("/live", a.Middleware(ios)))
 	mux.Handle("/live/", http.StripPrefix("/live", a.Middleware(s.live.Handler())))

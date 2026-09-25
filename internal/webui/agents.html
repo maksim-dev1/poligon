@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>агенты</title>
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js"></script>
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+  .head { flex: none; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .head-row { display: flex; align-items: center; gap: 10px; }
+  .head h1 { margin: 0; font: 600 14px/1.3 var(--sans); color: var(--text); }
+  .head .sp { margin-left: auto; }
+  .head .sub { margin-top: 3px; font: 400 12px/1.45 var(--sans); color: var(--text-3); max-width: 72ch; }
+
+  .body { flex: 1; overflow: auto; padding: 14px 14px 40px; display: grid; gap: 22px; align-content: start; max-width: 860px; }
+  section { display: grid; gap: 10px; }
+  h2 { margin: 0; font: 600 13px/1.3 var(--sans); color: var(--text); }
+  .step { font: 600 11px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+  p, li { margin: 0; font: 400 12.5px/1.65 var(--sans); color: var(--text-2); }
+  ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  code { font: 12px var(--mono); color: var(--text); }
+
+  pre {
+    margin: 0; padding: 12px 14px; background: var(--inset); border: 1px solid var(--line-2);
+    border-radius: var(--r-md); font: 12px/1.6 var(--mono); color: var(--text); overflow-x: auto;
+    white-space: pre;
+  }
+  .snip { position: relative; }
+  .snip .copy { position: absolute; top: 6px; right: 6px; }
+  .snip-label { font: 500 11.5px/1.4 var(--sans); color: var(--text-3); margin-bottom: 4px; }
+
+  .mint { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mint .input { flex: 1 1 220px; height: 30px; }
+
+  .fresh {
+    padding: 12px 14px; border-radius: var(--r-md); border: 1px solid rgba(63,185,138,.35);
+    background: rgba(63,185,138,.07); display: grid; gap: 8px;
+  }
+  .fresh b { color: var(--ok); font: 600 12.5px/1.4 var(--sans); }
+  .fresh .tok { font: 12.5px/1.5 var(--mono); color: var(--text); word-break: break-all; user-select: all; }
+
+  .toks { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+  .tok-row { display: flex; align-items: center; gap: 12px; padding: 8px 11px; background: var(--surface); }
+  .tok-row + .tok-row { border-top: 1px solid var(--line); }
+  .tok-name { font: 600 12.5px/1.35 var(--sans); color: var(--text); min-width: 0; flex: 1; }
+  .tok-name .id { font: 400 11.5px var(--mono); color: var(--text-3); margin-left: 6px; }
+  .tok-meta { font: 400 11.5px/1.4 var(--mono); color: var(--text-3); white-space: nowrap; }
+  .none { padding: 14px; color: var(--text-3); font: 400 12.5px/1.6 var(--sans); background: var(--surface); }
+
+  .tabs { display: inline-flex; gap: 2px; padding: 2px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-sm); justify-self: start; }
+  .tab {
+    appearance: none; border: 1px solid transparent; background: transparent; cursor: pointer;
+    padding: 0 12px; height: 26px; border-radius: var(--r-xs);
+    font: 500 12px/1 var(--sans); color: var(--text-3);
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { background: var(--surface); color: var(--text); border-color: var(--line-2); }
+
+  @media (max-width: 560px) { .tok-meta { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="head-row">
+    <h1>Агенты</h1>
+    <span class="sp"></span>
+    <a class="btn btn--sm" id="backLink" href="/" hidden>← Ферма</a>
+  </div>
+  <div class="sub">Подключите Claude Code или Codex к ферме по MCP. Агент сам резервирует телефон, ставит сборку,
+    смотрит на экран, нажимает, печатает, читает логи и гоняет Maestro-флоу, а в конце освобождает устройство.</div>
+</div>
+
+<div class="body">
+  <section>
+    <div class="step">Шаг 1</div>
+    <h2>Токен для агента</h2>
+    <p>Агент работает от вашего имени: устройства, которые он резервирует, в дашборде видны как ваши.
+      Токен показывается один раз. Заведите отдельный токен на каждую машину или агента, чтобы потом отозвать ровно его.</p>
+    <form class="mint" onsubmit="mint();return false">
+      <input class="input" id="tokName" maxlength="60" placeholder="Название, например «claude-code на ноутбуке»">
+      <button class="btn btn--primary btn--sm" type="submit">Создать токен</button>
+    </form>
+    <div id="fresh"></div>
+    <div class="toks" id="toks"><div class="none">загружаю…</div></div>
+  </section>
+
+  <section>
+    <div class="step">Шаг 2</div>
+    <h2>Подключить агента</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-claude" aria-selected="true" onclick="setTab('claude')">Claude Code</button>
+      <button class="tab" role="tab" id="tab-codex" aria-selected="false" onclick="setTab('codex')">Codex</button>
+    </div>
+    <div id="howto"></div>
+  </section>
+
+  <section>
+    <div class="step">Шаг 3</div>
+    <h2>Попросить</h2>
+    <p>Например: <i>«Возьми свободный Android на полигоне, поставь build/app-release.apk, пройди регистрацию
+      с номером 9990001122 и проверь, что после входа виден баланс. В конце освободи телефон»</i>.</p>
+    <ol>
+      <li>Ферма должна быть доступна агенту по сети (LAN или Tailscale), как и дашборд.</li>
+      <li>Резерв держится, пока агент вызывает инструменты. После ~15 минут тишины телефон освобождается сам.</li>
+      <li>Ввод текста на Android работает только с ASCII. Кириллицу печатайте через Maestro-флоу (<code>inputText</code>).</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+if (window.parent === window) document.getElementById("backLink").hidden = false;
+
+const MCP = location.origin + "/mcp";
+let tab = "claude";
+let token = "";   // the raw token just minted, only in memory
+
+function snippet(label, code) {
+  return `<div class="snip">
+    ${label ? `<div class="snip-label">${label}</div>` : ""}
+    <pre>${esc(code)}</pre>
+    <button class="btn btn--ghost btn--sm copy" type="button" data-code="${esc(code)}" onclick="copy(this)">Копировать</button>
+  </div>`;
+}
+
+function copy(btn) {
+  navigator.clipboard.writeText(btn.dataset.code).then(
+    () => toast("Скопировано"),
+    () => toast("Не удалось скопировать — выделите текст вручную", "err"));
+}
+
+function setTab(t) {
+  tab = t;
+  for (const id of ["claude", "codex"]) {
+    document.getElementById("tab-" + id).setAttribute("aria-selected", String(id === t));
+  }
+  renderHowto();
+}
+
+function renderHowto() {
+  const tok = token || "plgn_…";
+  const env = `export POLIGON_TOKEN=${tok}
+export POLIGON_URL=${location.origin}`;
+  const upload = `curl -sF file=@build/app.apk -H "Authorization: Bearer $POLIGON_TOKEN" $POLIGON_URL/api/uploads`;
+  let html = "";
+  if (tab === "claude") {
+    html = snippet("1. Добавить сервер (один раз, для всех проектов)",
+      `claude mcp add --transport http --scope user poligon ${MCP} \\
+  --header "Authorization: Bearer ${tok}"`)
+      + snippet("2. В ~/.zshrc, чтобы агент мог заливать локальные сборки через curl", env)
+      + `<p>Проверка: <code>claude mcp list</code> должен показать <code>poligon ✓ connected</code>, а в сессии <code>/mcp</code> выведет список инструментов.</p>`;
+  } else {
+    html = snippet("1. ~/.codex/config.toml",
+      `[mcp_servers.poligon]
+url = "${MCP}"
+bearer_token_env_var = "POLIGON_TOKEN"
+# установка .ipa и прогоны идут минутами; по умолчанию у Codex 60 с
+tool_timeout_sec = 900`)
+      + snippet("2. В ~/.zshrc (Codex читает токен отсюда, и curl для заливки сборок тоже)", env)
+      + `<p>Проверка: <code>codex mcp list</code>, затем в сессии <code>/mcp</code>.</p>`;
+  }
+  html += snippet("Как агент заливает локальный файл (он узнает это сам из инструкций сервера)", upload);
+  document.getElementById("howto").innerHTML = html;
+}
+
+function fmtDate(s) {
+  if (!s) return "никогда";
+  const d = new Date(s);
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }) + " " +
+    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: body ? HJ() : HW(), body: body ? JSON.stringify(body) : undefined });
+  const b = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(b.error || r.statusText);
+  return b;
+}
+
+async function loadTokens() {
+  const box = document.getElementById("toks");
+  try {
+    const toks = await api("GET", "/api/tokens");
+    box.innerHTML = toks.length ? toks.map(t => `<div class="tok-row">
+        <div class="tok-name">${esc(t.name || "без названия")}<span class="id">${esc(t.hash_prefix)}</span></div>
+        <div class="tok-meta">создан ${esc(fmtDate(t.created_at))} · использован ${esc(fmtDate(t.last_used_at))}</div>
+        <button class="btn btn--ghost btn--sm" type="button" onclick="revoke('${esc(t.hash_prefix)}', '${esc(t.name || t.hash_prefix)}')">Отозвать</button>
+      </div>`).join("")
+      : `<div class="none">Токенов пока нет.</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="none">${esc(e.message)}</div>`;
+  }
+}
+
+async function mint() {
+  const name = document.getElementById("tokName").value.trim();
+  try {
+    const t = await api("POST", "/api/tokens", { name });
+    token = t.token;
+    document.getElementById("tokName").value = "";
+    document.getElementById("fresh").innerHTML = `<div class="fresh">
+        <b>Токен создан. Скопируйте его сейчас, повторно он не покажется.</b>
+        <div class="tok">${esc(token)}</div>
+        <p>Команды ниже уже подставили этот токен.</p>
+      </div>`;
+    renderHowto();
+    loadTokens();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+async function revoke(prefix, name) {
+  const ok = await confirmDialog({
+    title: "Отозвать токен?",
+    body: `«${name}» перестанет работать сразу: агенты и скрипты с ним получат 401.`,
+    okText: "Отозвать",
+  });
+  if (!ok) return;
+  try {
+    await api("DELETE", "/api/tokens/" + prefix);
+    toast("Токен отозван");
+    loadTokens();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+renderHowto();
+loadTokens();
+</script>
+</body>
+</html>

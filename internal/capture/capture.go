@@ -198,8 +198,11 @@ func (c *Capturer) ListPackages(ctx context.Context, dev model.Device, withSyste
 	return c.adb.ListPackages(ctx, dev.Serial, withSystem)
 }
 
-// ForceStopApp kills every process of a package.
+// ForceStopApp kills every process of a package (terminates an iOS app).
 func (c *Capturer) ForceStopApp(ctx context.Context, dev model.Device, pkg string) error {
+	if dev.Platform == model.IOS && c.ios != nil && c.ios.Configured(dev.ID) {
+		return c.ios.TerminateApp(dev.ID, pkg)
+	}
 	if dev.Platform != model.Android {
 		return fmt.Errorf("app manager unsupported on %s", dev.Platform)
 	}
@@ -222,8 +225,11 @@ func (c *Capturer) UninstallApp(ctx context.Context, dev model.Device, pkg strin
 	return c.adb.Uninstall(ctx, dev.Serial, pkg)
 }
 
-// LaunchApp starts a package's launcher activity.
+// LaunchApp starts a package's launcher activity (an iOS bundle id via WDA).
 func (c *Capturer) LaunchApp(ctx context.Context, dev model.Device, pkg string) error {
+	if dev.Platform == model.IOS && c.ios != nil && c.ios.Configured(dev.ID) {
+		return c.ios.LaunchApp(dev.ID, pkg)
+	}
 	if dev.Platform != model.Android {
 		return fmt.Errorf("app manager unsupported on %s", dev.Platform)
 	}
@@ -246,12 +252,20 @@ func (c *Capturer) StopRecording(ctx context.Context, dev model.Device) error {
 	return c.adb.StopScreenRecord(ctx, dev.Serial)
 }
 
-// UIDump captures the current screen's view hierarchy as XML.
+// UIDump captures the current screen's view hierarchy as XML: uiautomator's
+// dump on Android, WebDriverAgent's source on iOS.
 func (c *Capturer) UIDump(ctx context.Context, dev model.Device) (string, error) {
-	if dev.Platform != model.Android {
+	switch dev.Platform {
+	case model.Android:
+		return c.adb.UIDump(ctx, dev.Serial)
+	case model.IOS:
+		if c.ios == nil || !c.ios.Configured(dev.ID) {
+			return "", fmt.Errorf("iOS live screen is not up for %s", dev.ID)
+		}
+		return c.ios.Source(ctx, dev.ID)
+	default:
 		return "", fmt.Errorf("UI dump unsupported on %s", dev.Platform)
 	}
-	return c.adb.UIDump(ctx, dev.Serial)
 }
 
 // OpenSettings jumps the device to one whitelisted system settings screen.

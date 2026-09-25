@@ -197,31 +197,9 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 
 	spec.Command = r.FormValue("command")
 
-	switch typ {
-	case "install_smoke":
-		if len(spec.Artifacts) == 0 {
-			fail(w, http.StatusBadRequest, errors.New("install_smoke needs a build (artifact or artifact_url)"))
-			return
-		}
-	case "maestro":
-		if spec.FlowPath == "" {
-			fail(w, http.StatusBadRequest, errors.New("maestro needs a flow (flow file or flow_url)"))
-			return
-		}
-	case "command":
-		if spec.Command == "" {
-			fail(w, http.StatusBadRequest, errors.New("command run needs command="))
-			return
-		}
-	case "integration_test":
-		if len(spec.Artifacts) == 0 {
-			fail(w, http.StatusBadRequest, errors.New("integration_test needs the app build (artifact or artifact_url)"))
-			return
-		}
-		if len(spec.TestArtifacts) == 0 {
-			fail(w, http.StatusBadRequest, errors.New("integration_test needs the androidTest build (test_artifact or test_artifact_url)"))
-			return
-		}
+	if err := checkRunSpec(typ, spec); err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
 	}
 
 	if v := r.FormValue("watch_seconds"); v != "" {
@@ -261,6 +239,32 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, run.Redacted())
+}
+
+// checkRunSpec rejects a run missing the inputs its type needs.
+func checkRunSpec(typ string, spec model.RunSpec) error {
+	switch typ {
+	case "install_smoke":
+		if len(spec.Artifacts) == 0 {
+			return errors.New("install_smoke needs a build (artifact or artifact_url)")
+		}
+	case "maestro":
+		if spec.FlowPath == "" {
+			return errors.New("maestro needs a flow (flow file or flow_url)")
+		}
+	case "command":
+		if spec.Command == "" {
+			return errors.New("command run needs command=")
+		}
+	case "integration_test":
+		if len(spec.Artifacts) == 0 {
+			return errors.New("integration_test needs the app build (artifact or artifact_url)")
+		}
+		if len(spec.TestArtifacts) == 0 {
+			return errors.New("integration_test needs the androidTest build (test_artifact or test_artifact_url)")
+		}
+	}
+	return nil
 }
 
 // selectDevices resolves a platform/tag/count selector to free device ids.

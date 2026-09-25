@@ -20,6 +20,24 @@
         ],
         "createdAt": "2026-09-14T08:13:09.088Z",
         "reason": "matches existing app-wide dense dev-tool pattern: app.css already uses 10-11px for .tag/.tile-bar .btn/hint labels throughout (lines 134,303,347,608) — consistent, not a one-off"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "internal/webui/agents.html"
+        ],
+        "createdAt": "2026-09-25T04:40:17.337Z",
+        "reason": "Claude: .tabs is the 2px-inset segmented control copied from runs.html .segs; buttons carry their own 12px padding"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "internal/webui/agents.html"
+        ],
+        "createdAt": "2026-09-25T04:40:17.373Z",
+        "reason": "Claude: head scale (14px h1 / 12.5px body) matches runs.html and vscode-setup.html in the shared app.css system"
       }
     ]
   }
