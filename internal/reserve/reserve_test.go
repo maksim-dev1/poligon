@@ -53,3 +53,20 @@ func TestReserveManyHeldIsTaken(t *testing.T) {
 		t.Fatalf("want ErrTaken, got %v", err)
 	}
 }
+
+// A single-device reservation (REST /devices/{id}/reserve, MCP reserve_device)
+// must show up as a batch, or the dashboard cannot open its screen.
+func TestReserveIsABatchOfOne(t *testing.T) {
+	m := newManager(t, map[string]model.DeviceStatus{"a": model.StatusFree})
+	if _, err := m.Reserve("a", "u@x"); err != nil {
+		t.Fatal(err)
+	}
+	bs, err := m.UserBatches("u@x")
+	if err != nil || len(bs) != 1 {
+		t.Fatalf("batches: %+v, %v", bs, err)
+	}
+	ids, err := m.BatchDevices(bs[0].Batch, "u@x")
+	if err != nil || len(ids) != 1 || ids[0] != "a" {
+		t.Fatalf("batch devices: %v, %v", ids, err)
+	}
+}

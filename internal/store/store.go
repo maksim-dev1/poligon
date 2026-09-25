@@ -56,6 +56,11 @@ func migrate(db *sql.DB) {
 	if _, err := db.Exec(`ALTER TABLE devices ADD COLUMN adopted INTEGER NOT NULL DEFAULT 0`); err == nil {
 		_, _ = db.Exec(`UPDATE devices SET adopted = 1`)
 	}
+
+	// single-device reservations used to carry no batch, which hid them from
+	// the dashboard; give every live one a batch of its own (idempotent)
+	_, _ = db.Exec(`UPDATE reservations SET batch = lower(hex(randomblob(8)))
+		WHERE released = 0 AND batch = ''`)
 }
 
 // Close closes the underlying database.

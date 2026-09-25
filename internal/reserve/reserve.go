@@ -36,7 +36,10 @@ func New(st *store.Store, db *sql.DB, idleTimeout, maxLease time.Duration) *Mana
 	return &Manager{st: st, db: db, idleTimeout: idleTimeout, maxLease: maxLease}
 }
 
-// Reserve gives the device to user, if free.
+// Reserve gives the device to user, if free. The reservation is a batch of
+// one: the dashboard finds, opens and releases a user's devices by batch, so a
+// device reserved by an API caller or an MCP agent must have one too, or its
+// screen cannot be opened from the dashboard.
 func (m *Manager) Reserve(deviceID, user string) (model.Reservation, error) {
 	d, err := m.st.Device(deviceID)
 	if err != nil {
@@ -66,9 +69,9 @@ func (m *Manager) Reserve(deviceID, user string) (model.Reservation, error) {
 	defer tx.Rollback()
 
 	r, err := tx.Exec(
-		`INSERT INTO reservations (device_id, user, created_at, expires_at, renewed_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		deviceID, user, now, res.ExpiresAt, now)
+		`INSERT INTO reservations (device_id, user, batch, created_at, expires_at, renewed_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		deviceID, user, newBatchID(), now, res.ExpiresAt, now)
 	if err != nil {
 		return res, ErrTaken // unique partial index violation
 	}
