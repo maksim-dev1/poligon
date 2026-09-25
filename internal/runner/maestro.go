@@ -47,6 +47,9 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 	target := dev.Serial
 	if dev.Platform == model.IOS {
 		target = dev.UDID
+		if err := wakeCoreDevice(ctx, dev.UDID); err != nil {
+			r.log.Warn("maestro: could not bring up the CoreDevice tunnel", "device", dev.ID, "err", err)
+		}
 	}
 	report := filepath.Join(devDir, "report.xml")
 	debug := filepath.Join(devDir, "maestro")
@@ -187,4 +190,18 @@ func maestroUnsupported(dev model.Device) string {
 			dev.ID, dev.Specs.OSVersion)
 	}
 	return ""
+}
+
+// wakeCoreDevice brings up the device's CoreDevice tunnel. Maestro lists
+// physical iPhones with `xcrun devicectl` and treats one whose tunnel is idle
+// ("disconnected" — the normal state between uses) as not connected at all;
+// asking devicectl for the device's details connects the tunnel.
+func wakeCoreDevice(ctx context.Context, udid string) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "xcrun", "devicectl", "device", "info", "details", "--device", udid).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, tail(string(out), 300))
+	}
+	return nil
 }
