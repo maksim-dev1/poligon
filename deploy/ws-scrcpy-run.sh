@@ -4,7 +4,7 @@
 # idempotent: frees :8000, waits for the farm's adb server (com.pancir.adb), and
 # drops stale on-device scrcpy state so the goog-device tracker re-pushes cleanly.
 set -uo pipefail
-export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"  # lsof lives in /usr/sbin
 
 WS_DIR="${WS_SCRCPY_DIR:-$HOME/poligon-sidecar/ws-scrcpy}"
 

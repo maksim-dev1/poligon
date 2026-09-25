@@ -10,7 +10,7 @@
 # foreground, so launchd's stop/kickstart really stops it, and every start first
 # removes any other adb server so there is never more than one.
 set -uo pipefail
-export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"  # lsof lives in /usr/sbin
 
 ADB="${ADB:-$(command -v adb)}"
 PORT="${ADB_SERVER_PORT:-5037}"
