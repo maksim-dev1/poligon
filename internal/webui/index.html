@@ -491,7 +491,7 @@ async function reserveSelected() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ devices: ids }) });
     sel.clear();
-    openBatch(res.batch);
+    openBatch("mine"); // the wall shows these next to anything already held
   } catch (e) { toast(e.message, "err"); }
 }
 
@@ -509,7 +509,13 @@ async function refresh() {
   try {
     const pool = await api("/devices");
     $("err").textContent = "";
-    try { heldBatches = (await api("/batches")).batches || []; } catch { heldBatches = []; }
+    // every device this account holds is one set, whichever reservation it
+    // came from (the dashboard, an API script, an MCP agent): one banner, one
+    // wall with all the screens — the server's virtual batch "mine"
+    try {
+      const all = ((await api("/batches")).batches || []).flatMap(b => b.devices);
+      heldBatches = all.length ? [{ batch: "mine", devices: [...new Set(all)].sort() }] : [];
+    } catch { heldBatches = []; }
     const cands = pool.filter(d => !d.adopted);
     const farm  = pool.filter(d => d.adopted);
     for (const id of [...sel]) if (!farm.find(d => d.id === id && d.status === "free")) sel.delete(id);

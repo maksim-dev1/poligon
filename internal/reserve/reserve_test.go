@@ -70,3 +70,34 @@ func TestReserveIsABatchOfOne(t *testing.T) {
 		t.Fatalf("batch devices: %v, %v", ids, err)
 	}
 }
+
+// "mine" spans every reservation a user holds, across batches, and nobody
+// else's.
+func TestMineSpansBatches(t *testing.T) {
+	m := newManager(t, map[string]model.DeviceStatus{"a": model.StatusFree, "b": model.StatusFree, "c": model.StatusFree})
+	if _, err := m.Reserve("a", "u@x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.ReserveMany([]string{"b"}, "u@x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Reserve("c", "first@x"); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := m.BatchDevices(Mine, "u@x")
+	if err != nil || len(ids) != 2 || ids[0] != "a" || ids[1] != "b" {
+		t.Fatalf("mine: %v, %v", ids, err)
+	}
+	if err := m.HeartbeatBatch(Mine, "u@x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ReleaseBatch(Mine, "u@x", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.BatchDevices(Mine, "u@x"); !errors.Is(err, ErrNotHolder) {
+		t.Fatalf("after release: %v", err)
+	}
+	if _, ok, _ := m.Holder("c"); !ok {
+		t.Fatal("another user's device was released")
+	}
+}

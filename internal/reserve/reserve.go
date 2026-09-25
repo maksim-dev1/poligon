@@ -141,11 +141,18 @@ func (m *Manager) ReserveMany(deviceIDs []string, user string) (string, []model.
 	return batch, out, nil
 }
 
+// Mine is a virtual batch: every device the user holds, whatever batch each
+// reservation came from — so the dashboard opens, renews, installs to and
+// releases all of a user's devices together (one reserved from the dashboard,
+// another by an agent) instead of one screen per reservation.
+const Mine = "mine"
+
 // BatchDevices returns the device ids held by an active batch owned by user.
 func (m *Manager) BatchDevices(batch, user string) ([]string, error) {
 	rows, err := m.db.Query(
-		`SELECT device_id FROM reservations WHERE batch = ? AND user = ? AND released = 0 ORDER BY device_id`,
-		batch, user)
+		`SELECT device_id FROM reservations
+		 WHERE (? = 'mine' OR batch = ?) AND user = ? AND released = 0 ORDER BY device_id`,
+		batch, batch, user)
 	if err != nil {
 		return nil, err
 	}
@@ -207,8 +214,9 @@ func (m *Manager) UserBatches(user string) ([]UserBatch, error) {
 // HeartbeatBatch renews every reservation in a batch.
 func (m *Manager) HeartbeatBatch(batch, user string) error {
 	r, err := m.db.Exec(
-		`UPDATE reservations SET renewed_at = ? WHERE batch = ? AND user = ? AND released = 0`,
-		time.Now(), batch, user)
+		`UPDATE reservations SET renewed_at = ?
+		 WHERE (? = 'mine' OR batch = ?) AND user = ? AND released = 0`,
+		time.Now(), batch, batch, user)
 	if err != nil {
 		return err
 	}
