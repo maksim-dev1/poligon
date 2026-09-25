@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/pancir/poligon/internal/adb"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -78,6 +79,9 @@ func getOK(url string) bool {
 func adbCount(adbPath string) int {
 	if adbPath == "" {
 		adbPath = "adb"
+	}
+	if !adb.ServerUp() {
+		return -1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

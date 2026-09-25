@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pancir/poligon/internal/model"
+	"github.com/pancir/poligon/internal/procgroup"
 )
 
 // runCommand is the generic escape hatch: install the build (if any), then run
@@ -53,6 +54,7 @@ func (r *Runner) runCommand(ctx context.Context, run model.Run, dev model.Device
 
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
 	cmd.Dir = devDir
+	procgroup.Bind(cmd) // a cancel/timeout takes the whole tree down, not only the wrapper
 	cmd.Env = append(os.Environ(),
 		"POLIGON_DEVICE_ID="+dev.ID,
 		"POLIGON_PLATFORM="+string(dev.Platform),

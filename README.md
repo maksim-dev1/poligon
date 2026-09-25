@@ -235,17 +235,33 @@ node, bundletool, maestro, fastlane, appium.
 
 ## Operations
 
-Three services keep the farm running. All are `KeepAlive` and start at boot;
+Four services keep the farm running. All are `KeepAlive` and start at boot;
 each (re)start is self-cleaning.
 
 | service | what | logs |
 |---|---|---|
 | `com.pancir.poligon` (LaunchAgent, gui) | the Go binary — API, dashboard, device poll, iOS WebDriverAgent | `~/poligon/poligon.{out,err}.log` |
-| `com.pancir.poligon-live` (LaunchDaemon) | ws-scrcpy sidecar for Android screens; runs `deploy/ws-scrcpy-run.sh` which frees `:8000` + resets adb + clears stale on-device state on every start | `~/poligon-sidecar/ws-scrcpy.{out,err}.log` |
+| `com.pancir.adb` (LaunchAgent, gui) | the farm's **only** adb server: `adb server nodaemon` via `deploy/adb-server-run.sh`, which kills every other adb first | `~/poligon/adb.log` |
+| `com.pancir.poligon-live` (LaunchDaemon) | ws-scrcpy sidecar for Android screens; runs `deploy/ws-scrcpy-run.sh` which frees `:8000`, waits for the adb server, clears stale on-device state on every start | `~/poligon-sidecar/ws-scrcpy.{out,err}.log` |
 | `com.pancir.go-ios-tunnel` (LaunchDaemon, root) | go-ios tunnel — required for iOS 17+ | `/var/log/com.pancir.go-ios-tunnel.{out,err}.log` |
 
 - **Deploy:** `scripts/update.sh` — pull, atomic build (a broken build never
-  replaces the running binary), restart all three, wait for `/healthz`.
+  replaces the running binary), restart poligon + the two daemons (adb stays
+  up), wait for `/healthz`. New host or new service: `scripts/install-all.sh`.
+- **adb ownership.** adb normally starts its server on demand from any client
+  and daemonizes it — owned by no service, never stopped by a restart. A wedged
+  one then hangs `adb kill-server`, a second server starts beside it, and the
+  old one keeps the phones' USB: `adb devices` is empty with phones plugged in.
+  So launchd owns the server (`com.pancir.adb`), poligon's adb client refuses to
+  run while it is down instead of spawning one, and ws-scrcpy only waits for
+  it. poligon's watchdog restarts `com.pancir.adb` when it stops answering or a
+  second server appears (≤3× per 30 min), and restarts ws-scrcpy whenever the
+  server's pid changes — via a NOPASSWD sudoers rule for exactly those
+  `launchctl kickstart` commands (`/etc/sudoers.d/pancir-poligon`).
+- **Clean stop.** Maestro and `command` runs live in their own process group:
+  cancel, timeout or poligon shutdown sends the whole tree SIGTERM, then
+  SIGKILL after 5s, and poligon waits for that before exiting — no orphaned
+  JVMs holding a phone.
 - **Diagnose:** `scripts/farm-doctor.sh` (report) / `--fix` (clean up + restart).
 - **Health:** `GET /healthz` (unauthenticated) — poligon, ws-scrcpy, tunnel, adb
   device count, iOS screens ready/total. The dashboard shows it as a dot in the

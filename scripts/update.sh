@@ -37,6 +37,10 @@ go build -o poligon.new ./cmd/poligon
 mv poligon.new poligon          # only swapped if the build succeeded
 
 echo "==> restart services"
+# the adb server (com.pancir.adb) is left running: a deploy has no reason to
+# drop every phone's adb connection
+launchctl print "gui/$UID_N/com.pancir.adb" >/dev/null 2>&1 \
+  || echo "   com.pancir.adb is not installed — run scripts/install-all.sh once"
 launchctl kickstart -k "gui/$UID_N/com.pancir.poligon" 2>/dev/null \
   || echo "   poligon not loaded — run scripts/install-all.sh"
 restart_daemon com.pancir.poligon-live

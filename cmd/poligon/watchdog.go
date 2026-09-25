@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/pancir/poligon/internal/config"
@@ -14,8 +13,9 @@ import (
 )
 
 // depsWatchdog periodically logs the health of poligon's out-of-process
-// dependencies (ws-scrcpy sidecar, go-ios tunnel, adb) and self-heals iOS
-// screens whose WebDriverAgent has stopped answering.
+// dependencies (ws-scrcpy sidecar, go-ios tunnel, adb), keeps the farm on one
+// healthy adb server (adbGuard) and self-heals iOS screens whose
+// WebDriverAgent has stopped answering.
 func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov *provision.Manager, log *slog.Logger) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
@@ -26,6 +26,7 @@ func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov 
 		windowStart time.Time
 	}
 	heal := map[string]*healState{}
+	guard := newADBGuard(cfg.ADBPath, cfg.ADBServerAddr, log)
 
 	for {
 		select {
@@ -36,7 +37,7 @@ func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov 
 
 		sidecar := reachable(cfg.LiveSidecar)
 		tunnel := exec.Command("ios", "tunnel", "ls").Run() == nil
-		adbN := adbDeviceCount(cfg.ADBPath)
+		adbN := guard.check(ctx)
 		if !sidecar || !tunnel {
 			log.Warn("deps", "ws_scrcpy", sidecar, "go_ios_tunnel", tunnel, "adb_devices", adbN)
 		} else {
@@ -109,21 +110,4 @@ func probeStatus(url string) bool {
 	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
-}
-
-func adbDeviceCount(adbPath string) int {
-	if adbPath == "" {
-		adbPath = "adb"
-	}
-	out, err := exec.Command(adbPath, "devices").Output()
-	if err != nil {
-		return -1
-	}
-	n := 0
-	for _, ln := range strings.Split(string(out), "\n")[1:] {
-		if strings.HasSuffix(strings.TrimSpace(ln), "\tdevice") {
-			n++
-		}
-	}
-	return n
 }

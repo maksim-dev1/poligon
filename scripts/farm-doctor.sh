@@ -18,7 +18,7 @@ echo "poligon farm doctor  ($(date '+%F %T'))"; hr
 
 # --- services ---
 echo "services"
-for svc in "gui/$UID_N/com.pancir.poligon" system/com.pancir.poligon-live system/com.pancir.go-ios-tunnel; do
+for svc in "gui/$UID_N/com.pancir.poligon" "gui/$UID_N/com.pancir.adb" system/com.pancir.poligon-live system/com.pancir.go-ios-tunnel; do
   case "$svc" in system/*) L="sudo launchctl";; *) L="launchctl";; esac
   if $L print "$svc" 2>/dev/null | grep -q "state = running"; then ok "$svc"; else bad "$svc not running"; fi
 done
@@ -33,9 +33,14 @@ H=$(curl -sf --max-time 4 http://127.0.0.1:8080/healthz 2>/dev/null || true)
 [ -n "$H" ] && { echo "healthz"; echo "$H" | python3 -m json.tool 2>/dev/null | sed 's/^/  /'; }
 
 # --- adb ---
+SERVERS=$(ps -axo pid=,command= | awk '{n=split($2,p,"/"); if (p[n]=="adb") for(i=3;i<=NF;i++) if ($i=="server") {print $1; break}}')
+N_SERVERS=$(printf '%s\n' "$SERVERS" | grep -c . || true)
+if [ "$N_SERVERS" -gt 1 ]; then bad "$N_SERVERS adb servers running ($(echo $SERVERS)) — only one may own the USB; --fix restarts com.pancir.adb"
+elif [ "$N_SERVERS" -eq 1 ]; then ok "one adb server (pid $SERVERS)"
+else bad "no adb server running"; fi
 echo "adb devices"
-adb devices | awk 'NR>1 && NF {printf "  %s  %s\n", $1, $2}'
-UNAUTH=$(adb devices | awk 'NR>1 && $2!="device" && $2!="" {print $1}')
+lsof -ti tcp:5037 -sTCP:LISTEN >/dev/null 2>&1 && perl -e 'alarm 5; exec @ARGV' adb devices | awk 'NR>1 && NF {printf "  %s  %s\n", $1, $2}'
+UNAUTH=$(lsof -ti tcp:5037 -sTCP:LISTEN >/dev/null 2>&1 && perl -e 'alarm 5; exec @ARGV' adb devices | awk 'NR>1 && $2!="device" && $2!="" {print $1}')
 [ -n "$UNAUTH" ] && warn "not usable: $UNAUTH (unlock / replug / approve trust)"
 
 # --- orphans / stale ports ---
@@ -63,7 +68,10 @@ fi
 echo "==> FIX"
 pkill -f "ios runwda"  2>/dev/null || true
 pkill -f "ios forward" 2>/dev/null || true
-adb kill-server 2>/dev/null || true; adb start-server 2>/dev/null || true
+# the adb server is com.pancir.adb's: its start kills every other adb (a wedged
+# server hangs `adb kill-server`), then ws-scrcpy has to reconnect to the new one
+launchctl kickstart -k "gui/$UID_N/com.pancir.adb"          2>/dev/null || echo "  com.pancir.adb not installed — run scripts/install-all.sh"
+sleep 2
 sudo launchctl kickstart -k system/com.pancir.go-ios-tunnel 2>/dev/null || true
 sudo launchctl kickstart -k system/com.pancir.poligon-live  2>/dev/null || true
 launchctl kickstart -k "gui/$UID_N/com.pancir.poligon"      2>/dev/null || true

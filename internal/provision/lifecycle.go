@@ -40,9 +40,8 @@ func (m *Manager) ReapOrphans() {
 	_ = killMatching("xcodebuild.*WebDriverAgent")
 	freePortRange(m.cfg.IOSWDA.WDAPortBase, 50)
 	freePortRange(m.cfg.IOSWDA.MJPEGPortBase, 50)
-	if bin := m.adbBin(); bin != "" {
-		_ = exec.Command(bin, "start-server").Run()
-	}
+	// no `adb start-server` here: the adb server belongs to com.pancir.adb, and
+	// one started from poligon would daemonize outside any service
 	m.log.Info("provision: reaped orphan processes and freed WDA ports")
 }
 

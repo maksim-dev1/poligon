@@ -26,6 +26,7 @@ import (
 	"github.com/pancir/poligon/internal/ios"
 	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/live"
+	"github.com/pancir/poligon/internal/procgroup"
 	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/reserve"
 	"github.com/pancir/poligon/internal/runner"
@@ -130,6 +131,14 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// with the adb server run by launchd, poligon must never start one itself
+	if newADBGuard(cfg.ADBPath, cfg.ADBServerAddr, log).managed() {
+		adb.UseManagedServer(cfg.ADBServerAddr)
+		log.Info("adb server is managed by " + adbLabel)
+	} else {
+		log.Warn(adbLabel + " is not installed — adb clients may start stray servers; run scripts/install-all.sh")
+	}
+
 	// clear leftovers from a previous poligon before we respawn iOS screens
 	prov.ReapOrphans()
 	// re-open every active reservation's adb tunnel — a restart drops the
@@ -141,14 +150,24 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	go reapLoop(ctx, res, st, srv, log)
 	go prov.Resume(ctx)
 	go depsWatchdog(ctx, cfg, st, prov, log)
-	go run.Run(ctx)
+	runDone := make(chan struct{})
+	go func() { run.Run(ctx); close(runDone) }()
 
 	httpSrv := &http.Server{Addr: cfg.Listen, Handler: handler}
 	go func() {
 		<-ctx.Done()
+		log.Info("shutting down")
+		// an in-flight run's context is already canceled: its maestro/command
+		// process group gets SIGTERM, then SIGKILL after procgroup.Grace — wait
+		// for that, so launchd never has to kill poligon with children alive
+		select {
+		case <-runDone:
+		case <-time.After(procgroup.Grace + 3*time.Second):
+			log.Warn("shutdown: runner still busy, moving on")
+		}
 		prov.Shutdown() // kill WebDriverAgent runners + forwards — no orphans
 		capt.Shutdown() // kill any background idevicesyslog captures
-		sh, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		sh, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(sh)
 	}()

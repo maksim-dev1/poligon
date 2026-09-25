@@ -93,7 +93,11 @@ func (m *Manager) Run(ctx context.Context) {
 // pollOnce reconciles physical connectivity with stored status and registers
 // devices that connect without a config entry.
 func (m *Manager) pollOnce(ctx context.Context) {
-	androidStates, err := m.adb.Serials(ctx)
+	// bounded: a wedged adb server must not freeze the whole poll (and with
+	// it every device's status) — the watchdog restarts the server
+	actx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	androidStates, err := m.adb.Serials(actx)
+	cancel()
 	if err != nil {
 		m.log.Warn("adb poll failed", "err", err)
 		androidStates = map[string]string{}

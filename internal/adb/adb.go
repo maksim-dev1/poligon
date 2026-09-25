@@ -27,6 +27,9 @@ func New(bin string) *ADB {
 }
 
 func (a *ADB) run(ctx context.Context, args ...string) (string, error) {
+	if !ServerUp() {
+		return "", ErrNoServer
+	}
 	var out, errb bytes.Buffer
 	cmd := exec.CommandContext(ctx, a.bin, args...)
 	cmd.Stdout = &out
@@ -353,6 +356,9 @@ const RecordPath = "/sdcard/poligon-record.mp4"
 // exits — either the caller's StopScreenRecord signals it, or Android's own
 // ~3 min hard cap on `screenrecord` ends it first.
 func (a *ADB) StartScreenRecord(serial string) error {
+	if !ServerUp() {
+		return ErrNoServer
+	}
 	cmd := exec.Command(a.bin, "-s", serial, "shell", "screenrecord", "--time-limit", "180", RecordPath)
 	if err := cmd.Start(); err != nil {
 		return err
@@ -499,6 +505,9 @@ func (a *ADB) Instrument(ctx context.Context, serial, testPackage, runnerClass s
 // Screenshot grabs the current framebuffer as PNG bytes (raw, no adb newline
 // translation — `exec-out` keeps the stream binary-clean).
 func (a *ADB) Screenshot(ctx context.Context, serial string) ([]byte, error) {
+	if !ServerUp() {
+		return nil, ErrNoServer
+	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	var out, errb bytes.Buffer

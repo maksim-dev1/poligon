@@ -13,6 +13,7 @@ import (
 
 	"github.com/pancir/poligon/internal/adb"
 	"github.com/pancir/poligon/internal/model"
+	"github.com/pancir/poligon/internal/procgroup"
 )
 
 // runMaestro installs the build (if one was supplied) and runs a Maestro flow
@@ -45,6 +46,7 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 
 	cmd := exec.CommandContext(ctx, r.maestro, maestroArgs(run.Spec, dev, target, report, debug)...)
 	cmd.Env = append(os.Environ(), "MAESTRO_CLI_NO_ANALYTICS=1", "CI=true")
+	procgroup.Bind(cmd) // a cancel/timeout takes the whole tree down, not only the wrapper
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
 	runErr := cmd.Run()

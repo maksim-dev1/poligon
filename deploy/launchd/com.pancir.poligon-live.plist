@@ -5,8 +5,8 @@
   ws-scrcpy sidecar for poligon's Android live screen. Serves 127.0.0.1:8000;
   poligon reverse-proxies it under /live/ with auth.
 
-  ProgramArguments run deploy/ws-scrcpy-run.sh, which frees :8000, resets the
-  adb server and clears stale on-device scrcpy state on every (re)start — so a
+  ProgramArguments run deploy/ws-scrcpy-run.sh, which frees :8000, waits for the
+  adb server (com.pancir.adb) and clears stale on-device scrcpy state on every (re)start — so a
   crash-restart or `kickstart -k` always comes up clean (no EADDRINUSE loop).
 
   Install (paths assume the repo at ~/poligon and ws-scrcpy at

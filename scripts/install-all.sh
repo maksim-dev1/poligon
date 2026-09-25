@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One-time: install poligon + ws-scrcpy sidecar + go-ios tunnel as managed
-# services, plus log rotation. Run on the farm host from the repo root.
+# One-time: install poligon + adb server + ws-scrcpy sidecar + go-ios tunnel as
+# managed services, a sudoers rule for restarting the daemons, and log rotation. Run on the farm host from the repo root.
 # Prerequisite: scripts/bootstrap-mac.sh (tools) and scripts/install-live-sidecar.sh
 # (ws-scrcpy build) already run. For power-loss recovery see scripts/host-setup.sh.
 set -euo pipefail
@@ -15,7 +15,7 @@ echo "==> build poligon"
 go build -o poligon ./cmd/poligon
 [ -f config/devices.yaml ] || cp config/devices.example.yaml config/devices.yaml
 mkdir -p config/profiles storage
-chmod +x deploy/ws-scrcpy-run.sh
+chmod +x deploy/ws-scrcpy-run.sh deploy/adb-server-run.sh
 
 render() { sed -e "s#/Users/dev-mac/poligon#$REPO#g" -e "s#<string>dev-mac</string>#<string>$USER_N</string>#g" "$1"; }
 
@@ -37,6 +37,29 @@ reload_daemon() { # plistpath label
     sudo launchctl bootstrap system "$plist" && sudo launchctl enable "system/$label"
   fi
 }
+
+echo "==> adb server  (LaunchAgent, gui/$UID_N) — the farm's only adb server"
+ADB_AGENT="$HOME/Library/LaunchAgents/com.pancir.adb.plist"
+mkdir -p "$(dirname "$ADB_AGENT")"
+render deploy/launchd/com.pancir.adb.plist > "$ADB_AGENT"
+reload_agent "gui/$UID_N" "$ADB_AGENT" com.pancir.adb
+
+echo "==> sudoers: let $USER_N restart the farm daemons without a password"
+# poligon's watchdog restarts ws-scrcpy after the adb server changes, and
+# update.sh restarts both daemons — over ssh/launchd there is no tty for a
+# password. The rule allows exactly these two commands, nothing else.
+SUDOERS=/etc/sudoers.d/pancir-poligon
+TMP=$(mktemp)
+cat > "$TMP" <<RULES
+# installed by poligon scripts/install-all.sh
+$USER_N ALL=(root) NOPASSWD: /bin/launchctl kickstart -k system/com.pancir.poligon-live, /bin/launchctl kickstart -k system/com.pancir.go-ios-tunnel, /bin/launchctl print system/com.pancir.poligon-live, /bin/launchctl print system/com.pancir.go-ios-tunnel
+RULES
+if sudo visudo -cf "$TMP" >/dev/null; then
+  sudo install -m 0440 -o root -g wheel "$TMP" "$SUDOERS"
+else
+  echo "   sudoers rule failed validation — not installed" >&2
+fi
+rm -f "$TMP"
 
 echo "==> poligon  (LaunchAgent, gui/$UID_N)"
 AGENT="$HOME/Library/LaunchAgents/com.pancir.poligon.plist"
