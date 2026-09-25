@@ -152,7 +152,7 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 	go mgr.Run(ctx)
 	go reapLoop(ctx, res, st, srv, log)
 	go prov.Resume(ctx)
-	go depsWatchdog(ctx, cfg, st, prov, log)
+	go depsWatchdog(ctx, cfg, st, prov, iosCtl, log)
 	runDone := make(chan struct{})
 	go func() { run.Run(ctx); close(runDone) }()
 

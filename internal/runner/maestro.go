@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,11 @@ import (
 func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device, rd *model.RunDevice, devDir string) {
 	if run.Spec.FlowPath == "" {
 		rd.Status, rd.Detail = model.RunError, "no flow file"
+		return
+	}
+
+	if why := maestroUnsupported(dev); why != "" {
+		rd.Status, rd.Detail = model.RunError, why
 		return
 	}
 
@@ -165,4 +171,20 @@ func tail(s string, n int) string {
 // driverInstallRefused reports a MIUI refusal to install Maestro's driver apk.
 func driverInstallRefused(out []byte) bool {
 	return bytes.Contains(out, []byte("INSTALL_FAILED_USER_RESTRICTED"))
+}
+
+// maestroUnsupported explains up front why Maestro cannot drive a device,
+// instead of its own "Device … was requested, but it is not connected".
+// Maestro finds physical iPhones through CoreDevice (`xcrun devicectl`),
+// which only knows iOS 17 and later.
+func maestroUnsupported(dev model.Device) string {
+	if dev.Platform != model.IOS {
+		return ""
+	}
+	major, _ := strconv.Atoi(strings.SplitN(dev.Specs.OSVersion, ".", 2)[0])
+	if major > 0 && major < 17 {
+		return fmt.Sprintf("Maestro cannot run on this iPhone: it finds physical iPhones through CoreDevice (xcrun devicectl), which supports iOS 17+, and %s is on iOS %s. Drive it through the MCP tools (tap, type_text, ui_tree) or use an iPhone on iOS 17+.",
+			dev.ID, dev.Specs.OSVersion)
+	}
+	return ""
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pancir/poligon/internal/config"
+	"github.com/pancir/poligon/internal/iosscreen"
 	"github.com/pancir/poligon/internal/provision"
 	"github.com/pancir/poligon/internal/store"
 )
@@ -16,7 +17,7 @@ import (
 // dependencies (ws-scrcpy sidecar, go-ios tunnel, adb), keeps the farm on one
 // healthy adb server (adbGuard) and self-heals iOS screens whose
 // WebDriverAgent has stopped answering.
-func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov *provision.Manager, log *slog.Logger) {
+func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov *provision.Manager, screens *iosscreen.Controller, log *slog.Logger) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 
@@ -61,7 +62,9 @@ func depsWatchdog(ctx context.Context, cfg config.Config, st *store.Store, prov 
 				hs.healCount, hs.windowStart = 0, time.Now()
 			}
 
-			if probeStatus("http://" + r.WDA + "/status") {
+			// /status alone is not enough: WDA can answer it while its mjpeg
+			// server has stopped sending, and the wall then shows a frozen frame
+			if probeStatus("http://"+r.WDA+"/status") && !screens.StreamDead(r.DeviceID, 45*time.Second) {
 				hs.fails = 0
 				continue
 			}

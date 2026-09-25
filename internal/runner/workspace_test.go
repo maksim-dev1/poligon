@@ -111,3 +111,19 @@ func TestMaestroArgs(t *testing.T) {
 		t.Fatalf("args\n got %q\nwant %q", got, want)
 	}
 }
+
+func TestMaestroUnsupportedOldIOS(t *testing.T) {
+	old := model.Device{ID: "apple-iphone8-1", Platform: model.IOS, Specs: model.Specs{OSVersion: "15.8.5"}}
+	if why := maestroUnsupported(old); !strings.Contains(why, "iOS 17+") {
+		t.Fatalf("iOS 15: %q", why)
+	}
+	for _, d := range []model.Device{
+		{Platform: model.IOS, Specs: model.Specs{OSVersion: "26.3"}},
+		{Platform: model.IOS}, // unknown version: let Maestro decide
+		{Platform: model.Android, Specs: model.Specs{OSVersion: "10"}},
+	} {
+		if why := maestroUnsupported(d); why != "" {
+			t.Fatalf("%+v: %q", d, why)
+		}
+	}
+}

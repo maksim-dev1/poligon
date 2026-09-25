@@ -47,10 +47,11 @@ type stream struct {
 	closed bool
 	cancel context.CancelFunc
 	idle   *time.Timer
+	start  time.Time
 }
 
 func newStream() *stream {
-	s := &stream{}
+	s := &stream{start: time.Now()}
 	s.cond = sync.NewCond(&s.mu)
 	return s
 }
@@ -160,6 +161,30 @@ func (c *Controller) Subscribe(deviceID string) (*Sub, error) {
 	c.mu.Unlock()
 
 	return &Sub{c: c, id: deviceID, s: s}, nil
+}
+
+// StreamDead reports whether someone is watching the device's screen but no
+// frame has arrived for longer than after — the reader keeps reconnecting and
+// WebDriverAgent's mjpeg server still sends nothing, so WDA itself needs a
+// restart even though its /status may answer. False when nobody watches: an
+// unwatched screen has no stream to judge.
+func (c *Controller) StreamDead(deviceID string, after time.Duration) bool {
+	c.mu.Lock()
+	s := c.streams[deviceID]
+	c.mu.Unlock()
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.refs == 0 {
+		return false
+	}
+	last := s.start
+	if s.cur.data != nil {
+		last = s.cur.at
+	}
+	return time.Since(last) > after
 }
 
 func (s *stream) isClosed() bool {
@@ -279,7 +304,18 @@ func (c *Controller) pump(ctx context.Context, deviceID string, ep Endpoint, s *
 // hunts for `----BoundaryString`, finds nothing, and reports an empty stream.
 // Scanning for JPEG markers is what the old per-frame reader did and it works
 // against every mjpeg server we have seen, so that is the only path.
+//
+// A connection that stays open but stops delivering (the phone locked or
+// dozed, the usbmux forward wedged) returns no error and no data, so a plain
+// read would wait on it forever while the wall shows a frozen frame. After
+// stallAfter without a single byte the request is canceled, which returns
+// here and lets pump reconnect.
 func (c *Controller) readMJPEG(ctx context.Context, ep Endpoint, s *stream) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stall := time.AfterFunc(stallAfter, cancel)
+	defer stall.Stop()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ep.MJPEG, nil)
 	if err != nil {
 		return err
@@ -292,7 +328,28 @@ func (c *Controller) readMJPEG(ctx context.Context, ep Endpoint, s *stream) erro
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("mjpeg: %s", resp.Status)
 	}
-	return scanJPEGs(resp.Body, s)
+	err = scanJPEGs(&stallReader{r: resp.Body, t: stall}, s)
+	if ctx.Err() != nil && !stall.Stop() {
+		return fmt.Errorf("mjpeg: no data for %s, reconnecting", stallAfter)
+	}
+	return err
+}
+
+// stallAfter is how long an open mjpeg connection may go silent.
+var stallAfter = 10 * time.Second
+
+// stallReader pushes the stall deadline back on every read that got data.
+type stallReader struct {
+	r io.Reader
+	t *time.Timer
+}
+
+func (sr *stallReader) Read(p []byte) (int, error) {
+	n, err := sr.r.Read(p)
+	if n > 0 {
+		sr.t.Reset(stallAfter)
+	}
+	return n, err
 }
 
 var (
