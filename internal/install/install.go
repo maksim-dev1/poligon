@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/shogo82148/androidbinary/apk"
 
@@ -23,11 +24,15 @@ import (
 type Options struct {
 	// BundletoolJar is the path to bundletool for .aab expansion.
 	BundletoolJar string
-	// SigningIdentity is the codesign identity for iOS re-signing,
-	// e.g. "Apple Distribution: Company (TEAMID)".
+	// SigningIdentity is the codesign identity for iOS re-signing: a SHA-1,
+	// a name ("Apple Development: Jane Doe (ABCDE12345)") or part of one.
 	SigningIdentity string
-	// ProfileDir holds the farm ad-hoc *.mobileprovision files, one per bundle id.
-	ProfileDir string
+	// SigningIdentity may be empty: the keychain's only valid identity is used.
+	// ProfileDir holds farm *.mobileprovision files (exact bundle id or team
+	// wildcard); ExtraProfileDirs are searched too — normally Xcode's own
+	// profile folders, where automatic signing keeps the team wildcard profile.
+	ProfileDir       string
+	ExtraProfileDirs []string
 	// WorkDir is a scratch directory for expansion / re-signing.
 	WorkDir string
 }
@@ -77,7 +82,7 @@ func (in *Installer) Run(ctx context.Context, dev model.Device, artifactPath str
 		return Result{Output: out, Package: pkg, Version: ver}, err
 
 	case dev.Platform == model.IOS && ext == ".ipa":
-		appBundle, err := in.resignIPA(ctx, artifactPath)
+		appBundle, err := in.resignIPA(ctx, artifactPath, dev.UDID)
 		if err != nil {
 			return Result{}, err
 		}
@@ -120,9 +125,15 @@ func (in *Installer) expandAAB(ctx context.Context, aab string) ([]string, error
 // signable bundle (the app and each .appex/.framework with its own id), either
 // <bundle-id>.mobileprovision or a wildcard profile (app-id ending ".*") whose
 // team matches. Frameworks are signed before the app, extensions before the app.
-func (in *Installer) resignIPA(ctx context.Context, ipa string) (string, error) {
-	if in.opts.SigningIdentity == "" || in.opts.ProfileDir == "" {
-		return "", fmt.Errorf("iOS re-signing not configured (POLIGON_SIGNING_IDENTITY / POLIGON_PROFILE_DIR)")
+func (in *Installer) resignIPA(ctx context.Context, ipa, udid string) (string, error) {
+	ident, err := ResolveIdentity(ctx, in.opts.SigningIdentity)
+	if err != nil {
+		return "", fmt.Errorf("iOS re-signing: %w", err)
+	}
+	dirs := append([]string{in.opts.ProfileDir}, in.opts.ExtraProfileDirs...)
+	profiles, err := loadProfiles(dirs, ident.Hash, udid, time.Now())
+	if err != nil {
+		return "", fmt.Errorf("iOS re-signing with %s: %w", ident.Name, err)
 	}
 	work, err := os.MkdirTemp(in.opts.WorkDir, "resign-*")
 	if err != nil {
@@ -143,11 +154,6 @@ func (in *Installer) resignIPA(ctx context.Context, ipa string) (string, error) 
 		return "", fmt.Errorf("no .app in ipa")
 	}
 
-	profiles, err := loadProfiles(in.opts.ProfileDir)
-	if err != nil {
-		return "", err
-	}
-
 	// sign deepest-first: frameworks, plugins, then the app
 	var targets []string
 	for _, sub := range []string{"Frameworks", "PlugIns"} {
@@ -163,7 +169,7 @@ func (in *Installer) resignIPA(ctx context.Context, ipa string) (string, error) 
 	targets = append(targets, appDir)
 
 	for _, t := range targets {
-		if err := in.codesignBundle(ctx, t, profiles, work); err != nil {
+		if err := in.codesignBundle(ctx, t, ident.Hash, profiles, work); err != nil {
 			return "", err
 		}
 	}
@@ -172,15 +178,15 @@ func (in *Installer) resignIPA(ctx context.Context, ipa string) (string, error) 
 
 // codesignBundle embeds the right profile (for bundles that need one) and
 // re-signs with the farm identity + that profile's entitlements.
-func (in *Installer) codesignBundle(ctx context.Context, bundle string, profiles []profile, work string) error {
+func (in *Installer) codesignBundle(ctx context.Context, bundle, identity string, profiles []profile, work string) error {
 	id := bundleID(filepath.Join(bundle, "Info.plist"))
 
-	args := []string{"-f", "-s", in.opts.SigningIdentity}
+	args := []string{"-f", "-s", identity}
 	isFramework := strings.HasSuffix(bundle, ".framework") || strings.HasSuffix(bundle, ".dylib")
 	if !isFramework {
 		p, ok := matchProfile(profiles, id)
 		if !ok {
-			return fmt.Errorf("no farm profile for bundle id %q", id)
+			return fmt.Errorf("no provisioning profile for bundle id %q (need an exact one or the team wildcard)", id)
 		}
 		if err := copyFile(p.path, filepath.Join(bundle, "embedded.mobileprovision")); err != nil {
 			return err
@@ -197,40 +203,6 @@ func (in *Installer) codesignBundle(ctx context.Context, bundle string, profiles
 		return fmt.Errorf("codesign %s: %v: %s", filepath.Base(bundle), err, strings.TrimSpace(string(b)))
 	}
 	return nil
-}
-
-type profile struct {
-	path         string
-	appID        string // e.g. TEAMID.com.acme.app or TEAMID.*
-	team         string
-	entitlements []byte
-}
-
-func loadProfiles(dir string) ([]profile, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("profile dir: %w", err)
-	}
-	var out []profile
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".mobileprovision") {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
-		xml, err := exec.Command("security", "cms", "-D", "-i", path).Output()
-		if err != nil {
-			continue
-		}
-		p := profile{path: path}
-		p.appID = plistString(xml, "application-identifier")
-		p.team = plistString(xml, "TeamIdentifier")
-		p.entitlements = extractEntitlements(xml)
-		out = append(out, p)
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no .mobileprovision files in %s", dir)
-	}
-	return out, nil
 }
 
 // matchProfile prefers an exact app-id match, else a team wildcard.

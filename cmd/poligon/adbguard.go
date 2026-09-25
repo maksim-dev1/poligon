@@ -35,6 +35,7 @@ type adbGuard struct {
 
 	lastPID  int         // server pid seen on the previous check
 	wedged   int         // consecutive checks whose probe timed out
+	unseen   int         // consecutive checks with a phone on USB that adb does not list
 	restarts []time.Time // our own restarts of com.pancir.adb, for rate limiting
 }
 
@@ -65,11 +66,33 @@ func (g *adbGuard) check(ctx context.Context) int {
 		return -1
 	}
 
-	n := g.probe(ctx)
-	if n < 0 {
+	listed, err := g.probe(ctx)
+	n := -1
+	var missing []string
+	if err != nil {
 		g.wedged++
 	} else {
 		g.wedged = 0
+		n = 0
+		for _, state := range listed {
+			if state == "device" {
+				n++
+			}
+		}
+		// adb on macOS misses USB re-attach now and then: a phone that was
+		// replugged, rebooted or dropped off a hub comes back with its ADB
+		// interface up, and adb never lists it again — not even "offline" —
+		// until the server restarts
+		for _, serial := range usbADBSerials() {
+			if _, ok := listed[serial]; !ok {
+				missing = append(missing, serial)
+			}
+		}
+		if len(missing) > 0 {
+			g.unseen++
+		} else {
+			g.unseen = 0
+		}
 	}
 
 	var why string
@@ -78,6 +101,8 @@ func (g *adbGuard) check(ctx context.Context) int {
 		why = fmt.Sprintf("%d adb servers running (pids %v) — only one may hold the phones' USB", len(servers), servers)
 	case g.wedged >= 2:
 		why = "adb server stopped answering"
+	case g.unseen >= 2: // ~1 min: a phone mid-plug is not yet a stuck one
+		why = fmt.Sprintf("phones on USB with debugging on that adb does not see: %s", strings.Join(missing, ", "))
 	}
 	if why != "" {
 		g.restartADB(why, managed)
@@ -95,21 +120,69 @@ func (g *adbGuard) check(ctx context.Context) int {
 	return n
 }
 
-// probe lists devices with a timeout; -1 when the server does not answer.
-func (g *adbGuard) probe(ctx context.Context) int {
+// probe lists adb's devices (serial -> state) with a timeout.
+func (g *adbGuard) probe(ctx context.Context) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, g.adb, "devices").Output()
 	if err != nil {
-		return -1
+		return nil, err
 	}
-	n := 0
+	listed := map[string]string{}
 	for _, ln := range strings.Split(string(out), "\n")[1:] {
-		if strings.HasSuffix(strings.TrimSpace(ln), "\tdevice") {
-			n++
+		if f := strings.Fields(ln); len(f) >= 2 {
+			listed[f[0]] = f[1]
 		}
 	}
-	return n
+	return listed, nil
+}
+
+// usbADBSerials lists the USB serials of attached devices that expose an ADB
+// interface (class 255, subclass 66, protocol 1) — what adb should be
+// listing. Nil when ioreg fails: no evidence is no reason to restart.
+func usbADBSerials() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ioreg", "-r", "-c", "IOUSBHostDevice", "-l", "-w0", "-d", "2").Output()
+	if err != nil {
+		return nil
+	}
+	return parseUSBADBSerials(string(out))
+}
+
+// parseUSBADBSerials reads ioreg's tree: every "+-o" line opens a node, and
+// an interface node carries its class triple and the device's serial.
+func parseUSBADBSerials(ioreg string) []string {
+	var out []string
+	seen := map[string]bool{}
+	class, sub, proto, serial := "", "", "", ""
+	flush := func() {
+		if class == "255" && sub == "66" && proto == "1" && serial != "" && !seen[serial] {
+			seen[serial] = true
+			out = append(out, serial)
+		}
+		class, sub, proto, serial = "", "", "", ""
+	}
+	val := func(ln string) string {
+		i := strings.LastIndex(ln, " = ")
+		return strings.Trim(strings.TrimSpace(ln[i+3:]), `"`)
+	}
+	for _, ln := range strings.Split(ioreg, "\n") {
+		switch {
+		case strings.Contains(ln, "+-o "):
+			flush()
+		case strings.Contains(ln, `"bInterfaceClass" = `):
+			class = val(ln)
+		case strings.Contains(ln, `"bInterfaceSubClass" = `):
+			sub = val(ln)
+		case strings.Contains(ln, `"bInterfaceProtocol" = `):
+			proto = val(ln)
+		case strings.Contains(ln, `"USB Serial Number" = `):
+			serial = val(ln)
+		}
+	}
+	flush()
+	return out
 }
 
 func (g *adbGuard) restartADB(why string, managed bool) {
@@ -133,7 +206,7 @@ func (g *adbGuard) restartADB(why string, managed bool) {
 		return
 	}
 	g.restarts = append(g.restarts, time.Now())
-	g.wedged = 0
+	g.wedged, g.unseen = 0, 0
 	g.log.Warn("adb: "+why+" — restarting "+adbLabel, "attempt", len(g.restarts))
 	target := fmt.Sprintf("gui/%d/%s", g.uid, adbLabel)
 	if out, err := launchctl("kickstart", "-k", target); err != nil {

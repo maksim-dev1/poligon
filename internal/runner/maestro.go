@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -44,12 +45,25 @@ func (r *Runner) runMaestro(ctx context.Context, run model.Run, dev model.Device
 	report := filepath.Join(devDir, "report.xml")
 	debug := filepath.Join(devDir, "maestro")
 
-	cmd := exec.CommandContext(ctx, r.maestro, maestroArgs(run.Spec, dev, target, report, debug)...)
-	cmd.Env = append(os.Environ(), "MAESTRO_CLI_NO_ANALYTICS=1", "CI=true")
-	procgroup.Bind(cmd) // a cancel/timeout takes the whole tree down, not only the wrapper
 	var buf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &buf, &buf
-	runErr := cmd.Run()
+	var runErr error
+	for attempt := 1; ; attempt++ {
+		cmd := exec.CommandContext(ctx, r.maestro, maestroArgs(run.Spec, dev, target, report, debug)...)
+		cmd.Env = append(os.Environ(), "MAESTRO_CLI_NO_ANALYTICS=1", "CI=true")
+		procgroup.Bind(cmd) // a cancel/timeout takes the whole tree down, not only the wrapper
+		start := buf.Len()
+		cmd.Stdout, cmd.Stderr = &buf, &buf
+		runErr = cmd.Run()
+		// MIUI answers the install of Maestro's on-device driver with a
+		// "install via USB?" prompt that it sometimes declines on its own —
+		// the same run passes when simply started again
+		if runErr == nil || attempt == 2 || ctx.Err() != nil ||
+			!driverInstallRefused(buf.Bytes()[start:]) {
+			break
+		}
+		r.log.Info("maestro: driver install refused by the phone, retrying", "run", run.ID, "device", dev.ID)
+		fmt.Fprintf(&buf, "\n--- poligon: the phone refused to install Maestro's driver (INSTALL_FAILED_USER_RESTRICTED); retrying once ---\n\n")
+	}
 
 	if os.WriteFile(filepath.Join(devDir, "maestro.log"), buf.Bytes(), 0o644) == nil {
 		rd.Artifacts = append(rd.Artifacts, "maestro.log")
@@ -146,4 +160,9 @@ func tail(s string, n int) string {
 		return s
 	}
 	return "…" + s[len(s)-n:]
+}
+
+// driverInstallRefused reports a MIUI refusal to install Maestro's driver apk.
+func driverInstallRefused(out []byte) bool {
+	return bytes.Contains(out, []byte("INSTALL_FAILED_USER_RESTRICTED"))
 }

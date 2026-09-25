@@ -1,0 +1,1147 @@
++-o SDM439-QRD _SN:AC2CD63C@14100000  <class IOUSBHostDevice, id 0x100d86ee2, registered, matched, active, busy 0 (2209 ms), retain 45>
+  | {
+  |   "kUSBSerialNumberString" = "a728c5d30606"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = No
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "a728c5d30606"
+  |   "USB Vendor Name" = "Xiaomi"
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "SDM439-QRD _SN:AC2CD63C"
+  |   "IOServiceLegacyMatchingRegistryID" = 4309151461
+  |   "kUSBVendorString" = "Xiaomi"
+  |   "USB Product Name" = "SDM439-QRD _SN:AC2CD63C"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 10007
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 65352
+  |   "bcdDevice" = 1033
+  |   "UsbDeviceSignature" = <172748ff0904613732386335643330363036000000ffff00ff4201>
+  |   "sessionID" = 1389804227521122
+  |   "USB Address" = 52
+  |   "non-removable" = "no"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "USBPortType" = 0
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 336592896
+  |   "kUSBAddress" = 52
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100d86ee6, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSBHostCompositeDevice  <class AppleUSBHostCompositeDevice, id 0x100d86eeb, !registered, !matched, active, busy 0, retain 4>
+  |   {
+  |     "IOProbeScore" = 50000
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "IOClass" = "AppleUSBHostCompositeDevice"
+  |     "IOPersonalityPublisher" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "IOPrimaryDriverTerminateOptions" = Yes
+  |     "bDeviceClass" = 0
+  |   }
+  |   
+  +-o MTP@0  <class IOUSBHostInterface, id 0x100d86eee, registered, matched, active, busy 0 (784 ms), retain 6>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 5
+  |     "IOServiceLegacyMatchingRegistryID" = 4309151472
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 65352
+  |     "bcdDevice" = 1033
+  |     "USB Interface Name" = "MTP"
+  |     "USB Product Name" = "SDM439-QRD _SN:AC2CD63C"
+  |     "locationID" = 336592896
+  |     "bInterfaceClass" = 255
+  |     "bInterfaceSubClass" = 255
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "MTP"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Xiaomi"
+  |     "idVendor" = 10007
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 3
+  |     "USB Serial Number" = "a728c5d30606"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o ADB Interface@1  <class IOUSBHostInterface, id 0x100d86eef, registered, matched, active, busy 0 (685 ms), retain 12>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 6
+        "IOServiceLegacyMatchingRegistryID" = 4309151473
+        "bInterfaceProtocol" = 1
+        "bAlternateSetting" = 0
+        "idProduct" = 65352
+        "bcdDevice" = 1033
+        "USB Interface Name" = "ADB Interface"
+        "USB Product Name" = "SDM439-QRD _SN:AC2CD63C"
+        "locationID" = 336592896
+        "bInterfaceClass" = 255
+        "bInterfaceSubClass" = 66
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "pid 13319, adb"
+        "USBPortType" = 0
+        "kUSBString" = "ADB Interface"
+        "bInterfaceNumber" = 1
+        "bConfigurationValue" = 1
+        "USB Vendor Name" = "Xiaomi"
+        "idVendor" = 10007
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "bNumEndpoints" = 2
+        "USB Serial Number" = "a728c5d30606"
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o IOUSBHostDevice@14300000  <class IOUSBHostDevice, id 0x1005b1cbe, registered, matched, active, busy 0 (720548 ms), retain 54>
+  | {
+  |   "sessionID" = 448623268604225
+  |   "USBSpeed" = 3
+  |   "IOServiceLegacyMatchingRegistryID" = 4300938434
+  |   "idProduct" = 521
+  |   "iManufacturer" = 0
+  |   "bDeviceClass" = 9
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=2,"CurrentPowerState"=2}
+  |   "bcdDevice" = 256
+  |   "bMaxPacketSize0" = 64
+  |   "iProduct" = 0
+  |   "iSerialNumber" = 0
+  |   "bNumConfigurations" = 1
+  |   "kUSBContainerID" = "00000000-0000-0000-0000-000000000000"
+  |   "UsbDeviceSignature" = <5b0409020001090001090000>
+  |   "locationID" = 338690048
+  |   "bDeviceSubClass" = 0
+  |   "bcdUSB" = 528
+  |   "USB Address" = 42
+  |   "Built-In" = No
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "non-removable" = "no"
+  |   "bDeviceProtocol" = 1
+  |   "USBPortType" = 0
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "UsbExclusiveOwner" = "AppleUSB20Hub"
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idVendor" = 1115
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "kUSBAddress" = 42
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x1005b1cc3, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSB20Hub@14300000  <class AppleUSB20Hub, id 0x1005b1cc6, registered, matched, active, busy 0 (720386 ms), retain 23>
+  |   {
+  |     "IOProbeScore" = 50000
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHub"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "IOClass" = "AppleUSB20Hub"
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHub"
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "UsbBusCurrentPoolID" = 4300938438
+  |     "bDeviceClass" = 9
+  |     "locationID" = 338690048
+  |   }
+  |   
+  +-o IOUSBHostInterface@0  <class IOUSBHostInterface, id 0x1005b1cc7, !registered, !matched, active, busy 0 (0 ms), retain 9>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 0
+        "IOServiceLegacyMatchingRegistryID" = 4300938440
+        "bInterfaceProtocol" = 0
+        "bAlternateSetting" = 0
+        "idProduct" = 521
+        "bcdDevice" = 256
+        "locationID" = 338690048
+        "bInterfaceClass" = 9
+        "bInterfaceSubClass" = 0
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "AppleUSB20Hub"
+        "USBPortType" = 0
+        "bConfigurationValue" = 1
+        "bInterfaceNumber" = 0
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "idVendor" = 1115
+        "bNumEndpoints" = 1
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o SDM439-QRD _SN:55A825CA@14310000  <class IOUSBHostDevice, id 0x100e01fc3, registered, matched, active, busy 0 (1410076831 ms), retain 31>
+  | {
+  |   "kUSBSerialNumberString" = "00b2f36b0007"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = No
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "00b2f36b0007"
+  |   "USB Vendor Name" = "Xiaomi"
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "SDM439-QRD _SN:55A825CA"
+  |   "IOServiceLegacyMatchingRegistryID" = 4309655493
+  |   "kUSBVendorString" = "Xiaomi"
+  |   "USB Product Name" = "SDM439-QRD _SN:55A825CA"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 10007
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 65352
+  |   "bcdDevice" = 1033
+  |   "UsbDeviceSignature" = <172748ff0904303062326633366230303037000000ffff00ff4201>
+  |   "sessionID" = 1410076771026919
+  |   "USB Address" = 3
+  |   "non-removable" = "no"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "USBPortType" = 0
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 338755584
+  |   "kUSBAddress" = 3
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100e01fc6, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSBHostCompositeDevice  <class AppleUSBHostCompositeDevice, id 0x100e01fca, !registered, !matched, active, busy 0, retain 4>
+  |   {
+  |     "IOProbeScore" = 50000
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "IOClass" = "AppleUSBHostCompositeDevice"
+  |     "IOPersonalityPublisher" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "IOPrimaryDriverTerminateOptions" = Yes
+  |     "bDeviceClass" = 0
+  |   }
+  |   
+  +-o MTP@0  <class IOUSBHostInterface, id 0x100e01fcc, registered, matched, active, busy 0 (19 ms), retain 6>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 5
+  |     "IOServiceLegacyMatchingRegistryID" = 4309655502
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 65352
+  |     "bcdDevice" = 1033
+  |     "USB Interface Name" = "MTP"
+  |     "USB Product Name" = "SDM439-QRD _SN:55A825CA"
+  |     "locationID" = 338755584
+  |     "bInterfaceClass" = 255
+  |     "bInterfaceSubClass" = 255
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "MTP"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Xiaomi"
+  |     "idVendor" = 10007
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 3
+  |     "USB Serial Number" = "00b2f36b0007"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o ADB Interface@1  <class IOUSBHostInterface, id 0x100e01fcd, registered, matched, active, busy 0 (18 ms), retain 12>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 6
+        "IOServiceLegacyMatchingRegistryID" = 4309655503
+        "bInterfaceProtocol" = 1
+        "bAlternateSetting" = 0
+        "idProduct" = 65352
+        "bcdDevice" = 1033
+        "USB Interface Name" = "ADB Interface"
+        "USB Product Name" = "SDM439-QRD _SN:55A825CA"
+        "locationID" = 338755584
+        "bInterfaceClass" = 255
+        "bInterfaceSubClass" = 66
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "pid 13319, adb"
+        "USBPortType" = 0
+        "kUSBString" = "ADB Interface"
+        "bInterfaceNumber" = 1
+        "bConfigurationValue" = 1
+        "USB Vendor Name" = "Xiaomi"
+        "idVendor" = 10007
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "bNumEndpoints" = 2
+        "USB Serial Number" = "00b2f36b0007"
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o SDM439-QRD _SN:DD1B9C0D@14320000  <class IOUSBHostDevice, id 0x100e01fe6, registered, matched, active, busy 0 (1410087327 ms), retain 31>
+  | {
+  |   "kUSBSerialNumberString" = "97a12c2d0606"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = No
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "97a12c2d0606"
+  |   "USB Vendor Name" = "Xiaomi"
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "SDM439-QRD _SN:DD1B9C0D"
+  |   "IOServiceLegacyMatchingRegistryID" = 4309655528
+  |   "kUSBVendorString" = "Xiaomi"
+  |   "USB Product Name" = "SDM439-QRD _SN:DD1B9C0D"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 10007
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 65352
+  |   "bcdDevice" = 1033
+  |   "UsbDeviceSignature" = <172748ff0904393761313263326430363036000000ffff00ff4201>
+  |   "sessionID" = 1410087267914296
+  |   "USB Address" = 7
+  |   "non-removable" = "no"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "USBPortType" = 0
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 338821120
+  |   "kUSBAddress" = 7
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100e01fe9, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSBHostCompositeDevice  <class AppleUSBHostCompositeDevice, id 0x100e01fed, !registered, !matched, active, busy 0, retain 4>
+  |   {
+  |     "IOProbeScore" = 50000
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "IOClass" = "AppleUSBHostCompositeDevice"
+  |     "IOPersonalityPublisher" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "IOPrimaryDriverTerminateOptions" = Yes
+  |     "bDeviceClass" = 0
+  |   }
+  |   
+  +-o MTP@0  <class IOUSBHostInterface, id 0x100e01fef, registered, matched, active, busy 0 (19 ms), retain 6>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 5
+  |     "IOServiceLegacyMatchingRegistryID" = 4309655537
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 65352
+  |     "bcdDevice" = 1033
+  |     "USB Interface Name" = "MTP"
+  |     "USB Product Name" = "SDM439-QRD _SN:DD1B9C0D"
+  |     "locationID" = 338821120
+  |     "bInterfaceClass" = 255
+  |     "bInterfaceSubClass" = 255
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "MTP"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Xiaomi"
+  |     "idVendor" = 10007
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 3
+  |     "USB Serial Number" = "97a12c2d0606"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o ADB Interface@1  <class IOUSBHostInterface, id 0x100e01ff0, registered, matched, active, busy 0 (18 ms), retain 12>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 6
+        "IOServiceLegacyMatchingRegistryID" = 4309655538
+        "bInterfaceProtocol" = 1
+        "bAlternateSetting" = 0
+        "idProduct" = 65352
+        "bcdDevice" = 1033
+        "USB Interface Name" = "ADB Interface"
+        "USB Product Name" = "SDM439-QRD _SN:DD1B9C0D"
+        "locationID" = 338821120
+        "bInterfaceClass" = 255
+        "bInterfaceSubClass" = 66
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "pid 13319, adb"
+        "USBPortType" = 0
+        "kUSBString" = "ADB Interface"
+        "bInterfaceNumber" = 1
+        "bConfigurationValue" = 1
+        "USB Vendor Name" = "Xiaomi"
+        "idVendor" = 10007
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "bNumEndpoints" = 2
+        "USB Serial Number" = "97a12c2d0606"
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o iPhone@14340000  <class IOUSBHostDevice, id 0x100d65ffc, registered, matched, active, busy 0 (6399 ms), retain 74>
+  | {
+  |   "kUSBSerialNumberString" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |   "bDeviceClass" = 0
+  |   "UsbAppleDeviceECID" = 5741152418398246
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = No
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |   "USB Vendor Name" = "Apple Inc."
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=2,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 5
+  |   "kUSBProductString" = "iPhone"
+  |   "IOServiceLegacyMatchingRegistryID" = 4309016574
+  |   "kCDCDoNotMatchThisDevice" = Yes
+  |   "kUSBVendorString" = "Apple Inc."
+  |   "kCallInterfaceOpenWithGate" = Yes
+  |   "USB Product Name" = "iPhone"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 1452
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 5
+  |   "idProduct" = 4776
+  |   "bcdDevice" = 2049
+  |   "UsbAppleDeviceUDID" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |   "UsbDeviceSignature" = <ac05a812010836343939393937656466633565646536376662373261633136383930366234323439633037616234000000060101010100010200030000fffe02fffd01020d000a0001>
+  |   "sessionID" = 1243187813606506
+  |   "USB Address" = 24
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "non-removable" = "no"
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "kUSBPreferredConfiguration" = 3
+  |   "SupportsIPhoneOS" = Yes
+  |   "USBPortType" = 0
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 338952192
+  |   "kUSBAddress" = 24
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100d65fff, !registered, !matched, active, busy 0, retain 9>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=2,"CapabilityFlags"=32768,"MaxPowerState"=2,"DriverPowerState"=2}
+  |   }
+  |   
+  +-o IOService  <class IOService, id 0x100d66005, !registered, !matched, active, busy 0, retain 4>
+  |   {
+  |     "IOClass" = "IOService"
+  |     "CFBundleIdentifier" = "com.apple.kpi.iokit"
+  |     "IOProviderClass" = "IOUSBDevice"
+  |     "idProductMask" = 65520
+  |     "idProduct" = 4768
+  |     "IOProbeScore" = 98500
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "IOPersonalityPublisher" = "com.apple.driver.AppleMobileDevice"
+  |     "idVendor" = 1452
+  |     "CFBundleIdentifierKernel" = "com.apple.kpi.iokit"
+  |     "bDeviceClass" = 0
+  |   }
+  |   
+  +-o usbmuxd  <class AppleUSBHostDeviceUserClient, id 0x100d66006, !registered, !matched, active, busy 0, retain 7>
+  |   {
+  |     "IOUserClientCreator" = "pid 33650, usbmuxd"
+  |     "IOUserClientDefaultLocking" = Yes
+  |   }
+  |   
+  +-o PTP@0  <class IOUSBHostInterface, id 0x100d66009, registered, matched, active, busy 0 (1446 ms), retain 6>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 22
+  |     "IOServiceLegacyMatchingRegistryID" = 4309016591
+  |     "bInterfaceProtocol" = 1
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 4776
+  |     "bcdDevice" = 2049
+  |     "USB Interface Name" = "PTP"
+  |     "USB Product Name" = "iPhone"
+  |     "locationID" = 338952192
+  |     "bInterfaceClass" = 6
+  |     "bInterfaceSubClass" = 1
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "PTP"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 5
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 3
+  |     "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o Apple USB Multiplexor@1  <class IOUSBHostInterface, id 0x100d6600a, registered, matched, active, busy 0 (1150 ms), retain 12>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 13
+  |     "IOServiceLegacyMatchingRegistryID" = 4309016592
+  |     "bInterfaceProtocol" = 2
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 4776
+  |     "bcdDevice" = 2049
+  |     "USB Interface Name" = "Apple USB Multiplexor"
+  |     "USB Product Name" = "iPhone"
+  |     "locationID" = 338952192
+  |     "bInterfaceClass" = 255
+  |     "bInterfaceSubClass" = 254
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "pid 33650, usbmuxd"
+  |     "USBPortType" = 0
+  |     "kUSBString" = "Apple USB Multiplexor"
+  |     "bInterfaceNumber" = 1
+  |     "bConfigurationValue" = 5
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 2
+  |     "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o NCM Control@2  <class IOUSBHostInterface, id 0x100d6600b, registered, matched, active, busy 0 (1027 ms), retain 11>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 16
+  |     "IOServiceLegacyMatchingRegistryID" = 4309016594
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 4776
+  |     "bcdDevice" = 2049
+  |     "USB Interface Name" = "NCM Control"
+  |     "USB Product Name" = "iPhone"
+  |     "locationID" = 338952192
+  |     "bInterfaceClass" = 2
+  |     "bInterfaceSubClass" = 13
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBNCMControl"
+  |     "USBPortType" = 0
+  |     "kUSBString" = "NCM Control"
+  |     "bInterfaceNumber" = 2
+  |     "bConfigurationValue" = 5
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 1
+  |     "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o NCM Data@3  <class IOUSBHostInterface, id 0x100d6600c, registered, matched, active, busy 0 (1124 ms), retain 12>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 17
+  |     "IOServiceLegacyMatchingRegistryID" = 4309016595
+  |     "bInterfaceProtocol" = 1
+  |     "bAlternateSetting" = 1
+  |     "idProduct" = 4776
+  |     "bcdDevice" = 2049
+  |     "USB Interface Name" = "NCM Data"
+  |     "USB Product Name" = "iPhone"
+  |     "locationID" = 338952192
+  |     "Product Name" = "iPhone"
+  |     "bInterfaceClass" = 10
+  |     "bInterfaceSubClass" = 0
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBNCMData"
+  |     "USBPortType" = 0
+  |     "kUSBString" = "NCM Data"
+  |     "bInterfaceNumber" = 3
+  |     "bConfigurationValue" = 5
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 2
+  |     "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o NCM Control@4  <class IOUSBHostInterface, id 0x100d6600d, registered, matched, active, busy 0 (866 ms), retain 10>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 19
+  |     "IOServiceLegacyMatchingRegistryID" = 4309016596
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 4776
+  |     "bcdDevice" = 2049
+  |     "USB Interface Name" = "NCM Control"
+  |     "USB Product Name" = "iPhone"
+  |     "locationID" = 338952192
+  |     "bInterfaceClass" = 2
+  |     "bInterfaceSubClass" = 13
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBNCMControl"
+  |     "USBPortType" = 0
+  |     "kUSBString" = "NCM Control"
+  |     "bInterfaceNumber" = 4
+  |     "bConfigurationValue" = 5
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 0
+  |     "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o NCM Data@5  <class IOUSBHostInterface, id 0x100d6600e, registered, matched, active, busy 0 (1044 ms), retain 12>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 20
+        "IOServiceLegacyMatchingRegistryID" = 4309016597
+        "bInterfaceProtocol" = 1
+        "bAlternateSetting" = 1
+        "idProduct" = 4776
+        "bcdDevice" = 2049
+        "USB Interface Name" = "NCM Data"
+        "USB Product Name" = "iPhone"
+        "locationID" = 338952192
+        "Product Name" = "iPhone"
+        "bInterfaceClass" = 10
+        "bInterfaceSubClass" = 0
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "AppleUSBNCMData"
+        "USBPortType" = 0
+        "kUSBString" = "NCM Data"
+        "bInterfaceNumber" = 5
+        "bConfigurationValue" = 5
+        "USB Vendor Name" = "Apple Inc."
+        "idVendor" = 1452
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "bNumEndpoints" = 2
+        "USB Serial Number" = "6499997edfc5ede67fb72ac168906b4249c07ab4"
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o SAMSUNG_Android@14600000  <class IOUSBHostDevice, id 0x100e012b3, registered, matched, active, busy 0 (333 ms), retain 39>
+  | {
+  |   "kUSBSerialNumberString" = "4200cd1ac4e55445"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = No
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "4200cd1ac4e55445"
+  |   "USB Vendor Name" = "SAMSUNG"
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "SAMSUNG_Android"
+  |   "IOServiceLegacyMatchingRegistryID" = 4309652149
+  |   "kUSBVendorString" = "SAMSUNG"
+  |   "USB Product Name" = "SAMSUNG_Android"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 1256
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 26720
+  |   "bcdDevice" = 1024
+  |   "UsbDeviceSignature" = <e8046068000434323030636431616334653535343435000000ffff000202010a0000ff4201>
+  |   "sessionID" = 1395137050274701
+  |   "USB Address" = 54
+  |   "non-removable" = "no"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "USBPortType" = 0
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 341835776
+  |   "kUSBAddress" = 54
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100e012b6, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSBCDCCompositeDevice  <class AppleUSBCDCCompositeDevice, id 0x100e012b9, !registered, !matched, active, busy 0, retain 4>
+  |   {
+  |     "IOProbeScore" = 60000
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.cdc"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "IOClass" = "AppleUSBCDCCompositeDevice"
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.cdc"
+  |     "IOMatchedAtBoot" = Yes
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "IOPrimaryDriverTerminateOptions" = Yes
+  |     "bDeviceClass" = 0
+  |     "bDeviceProtocol" = 0
+  |   }
+  |   
+  +-o MTP@0  <class IOUSBHostInterface, id 0x100e012bc, registered, matched, active, busy 0 (25 ms), retain 6>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 5
+  |     "IOServiceLegacyMatchingRegistryID" = 4309652160
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 26720
+  |     "bcdDevice" = 1024
+  |     "USB Interface Name" = "MTP"
+  |     "USB Product Name" = "SAMSUNG_Android"
+  |     "locationID" = 341835776
+  |     "bInterfaceClass" = 255
+  |     "bInterfaceSubClass" = 255
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "MTP"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "SAMSUNG"
+  |     "idVendor" = 1256
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 3
+  |     "USB Serial Number" = "4200cd1ac4e55445"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o CDC Abstract Control Model (ACM)@1  <class IOUSBHostInterface, id 0x100e012bd, registered, matched, active, busy 0 (25 ms), retain 10>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 6
+  |     "IOServiceLegacyMatchingRegistryID" = 4309652161
+  |     "bInterfaceProtocol" = 1
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 26720
+  |     "bcdDevice" = 1024
+  |     "USB Interface Name" = "CDC Abstract Control Model (ACM)"
+  |     "USB Product Name" = "SAMSUNG_Android"
+  |     "locationID" = 341835776
+  |     "bInterfaceClass" = 2
+  |     "bInterfaceSubClass" = 2
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBACMControl"
+  |     "USBPortType" = 0
+  |     "kUSBString" = "CDC Abstract Control Model (ACM)"
+  |     "bInterfaceNumber" = 1
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "SAMSUNG"
+  |     "idVendor" = 1256
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 1
+  |     "USB Serial Number" = "4200cd1ac4e55445"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o CDC ACM Data@2  <class IOUSBHostInterface, id 0x100e012be, registered, matched, active, busy 0 (241 ms), retain 7>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 7
+  |     "IOServiceLegacyMatchingRegistryID" = 4309652162
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 26720
+  |     "bcdDevice" = 1024
+  |     "USB Interface Name" = "CDC ACM Data"
+  |     "USB Product Name" = "SAMSUNG_Android"
+  |     "locationID" = 341835776
+  |     "Product Name" = "SAMSUNG_Android"
+  |     "bInterfaceClass" = 10
+  |     "bInterfaceSubClass" = 0
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "USBPortType" = 0
+  |     "kUSBString" = "CDC ACM Data"
+  |     "bInterfaceNumber" = 2
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "SAMSUNG"
+  |     "idVendor" = 1256
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |     "bNumEndpoints" = 2
+  |     "IODEXTMatchCount" = 1
+  |     "USB Serial Number" = "4200cd1ac4e55445"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o MTP@3  <class IOUSBHostInterface, id 0x100e012bf, registered, matched, active, busy 0 (22 ms), retain 12>
+      {
+        "USBSpeed" = 3
+        "iInterface" = 5
+        "IOServiceLegacyMatchingRegistryID" = 4309652163
+        "bInterfaceProtocol" = 1
+        "bAlternateSetting" = 0
+        "idProduct" = 26720
+        "bcdDevice" = 1024
+        "USB Interface Name" = "MTP"
+        "USB Product Name" = "SAMSUNG_Android"
+        "locationID" = 341835776
+        "bInterfaceClass" = 255
+        "bInterfaceSubClass" = 66
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "pid 13319, adb"
+        "USBPortType" = 0
+        "kUSBString" = "MTP"
+        "bInterfaceNumber" = 3
+        "bConfigurationValue" = 1
+        "USB Vendor Name" = "SAMSUNG"
+        "idVendor" = 1256
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "bNumEndpoints" = 2
+        "USB Serial Number" = "4200cd1ac4e55445"
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o IOUSBHostDevice@14800000  <class IOUSBHostDevice, id 0x1005b1cc0, registered, matched, active, busy 0 (10 ms), retain 54>
+  | {
+  |   "sessionID" = 448623273137819
+  |   "USBSpeed" = 4
+  |   "IOServiceLegacyMatchingRegistryID" = 4300938441
+  |   "idProduct" = 528
+  |   "iManufacturer" = 0
+  |   "bDeviceClass" = 9
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=2,"CurrentPowerState"=2}
+  |   "bcdDevice" = 256
+  |   "bMaxPacketSize0" = 9
+  |   "iProduct" = 0
+  |   "iSerialNumber" = 0
+  |   "bNumConfigurations" = 1
+  |   "kUSBContainerID" = "00000000-0000-0000-0000-000000000000"
+  |   "UsbDeviceSignature" = <5b0410020001090003090000>
+  |   "locationID" = 343932928
+  |   "bDeviceSubClass" = 0
+  |   "bcdUSB" = 768
+  |   "USB Address" = 43
+  |   "Built-In" = No
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "non-removable" = "no"
+  |   "bDeviceProtocol" = 3
+  |   "USBPortType" = 0
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+  |   "UsbExclusiveOwner" = "AppleUSB30Hub"
+  |   "Device Speed" = 3
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idVendor" = 1115
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "kUSBAddress" = 43
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x1005b1cca, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o AppleUSB30Hub@14800000  <class AppleUSB30Hub, id 0x1005b1cd5, registered, matched, active, busy 0 (1 ms), retain 23>
+  |   {
+  |     "IOClass" = "AppleUSB30Hub"
+  |     "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHub"
+  |     "IOProviderClass" = "IOUSBHostDevice"
+  |     "USBSpeed" = 4
+  |     "IOProbeScore" = 50100
+  |     "IOMatchedAtBoot" = Yes
+  |     "locationID" = 343932928
+  |     "IOMatchCategory" = "IODefaultMatchCategory"
+  |     "UsbBusCurrentPoolID" = 4300938453
+  |     "bDeviceSubClass" = 0
+  |     "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHub"
+  |     "bDeviceClass" = 9
+  |   }
+  |   
+  +-o IOUSBHostInterface@0  <class IOUSBHostInterface, id 0x1005b1cd7, !registered, !matched, active, busy 0 (0 ms), retain 9>
+      {
+        "USBSpeed" = 4
+        "iInterface" = 0
+        "IOServiceLegacyMatchingRegistryID" = 4300938456
+        "bInterfaceProtocol" = 0
+        "bAlternateSetting" = 0
+        "idProduct" = 528
+        "bcdDevice" = 256
+        "locationID" = 343932928
+        "bInterfaceClass" = 9
+        "bInterfaceSubClass" = 0
+        "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+        "UsbExclusiveOwner" = "AppleUSB30Hub"
+        "USBPortType" = 0
+        "bConfigurationValue" = 1
+        "bInterfaceNumber" = 0
+        "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb"))
+        "idVendor" = 1115
+        "bNumEndpoints" = 1
+        "IOGeneralInterest" = "IOCommand is not serializable"
+        "IOClassNameOverride" = "IOUSBInterface"
+      }
+      
+
++-o Apple T2 Controller@80100000  <class IOUSBHostDevice, id 0x100000536, registered, matched, active, busy 0 (7024853 ms), retain 32>
+  | {
+  |   "kUSBSerialNumberString" = "0000000000000000"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = Yes
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb","com.apple.developer.driverkit.builtin"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "0000000000000000"
+  |   "USB Vendor Name" = "Apple Inc."
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "Apple T2 Controller"
+  |   "IOServiceLegacyMatchingRegistryID" = 4294968643
+  |   "kUSBVendorString" = "Apple Inc."
+  |   "USB Product Name" = "Apple T2 Controller"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 1452
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 33331
+  |   "bcdDevice" = 513
+  |   "UsbDeviceSignature" = <ac053382010230303030303030303030303030303030000000020d000a0001>
+  |   "sessionID" = 1126440005
+  |   "USB Address" = 2
+  |   "non-removable" = "yes"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "UsbUserClientEntitlementRequired" = "com.apple.ibridge.control"
+  |   "USBPortType" = 2
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 18446744071563116544
+  |   "kUSBAddress" = 2
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x100000544, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o NCM Control@0  <class IOUSBHostInterface, id 0x10000054b, registered, matched, active, busy 0 (3483399 ms), retain 11>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 7
+  |     "IOServiceLegacyMatchingRegistryID" = 4294968654
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 33331
+  |     "bcdDevice" = 513
+  |     "USB Interface Name" = "NCM Control"
+  |     "USB Product Name" = "Apple T2 Controller"
+  |     "locationID" = 18446744071563116544
+  |     "bInterfaceClass" = 2
+  |     "bInterfaceSubClass" = 13
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBNCMControl"
+  |     "USBPortType" = 2
+  |     "kUSBString" = "NCM Control"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb","com.apple.developer.driverkit.builtin"))
+  |     "bNumEndpoints" = 1
+  |     "USB Serial Number" = "0000000000000000"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o NCM Data@1  <class IOUSBHostInterface, id 0x10000054d, registered, matched, active, busy 0 (3540930 ms), retain 12>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 8
+  |     "IOServiceLegacyMatchingRegistryID" = 4294968655
+  |     "bInterfaceProtocol" = 1
+  |     "bAlternateSetting" = 1
+  |     "idProduct" = 33331
+  |     "bcdDevice" = 513
+  |     "USB Interface Name" = "NCM Data"
+  |     "USB Product Name" = "Apple T2 Controller"
+  |     "locationID" = 18446744071563116544
+  |     "Product Name" = "Apple T2 Controller"
+  |     "bInterfaceClass" = 10
+  |     "bInterfaceSubClass" = 0
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUSBNCMData"
+  |     "USBPortType" = 2
+  |     "kUSBString" = "NCM Data"
+  |     "bInterfaceNumber" = 1
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Apple Inc."
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb","com.apple.developer.driverkit.builtin"))
+  |     "bNumEndpoints" = 2
+  |     "USB Serial Number" = "0000000000000000"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o AppleUSBCDCCompositeDevice  <class AppleUSBCDCCompositeDevice, id 0x100000691, !registered, !matched, active, busy 0, retain 4>
+      {
+        "IOProbeScore" = 60000
+        "CFBundleIdentifier" = "com.apple.driver.usb.cdc"
+        "IOProviderClass" = "IOUSBHostDevice"
+        "IOClass" = "AppleUSBCDCCompositeDevice"
+        "bDeviceSubClass" = 0
+        "CFBundleIdentifierKernel" = "com.apple.driver.usb.cdc"
+        "IOMatchedAtBoot" = Yes
+        "IOMatchCategory" = "IODefaultMatchCategory"
+        "IOPrimaryDriverTerminateOptions" = Yes
+        "bDeviceClass" = 0
+        "bDeviceProtocol" = 0
+      }
+      
+
++-o Headset@80200000  <class IOUSBHostDevice, id 0x10000052a, registered, matched, active, busy 0 (3524616 ms), retain 32>
+  | {
+  |   "kUSBSerialNumberString" = "000000000000"
+  |   "bDeviceClass" = 0
+  |   "bDeviceSubClass" = 0
+  |   "iSerialNumber" = 3
+  |   "Built-In" = Yes
+  |   "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb","com.apple.developer.driverkit.builtin"))
+  |   "iProduct" = 2
+  |   "USB Serial Number" = "000000000000"
+  |   "USB Vendor Name" = "Apple"
+  |   "USBSpeed" = 3
+  |   "IOPowerManagement" = {"PowerOverrideOn"=Yes,"CapabilityFlags"=32768,"MaxPowerState"=2,"DevicePowerState"=2,"DriverPowerState"=0,"ChildrenPowerState"=1,"CurrentPowerState"=2}
+  |   "bNumConfigurations" = 1
+  |   "kUSBProductString" = "Headset"
+  |   "IOServiceLegacyMatchingRegistryID" = 4294968636
+  |   "kUSBVendorString" = "Apple"
+  |   "USB Product Name" = "Headset"
+  |   "iManufacturer" = 1
+  |   "idVendor" = 1452
+  |   "Device Speed" = 2
+  |   "kUSBCurrentConfiguration" = 1
+  |   "idProduct" = 33027
+  |   "bcdDevice" = 517
+  |   "UsbDeviceSignature" = <ac0503810502303030303030303030303030000000030000>
+  |   "sessionID" = 1123771424
+  |   "USB Address" = 1
+  |   "non-removable" = "yes"
+  |   "IOCFPlugInTypes" = {"9dc7b780-9ec0-11d4-a54f-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |   "IOClassNameOverride" = "IOUSBDevice"
+  |   "UsbUserClientEntitlementRequired" = "com.apple.ibridge.control"
+  |   "USBPortType" = 2
+  |   "bDeviceProtocol" = 0
+  |   "locationID" = 18446744071564165120
+  |   "kUSBAddress" = 1
+  |   "bcdUSB" = 512
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "bMaxPacketSize0" = 64
+  | }
+  | 
+  +-o AppleUSBHostLegacyClient  <class AppleUSBHostLegacyClient, id 0x10000053d, !registered, !matched, active, busy 0, retain 8>
+  |   {
+  |     "IOPowerManagement" = {"DevicePowerState"=0,"CurrentPowerState"=1,"CapabilityFlags"=65536,"MaxPowerState"=2,"DriverPowerState"=1}
+  |   }
+  |   
+  +-o HID Relay@0  <class IOUSBHostInterface, id 0x10000054a, registered, matched, active, busy 0 (3524344 ms), retain 12>
+  |   {
+  |     "USBSpeed" = 3
+  |     "iInterface" = 6
+  |     "IOServiceLegacyMatchingRegistryID" = 4294968652
+  |     "bInterfaceProtocol" = 0
+  |     "bAlternateSetting" = 0
+  |     "idProduct" = 33027
+  |     "bcdDevice" = 517
+  |     "USB Interface Name" = "HID Relay"
+  |     "USB Product Name" = "Headset"
+  |     "locationID" = 18446744071564165120
+  |     "bInterfaceClass" = 3
+  |     "bInterfaceSubClass" = 0
+  |     "IOCFPlugInTypes" = {"2d9786c6-9ef3-11d4-ad51-000a27052861"="IOUSBHostFamily.kext/Contents/PlugIns/IOUSBLib.bundle"}
+  |     "UsbExclusiveOwner" = "AppleUserUSBHostHIDDevice"
+  |     "USBPortType" = 2
+  |     "kUSBString" = "HID Relay"
+  |     "bInterfaceNumber" = 0
+  |     "bConfigurationValue" = 1
+  |     "USB Vendor Name" = "Apple"
+  |     "idVendor" = 1452
+  |     "IOServiceDEXTEntitlements" = (("com.apple.developer.driverkit.transport.usb","com.apple.developer.driverkit.builtin"))
+  |     "bNumEndpoints" = 1
+  |     "IODEXTMatchCount" = 1
+  |     "USB Serial Number" = "000000000000"
+  |     "IOGeneralInterest" = "IOCommand is not serializable"
+  |     "IOClassNameOverride" = "IOUSBInterface"
+  |   }
+  |   
+  +-o AppleUSBHostCompositeDevice  <class AppleUSBHostCompositeDevice, id 0x100000672, !registered, !matched, active, busy 0, retain 4>
+      {
+        "IOProbeScore" = 50000
+        "CFBundleIdentifier" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+        "IOProviderClass" = "IOUSBHostDevice"
+        "IOClass" = "AppleUSBHostCompositeDevice"
+        "IOPersonalityPublisher" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+        "bDeviceSubClass" = 0
+        "CFBundleIdentifierKernel" = "com.apple.driver.usb.AppleUSBHostCompositeDevice"
+        "IOMatchedAtBoot" = Yes
+        "IOMatchCategory" = "IODefaultMatchCategory"
+        "IOPrimaryDriverTerminateOptions" = Yes
+        "bDeviceClass" = 0
+      }
+      
+

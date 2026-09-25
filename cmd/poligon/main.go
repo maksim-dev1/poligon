@@ -96,7 +96,10 @@ func serve(log *slog.Logger, cfgPath string, devFlag bool) error {
 		BundletoolJar:   os.Getenv("POLIGON_BUNDLETOOL"),
 		SigningIdentity: os.Getenv("POLIGON_SIGNING_IDENTITY"),
 		ProfileDir:      envOr("POLIGON_PROFILE_DIR", "config/profiles"),
-		WorkDir:         os.TempDir(),
+		// Xcode's automatic signing (the WebDriverAgent build) keeps the team
+		// wildcard profile there — enough to install any build on farm iPhones
+		ExtraProfileDirs: install.XcodeProfileDirs(),
+		WorkDir:          os.TempDir(),
 	})
 	devUser := os.Getenv("POLIGON_DEV_USER")
 	a := auth.New(st, auth.Options{
